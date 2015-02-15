@@ -1,4 +1,5 @@
 var http = require("http");
+var fs = require("fs");
 sprintf = require("./sprintf.js").sprintf;
 
 var server = function(dat){
@@ -47,6 +48,21 @@ server.prototype.parse = function(req, res){
 
 	const urldata = this.parseURL(req.url);
 	this.logConnection(req, urldata);
+
+	const filepath = __dirname + "/pages" + req.url + ".html";
+	var _this = this;
+	fs.exists(filepath, function(exists){
+		if(!exists)
+			_this.parse2(req, res, urldata);
+		else{
+			fs.readFile(filepath, "utf8", function(err, dat){
+				_this.doHTML(res, dat);
+			});
+		}
+	});
+};
+
+server.prototype.parse2 = function(req, res, urldata){
 	var dat = urldata[0];
 	var redir;
 
@@ -62,8 +78,7 @@ server.prototype.parse = function(req, res){
 			this.doRedirect(res, redir);
 	}else
 		this.doHTML(res, "That page wasnt found :(");
-};
-
+}
 server.prototype.doRedirect = function(res, redir){
 	res.statusCode = 302;
 	res.setHeader('Content-Type', 'text/html');
@@ -91,5 +106,6 @@ server.prototype.getExtIP = function(callback, doreset){
 		callback(this.extip);
 	}
 };
-
+server.prototype.gethtmlpage = function(req, res, urldata){
+};
 module.exports = server;

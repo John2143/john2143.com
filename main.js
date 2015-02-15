@@ -4,8 +4,7 @@
 
 //import
 var sys = require("sys");
-var server = require("./server.js")
-
+var server = require("./server.js");
 var stdin = process.openStdin();
 var stdinglobal = {};
 stdin.addListener("data", function(d){
@@ -51,6 +50,12 @@ var listServers = function(server, res, data){
 		html.push(chunks[ind++]);
 	}
 	server.doHTML(res, html.join(''));
+};
+var arin = "not loaded";
+
+
+var weprosnow = function(server, res, data){
+	server.doHTML(res, arin);
 };
 
 //consts
