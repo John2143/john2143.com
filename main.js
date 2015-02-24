@@ -51,12 +51,6 @@ var listServers = function(server, res, data){
 	}
 	server.doHTML(res, html.join(''));
 };
-var arin = "not loaded";
-
-
-var weprosnow = function(server, res, data){
-	server.doHTML(res, arin);
-};
 
 //consts
 var servers = {
