@@ -42,6 +42,7 @@ server.prototype.logConnection = function(req, data){
 		req.connection.remoteAddress,
 		data.join("/")));
 };
+var existFunc = fs.exists || require("path").exists;
 server.prototype.parse = function(req, res){
 	if(this.denyFavicon(req.url, res))
 		return;
@@ -51,7 +52,7 @@ server.prototype.parse = function(req, res){
 
 	const filepath = __dirname + "/pages" + req.url + ".html";
 	var _this = this;
-	fs.exists(filepath, function(exists){
+	existFunc(filepath, function(exists){
 		if(!exists)
 			_this.parse2(req, res, urldata);
 		else{
