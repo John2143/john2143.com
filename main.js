@@ -4,6 +4,7 @@
 
 //import
 var server = require("./server.js");
+var serverConst = require("./const.js");
 
 var retport = function(server, res, a){
 	server.doRedirect(res, "http://john2143.com:" + (a || 80))
@@ -66,6 +67,6 @@ var redirs = {
 var srv = new server({
 	servers: servers,
 	redirs: redirs,
-	ip: "192.168.1.2",
-	port: 80
+	ip: serverConst.IP,
+	port: serverConst.PORT
 });
