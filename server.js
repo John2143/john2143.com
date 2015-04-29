@@ -13,6 +13,9 @@ var server = function(dat){
 		_this.parse(req, res);
 	});
 	this.server.listen(this.port, this.ip);
+	this.getExtIP(function(ip){
+		console.log("EXTIP is " + String(ip));
+	});
 }
 
 server.prototype.denyFavicon = function(url, res){
