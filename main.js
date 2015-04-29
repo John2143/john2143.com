@@ -52,6 +52,14 @@ var listServers = function(server, res, data){
 	server.doHTML(res, html.join(''));
 };
 
+var juush = function(server, res, url){
+	if(url[1]){
+		server.doHTML(res,"AAAAAA" + url[1]);
+	}else{
+		server.doHTML(res,"JJJJJJ");
+	}
+};
+
 //consts
 var servers = {
 	source: 27015,
@@ -67,10 +75,12 @@ var servers = {
 var redirs = {
 	git: "https://github.com/John2143658709/",
 	server: "ts3server://uk-voice2.fragnet.net:9992",
+	johnhud: "https://github.com/John2143658709/johnhud/archive/master.zip",
 	ip: showIP,
 	p: retport,
 	_def: "git",
 	list: listServers,
+	juush: juush,
 };
 
 var srv = new server({

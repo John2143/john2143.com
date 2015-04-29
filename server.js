@@ -40,7 +40,7 @@ server.prototype.logConnection = function(req, data){
 	console.log(sprintf(
 		"%s %s",
 		req.connection.remoteAddress,
-		data.join("|")));
+		data.join("/")));
 };
 server.prototype.parse = function(req, res){
 	if(this.denyFavicon(req.url, res))
