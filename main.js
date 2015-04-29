@@ -3,27 +3,7 @@
 // pending full rewrite
 
 //import
-var sys = require("sys");
 var server = require("./server.js");
-var stdin = process.openStdin();
-var stdinglobal = {};
-stdin.addListener("data", function(d){
-	const str = d.toString().substring(0, d.length - 2); //remove \0 and \n
-	try{
-		var func = new Function("window", str);
-		var ret = func(stdinglobal);
-		switch(typeof(ret)){
-			case "function":
-				console.log("function<>");
-				break;
-			default:
-				console.log(ret);
-				break;
-		}
-	}catch(e){
-		console.log(e);
-	}
-});
 
 var retport = function(server, res, a){
 	server.doRedirect(res, "http://john2143.com:" + (a || 80))
@@ -89,4 +69,3 @@ var srv = new server({
 	ip: "192.168.1.2",
 	port: 80
 });
-stdinglobal.server = srv;
