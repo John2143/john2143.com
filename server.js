@@ -96,7 +96,11 @@ server.prototype.doHTML = function(res, html){
 };
 server.prototype.getExtIP = function(callback, doreset){
 	if(doreset || !this.extip){
-		http.get("http://myexternalip.com/raw", function(r){
+		http.get({
+			host: "myexternalip.com",
+			port: 80,
+			path: "/raw"
+		}, function(r){
 			r.setEncoding('utf8');
 			r.on('data', function(d){
 				this.extip = d;
