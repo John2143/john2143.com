@@ -10,7 +10,7 @@ var retport = function(server, res, a){
 	server.doRedirect(res, "http://john2143.com:" + (a || 80))
 };
 var wtfskippy = function(server, res, a){
-	server.doHTML("yes " + (a || "skippy") + " why are you so useless");
+	server.doHTML(res, "yes " + (a || "skippy") + " why are you so useless");
 };
 var showIP = function(server, res){
 	server.getExtIP(function(ip){
