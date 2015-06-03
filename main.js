@@ -9,6 +9,9 @@ var serverConst = require("./const.js");
 var retport = function(server, res, a){
 	server.doRedirect(res, "http://john2143.com:" + (a || 80))
 };
+var wtfskippy = function(server, res, a){
+	server.doHTML("yes "a + " why are you so useless");
+};
 var showIP = function(server, res){
 	server.getExtIP(function(ip){
 		server.doHTML(res, ip);
@@ -59,8 +62,10 @@ var redirs = {
 	johnhud: "https://github.com/John2143658709/johnhud/archive/master.zip",
 	ip: showIP,
 	p: retport,
+	minecraft: function(server, res) {server.doRedirect(res, "youriphere:yourporthere");},
 	_def: "git",
 	list: listServers,
+	name: wtfskippy,
 	juush: juush,
 };
 
