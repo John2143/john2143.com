@@ -1,0 +1,77 @@
+<html>
+	<head>
+		<title>Add new page</title>
+	</head>
+	<style>
+		ul{list-style-type: none;}
+		.fadein,.fadeout{
+			transition: .5s ease-in-out opacity;
+		}
+
+		.fadein.ng-hide-remove,
+		.fadeout.ng-hide-add.ng-hide-add-active {
+			opacity: 0;
+			display: block !important;
+		}
+
+		.fadeout.ng-hide-add,
+		.fadein.ng-hide-remove.ng-hide-remove-active {
+			opacity: 1;
+			display: block !important;
+		}
+	</style>
+	<script src="https://code.angularjs.org/1.4.4/angular.min.js"></script>
+	<script src="https://code.angularjs.org/1.4.4/angular-animate.min.js"></script>
+	<script>
+
+angular.module("addpage", ['ngAnimate']).controller("addpagec", function($scope){
+	$scope.options = ['Permanant', 'Temporary', 'Delete', 'pUndelete', 'tUndelete'];
+	$scope.codeTypes = ['HTML', 'Javascript'];
+	$scope.showTA = false;
+	$scope.codeType = 0;
+	$scope.$watch("radioChange", function(now, last){
+		$scope.showTA = now === "perm" || now === "temp";
+	});
+	if(localStorage.debug){
+		document.getElementById("pageform").action="/doAddPage/dump";
+	}
+});
+	</script>
+	<body><div ng-app="addpage" ng-controller="addpagec">
+		<form action="/doAddPage" method="POST" id="pageform" name="pageform">
+			<button type="submit" id="go">Add</button><br/>
+			Password <input type="password" id="password" name="password"/><br/>
+			Page Name <input type="text" id="pagename" name="pagename"/><br/>
+			<ul><li
+				ng-repeat="v in options"
+				ng-init="short = ((v | limitTo : 4) | lowercase)"
+			>
+				{{v}}
+				<input
+					type="radio"
+					id="rad_{{short}}"
+					name="type"
+					value="{{short}}"
+					ng-model="$parent.radioChange"
+				/>
+			</label>
+			</ul>
+			<ul><li
+				ng-repeat="v in codeTypes"
+			>
+				{{v}}
+				<input
+					type="radio"
+					id="radc_{{v}}"
+					name="codeType"
+					value="{{$index}}"
+					ng-model="$parent.codeType"
+				/>
+			</li></ul>
+			<div ng-show="showTA" id="codeArea" class="fadein fadeout">
+			Code ({{codeTypes[codeType]}})
+			<textarea id="code" name="code"></textarea>
+			</div>
+		</form>
+	</div></body>
+</html>

@@ -1,13 +1,13 @@
 var http = require("http");
 var fs = require("fs");
-sprintf = require("./sprintf.js").sprintf;
+var sprintf = require("./sprintf.js").sprintf;
 
 var server = function(dat){
 	this.ip = dat.ip || "0.0.0.0";
 	this.port = dat.port || 80;
-	this.servers = dat.servers || {};
 	this.redirs = dat.redirs || {};
 	this.extip = null;
+	this.bonuspages = {};
 	var _this = this;
 	this.server = http.createServer(function(req, res){
 		_this.parse(req, res);
@@ -49,45 +49,49 @@ var existFunc = fs.exists || require("path").exists;
 server.prototype.parse = function(req, res){
 	if(this.denyFavicon(req.url, res))
 		return;
-
 	const urldata = this.parseURL(req.url);
+	const filepath = __dirname + "/pages" + req.url;
 	this.logConnection(req, urldata);
-
-	const filepath = __dirname + "/pages" + req.url + ".html";
-	var _this = this;
-	existFunc(filepath, function(exists){
-		if(!exists)
-			_this.parse2(req, res, urldata);
-		else{
-			fs.readFile(filepath, "utf8", function(err, dat){
-				_this.doHTML(res, dat);
-			});
-		}
-	});
+	if(req.method == "GET"){
+		if(fs.existsSync(filepath + ".html"))
+			this.doHTML(res, fs.readFileSync(filepath + ".html"));
+		else
+			this.parse2(req, res, urldata);
+	}else if(req.method == "POST"){
+		if(this.redirs[urldata[0]])
+			this.redirs[urldata[0]](this, res, urldata, req, "POST");
+		else
+			this.doHTML(res, "This page may not be posted to or does not exist");
+	}else{
+		this.doHTML(res, "Unsupported request method");
+	}
 };
 
+server.prototype.redirParse = function(res, redir, urldata, req){
+	if(typeof redir == "function")
+		redir(this, res, urldata, req, "GET");
+	else
+		this.doRedirect(res, redir);
+}
 server.prototype.parse2 = function(req, res, urldata){
 	var dat = urldata[0];
-	var redir;
 
-	if(dat)
-		redir = this.redirs[dat];
-	else
-		redir = this.redirs[this.redirs._def]; //Default to default action defined by the redirect table
-
-	if(redir){
-		if(typeof redir == "function")
-			redir(this, res, urldata);
+	if(!dat)
+		this.redirParse(res, this.redirs[this.redirs._def], urldata, req);
+	else{
+		if(this.redirs[dat])
+			this.redirParse(res, this.redirs[dat], urldata, req);
+		else if(this.bonuspages[dat]) //Dont need to worry about html pages
+			this.doHTML(res, this.bonuspages[dat]);
 		else
-			this.doRedirect(res, redir);
-	}else
-		this.doHTML(res, "That page wasnt found :(");
+			this.doHTML(res, "That page wasnt found :(");
+	}
 }
 server.prototype.doRedirect = function(res, redir){
 	res.statusCode = 302;
 	res.setHeader('Content-Type', 'text/html');
 	res.setHeader('Location', redir);
-	res.end('Redirecting to '+ redir);
+	res.end('Redirecting to ' + redir);
 };
 server.prototype.doHTML = function(res, html){
 	res.statusCode = 200;
@@ -113,7 +117,5 @@ server.prototype.getExtIP = function(callback, doreset){
 	} else {
 		callback(this.extip);
 	}
-};
-server.prototype.gethtmlpage = function(req, res, urldata){
 };
 module.exports = server;
