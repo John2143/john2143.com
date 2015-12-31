@@ -59,6 +59,7 @@ var servers = {
 var redirs = {
 	git: "https://github.com/John2143658709/",
 	server: "ts3server://uk-voice2.fragnet.net:9992",
+	steam: "//steamcommunity.com/profiles/76561198027378405",
 	johnhud: "https://github.com/John2143658709/johnhud/archive/master.zip",
 	ip: showIP,
 	p: retport,
