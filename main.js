@@ -82,7 +82,7 @@ Foreign-key constraints:
 
 const inlineTypes = [
 	"txt", "text", "png", "jpg", "jpeg", "html",
-	//"webm", "mp4", "mp3", "wav", "vorbis"
+	"webm", "mp4", "mp3", "wav", "vorbis"
 ];
 
 var juushDownload = function(server, res, urldata, req){
@@ -90,6 +90,45 @@ var juushDownload = function(server, res, urldata, req){
 	var disposition = urldata[2];
 	var filepath = __dirname + "/juushFiles/" + requestURL;
 
+	//You will get a referer and range if you are trying to stream an audio/video
+	if(req.headers.referer && req.headers.range){
+		try{
+			var stat = fs.statSync(filepath);
+		}catch(e){
+			res.writeHead(400, {});
+			res.end();
+			return;
+		}
+
+		var fullContentLength = stat.size;
+		var rangeRequestRegex = /bytes=(\d*)-(\d*)/.exec(req.headers.range);
+		var rangeStart = Number(rangeRequestRegex[1]);
+
+		if(rangeRequestRegex[2] === ""){
+			var rangeEnd = fullContentLength - 1;
+		}else{
+			var rangeEnd = Number(rangeRequestRegex[2]);
+		}
+
+		var contentLength = rangeEnd - rangeStart + 1;
+
+		if(contentLength <= 0 || rangeStart >= fullContentLength || rangeEnd >= fullContentLength){
+			res.writeHead(416, {});
+			res.end();
+			return;
+		}
+
+		res.writeHead(206, {
+			"Content-Length": contentLength,
+			"Content-Range": "bytes " + rangeStart + "-" + rangeEnd + "/" + fullContentLength,
+		});
+
+		var filePipe = fs.createReadStream(filepath, {start: rangeStart, end: rangeEnd});
+		res.on("error", function(){filePipe.end();});
+		filePipe.pipe(res);
+
+		return;
+	};
 	pg.connect(dbconstr, function(err, client, done){
 		if(dbError(err, client, done)) return juushError(res);
 		client.query({
@@ -186,6 +225,7 @@ var juushDownload = function(server, res, urldata, req){
 								"Content-Type": data.mimetype,
 								"Content-Disposition": codisp,
 								"Content-Length": stat.size,
+								"Accept-Ranges": "bytes",
 							});
 							var stream = fs.createReadStream(filepath);
 							res.on("error", function(){stream.end();});
