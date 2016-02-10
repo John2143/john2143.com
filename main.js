@@ -46,9 +46,9 @@ var randomStr = function(length){
 		final += str[ran() % str.length];
 	}
 	return final;
-}
+};
 
-/*
+/* DATABASE INFO
 juush=> \d keys
 Table "public.keys"
 Column |         Type          |                     Modifiers
@@ -80,160 +80,210 @@ Foreign-key constraints:
 	"index_keyid_fkey" FOREIGN KEY (keyid) REFERENCES keys(id)
 */
 
-const inlineTypes = [
-	"txt", "text", "png", "jpg", "jpeg", "html",
-	"webm", "mp4", "mp3", "wav", "vorbis"
-];
+var isStreamRequest = function(req){
+	//You will get a referer and range if you are trying to stream an audio/video
+	return req.headers.referer && req.headers.range;
+};
+
+var serveStreamRequest = function(res, req, filepath){
+	const rangeRequestRegex = /bytes=(\d*)-(\d*)/;
+	try{
+		//statSync fails if filepath does not exist
+		var stat = fs.statSync(filepath);
+	}catch(e){
+		res.writeHead(400, {});
+		res.end();
+		return;
+	}
+
+	var range = rangeRequestRegex.exec(req.headers.range);
+	var fullContentLength = stat.size;
+	var rangeStart = Number(range[1]);
+
+	if(range[2] === ""){
+		var rangeEnd = fullContentLength - 1;
+	}else{
+		var rangeEnd = Number(range[2]);
+	}
+
+	var contentLength = rangeEnd - rangeStart + 1;
+
+	if(contentLength <= 0 ||
+		rangeStart + fullContentLength >= rangeEnd ||
+		rangeStart >= fullContentLength ||
+		rangeEnd >= fullContentLength
+	){
+		res.writeHead(416, {}); //Cannot deliver range
+		res.end();
+		return;
+	}
+
+	res.writeHead(206, { //Partial content
+		//Ignoring Content-Type to not need a db request
+		"Content-Length": contentLength,
+		"Content-Range": "bytes " + rangeStart + "-" + rangeEnd + "/" + fullContentLength,
+	});
+
+	var filePipe = fs.createReadStream(filepath, {start: rangeStart, end: rangeEnd});
+	res.on("error", function(){filePipe.end();});
+	filePipe.pipe(res);
+}
+
+var IPEqual = function(a, b){
+	return a.split("/")[0] === b.split("/")[0];
+}
+
+var deleteUpload = function(client, id, newmime, cb){
+	fs.unlink(filepath, function(){});
+	client.query({
+		text: "UPDATE index SET mimetype='$2' WHERE id=$1",
+		name: "delete_file",
+		values: [id, newmime],
+	}, cb);
+};
+
+var shouldInline = function(filedata, mime){
+	//const inlineTypes = [
+		//"txt", "text", "png", "jpg", "jpeg", "html",
+		//"webm", "mp4", "mp3", "wav", "vorbis"
+	//];
+	const regex = /(.+)\/(.+)/g;
+	var regexResult = regex.exec(mime);
+	var category = regexResult[1];
+	var subset = regexResult[2];
+
+	return category === "video" || category === "audio" ||
+		category === "image" || category === "text";
+};
+
+var processDownload = function(req, res, client, err, result, done, uploadID, disposition){
+	if(result.rowCount == 0){
+		res.writeHead(404, {
+			"Content-Type": "text/html"
+		});
+		res.end("This upload does not exist");
+		return done();
+	}
+
+	var filepath = getFilename(uploadID);
+	var data = result.rows[0];
+
+	if(data.mimetype == "deleted"){
+		done();
+		res.writeHead(404, {
+			"Content-Type": "text/html"
+		});
+		res.end("This file has been deleted.");
+		return done();
+	}else if(data.mimetype.split("/")[0] == "d"){
+		done();
+		res.writeHead(200, {
+			"Content-Type": "text/html"
+		});
+		res.end("This file has been disabled by the uplaoder. It may be re-enabled in the future.");
+		return done();
+	}else if(data.mimetype == "expired"){
+		res.writeHead(200, {
+			"Content-Type": "text/html"
+		});
+		res.end("this file has been automatically deleted.");
+		return done();
+	}
+
+	if(disposition == "delete"){
+		if(IPEqual(data.ip, req.connection.remoteAddress)){
+			deleteUpload(client, uploadID, "deleted", function(err, result){
+				if(err) return juushError(res);
+				res.writeHead(200, {
+					"Content-Type": "text/html"
+				});
+				res.end("File successfully deleted. It will still appear in your user page.");
+				done();
+			});
+			return;
+		}else{
+			res.writeHead(401, {
+				"Content-Type": "text/html"
+			});
+			res.end("You do not have access to delete this file.");
+			return done();
+		}
+	}
+
+	try{
+		var stat = fs.statSync(filepath);
+	}catch(e){
+		res.writeHead(500, {
+			"Content-Type": "text/html"
+		});
+		res.end("Internal error: file may have been manually deleted.");
+		return done();
+	}
+
+
+	if(disposition === "dl"){
+		var codisp = "attachment";
+	}else{
+		if(shouldInline(stat, data.mimetype)){
+			var codisp = "inline";
+		}else{
+			var codisp = "attachment";
+		}
+	}
+
+	codisp += '; filename="' + data.filename + '"';
+
+	client.query({
+		text: "UPDATE index SET " +
+			"downloads=downloads+1, " +
+			"lastdownload=now() " +
+			"WHERE id=$1",
+		name: "download_increment_downloads",
+		values: [uploadID],
+	}, function(err, result){
+		if(err)
+			console.log("Error when incrementing download.", err);
+		done();
+	});
+
+	res.writeHead(200, {
+		"Content-Type": data.mimetype,
+		"Content-Disposition": codisp,
+		"Content-Length": stat.size,
+		"Accept-Ranges": "bytes",
+	});
+
+	var stream = fs.createReadStream(filepath);
+	stream.pipe(res);
+};
+
+var getFilename = function(id){
+	return __dirname + "/juushFiles/" + id;
+};
+
+pg.connect(dbconstr, function(err, client, done){
+	console.log("CONNECTING TO DB", err)
+	done();
+});
 
 var juushDownload = function(server, res, urldata, req){
-	var requestURL = urldata[1];
+	var uploadID = urldata[1];
 	var disposition = urldata[2];
-	var filepath = __dirname + "/juushFiles/" + requestURL;
 
-	//You will get a referer and range if you are trying to stream an audio/video
-	if(req.headers.referer && req.headers.range){
-		try{
-			var stat = fs.statSync(filepath);
-		}catch(e){
-			res.writeHead(400, {});
-			res.end();
-			return;
-		}
-
-		var fullContentLength = stat.size;
-		var rangeRequestRegex = /bytes=(\d*)-(\d*)/.exec(req.headers.range);
-		var rangeStart = Number(rangeRequestRegex[1]);
-
-		if(rangeRequestRegex[2] === ""){
-			var rangeEnd = fullContentLength - 1;
-		}else{
-			var rangeEnd = Number(rangeRequestRegex[2]);
-		}
-
-		var contentLength = rangeEnd - rangeStart + 1;
-
-		if(contentLength <= 0 || rangeStart >= fullContentLength || rangeEnd >= fullContentLength){
-			res.writeHead(416, {});
-			res.end();
-			return;
-		}
-
-		res.writeHead(206, {
-			"Content-Length": contentLength,
-			"Content-Range": "bytes " + rangeStart + "-" + rangeEnd + "/" + fullContentLength,
-		});
-
-		var filePipe = fs.createReadStream(filepath, {start: rangeStart, end: rangeEnd});
-		res.on("error", function(){filePipe.end();});
-		filePipe.pipe(res);
-
-		return;
+	if(isStreamRequest(req)){
+		return serveStreamRequest(res, req, getFilename(uploadID));
 	};
+
 	pg.connect(dbconstr, function(err, client, done){
 		if(dbError(err, client, done)) return juushError(res);
 		client.query({
 			//TODO only check ip when trying to delete
 			text: "SELECT mimetype, ip, filename FROM index WHERE id=$1",
 			name: "download_check_dl",
-			values: [requestURL],
+			values: [uploadID],
 		}, function(err, result){
 			if(dbError(err, client, done)) return juushError(res);
-			if(result.rowCount == 0){
-				done();
-				res.writeHead(404, {
-					"Content-Type": "text/html"
-				});
-				res.end("The file could not be found.");
-			}else{
-				var data = result.rows[0];
-				if(data.mimetype == "deleted"){
-					done();
-					res.writeHead(404, {
-						"Content-Type": "text/html"
-					});
-					res.end("This file has been deleted.");
-				}else if(data.mimetype.split("/")[0] == "d"){
-					done();
-					res.writeHead(200, {
-						"Content-Type": "text/html"
-					});
-					res.end("This file has been disabled by the uplaoder. It may be re-enabled in the future.");
-				}else if(data.mimetype == "expired"){
-					done();
-					res.writeHead(200, {
-						"Content-Type": "text/html"
-					});
-					res.end("this file has been automatically deleted.");
-				}else{
-					if(disposition == "delete"){
-						if(data.ip.split("/")[0] == req.connection.remoteAddress){
-							fs.unlink(filepath, function(){});
-							client.query({
-								text: "UPDATE index SET mimetype='deleted' WHERE id=$1",
-								name: "delete_file",
-								values: [requestURL],
-							}, function(err, result){
-								if(err){
-									juushError(res);
-								}else{
-									res.writeHead(200, {
-										"Content-Type": "text/html"
-									});
-									res.end("File successfully deleted. It will still appear in your user page.");
-								}
-								done();
-							});
-						}else{
-							done();
-							res.writeHead(401, {
-								"Content-Type": "text/html"
-							});
-							res.end("You do not have access to delete this file.");
-						}
-					}else{
-						//fs.statSync() throws an error, this will pass the error
-						fs.stat(filepath, function(err, stat){
-							if(err) return juushError(res);
-							var type = data.filename.split(".").pop().toLowerCase();
-							var download = "attachment; filename=\"" + data.filename + '"';
-							var codisp = "inline; filename=\"" + data.filename + '"';
-							if(disposition){
-								if(disposition == "inline" || disposition == "i" ||
-									disposition == "nodl"){
-									//keep inline default
-								}else{
-									codisp = download;
-								}
-							}else if(inlineTypes.indexOf(type) == -1){
-								codisp = download;
-							}
-
-							client.query({
-								text: "UPDATE index SET " +
-									"downloads=downloads+1, " +
-									"lastdownload=now() " +
-									"WHERE id=$1",
-								name: "download_increment_downloads",
-								values: [requestURL],
-							}, function(err, result){
-								if(err)
-									console.log("Error when incrementing download.", err);
-								done();
-							});
-
-							res.writeHead(200, {
-								"Content-Type": data.mimetype,
-								"Content-Disposition": codisp,
-								"Content-Length": stat.size,
-								"Accept-Ranges": "bytes",
-							});
-							var stream = fs.createReadStream(filepath);
-							res.on("error", function(){stream.end();});
-							stream.pipe(res);
-						});
-					}
-				}
-			}
+			processDownload(req, res, client, err, result, done, uploadID, disposition);
 		});
 	});
 };
