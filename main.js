@@ -109,7 +109,6 @@ var serveStreamRequest = function(res, req, filepath){
 	var contentLength = rangeEnd - rangeStart + 1;
 
 	if(contentLength <= 0 ||
-		rangeStart + fullContentLength >= rangeEnd ||
 		rangeStart >= fullContentLength ||
 		rangeEnd >= fullContentLength
 	){
@@ -133,10 +132,10 @@ var IPEqual = function(a, b){
 	return a.split("/")[0] === b.split("/")[0];
 }
 
-var deleteUpload = function(client, id, newmime, cb){
-	fs.unlink(filepath, function(){});
+var setMimeType = function(client, id, newmime, cb){
+	fs.unlink(getFilename(id), function(){});
 	client.query({
-		text: "UPDATE index SET mimetype='$2' WHERE id=$1",
+		text: "UPDATE index SET mimetype=$2 WHERE id=$1",
 		name: "delete_file",
 		values: [id, newmime],
 	}, cb);
@@ -190,25 +189,6 @@ var processDownload = function(req, res, client, err, result, done, uploadID, di
 		return done();
 	}
 
-	if(disposition == "delete"){
-		if(IPEqual(data.ip, req.connection.remoteAddress)){
-			deleteUpload(client, uploadID, "deleted", function(err, result){
-				if(err) return juushError(res);
-				res.writeHead(200, {
-					"Content-Type": "text/html"
-				});
-				res.end("File successfully deleted. It will still appear in your user page.");
-				done();
-			});
-			return;
-		}else{
-			res.writeHead(401, {
-				"Content-Type": "text/html"
-			});
-			res.end("You do not have access to delete this file.");
-			return done();
-		}
-	}
 
 	try{
 		var stat = fs.statSync(filepath);
@@ -266,6 +246,38 @@ pg.connect(dbconstr, function(err, client, done){
 	done();
 });
 
+var juushUploadInfo = function(client, uploadID, cb){
+	client.query({
+		//TODO only check ip when trying to delete
+		text: "SELECT mimetype, filename, uploaddate, keyid, downloads, lastdownload, name " +
+		"FROM index INNER JOIN keys ON index.keyid=keys.id WHERE index.id=$1",
+		name: "upload_info",
+		values: [uploadID],
+	}, cb);
+};
+
+var processInfoReq = function(res, result){
+	if(result.rowCount === 0){
+		res.writeHead(404, {
+			"Content-Type": "text/html"
+		});
+		res.end("This upload does not exist");
+		return;
+	}
+
+	var data = result.rows[0];
+
+	res.writeHead(200, {
+		"Content-Type": "text/html",
+	});
+	res.write("Filename: " + data.filename);
+	res.write("<br>Upload date: " + data.uploaddate);
+	res.write("<br>Uploaded by: " + data.name);
+	res.write("<br>Downloads: " + data.downloads);
+	res.write("<br>File Type: " + data.mimetype);
+	res.end();
+};
+
 var juushDownload = function(server, res, urldata, req){
 	var uploadID = urldata[1];
 	var disposition = urldata[2];
@@ -276,15 +288,57 @@ var juushDownload = function(server, res, urldata, req){
 
 	pg.connect(dbconstr, function(err, client, done){
 		if(dbError(err, client, done)) return juushError(res);
-		client.query({
-			//TODO only check ip when trying to delete
-			text: "SELECT mimetype, ip, filename FROM index WHERE id=$1",
-			name: "download_check_dl",
-			values: [uploadID],
-		}, function(err, result){
-			if(dbError(err, client, done)) return juushError(res);
-			processDownload(req, res, client, err, result, done, uploadID, disposition);
-		});
+		if(disposition === "delete"){
+			client.query({
+				text: "SELECT ip FROM index WHERE id=$1",
+				name: "delete_check_ip",
+				values: [uploadID],
+			}, function(err, result){
+				if(dbError(err, client, done)) return juushError(res);
+
+				if(result.rowCount === 0){
+					res.writeHead(404, {
+						"Content-Type": "text/html"
+					});
+					res.end("File does not exist");
+					return done();
+				}
+
+				var data = result.rows[0];
+
+				if(!IPEqual(data.ip, req.connection.remoteAddress)){
+					res.writeHead(401, {
+						"Content-Type": "text/html"
+					});
+					res.end("You do not have access to delete this file.");
+					return done();
+				}
+
+				setMimeType(client, uploadID, "deleted", function(err, result){
+					if(dbError(err, client, done)) return juushError(res);
+					res.writeHead(200, {
+						"Content-Type": "text/html"
+					});
+					res.end("File successfully deleted. It will still appear in your user page.");
+				});
+				done();
+			});
+		}else if(disposition === "info"){
+			juushUploadInfo(client, uploadID, function(err, result){
+				if(dbError(err, client, done)) return juushError(res);
+				processInfoReq(res, result);
+			});
+			done();
+		}else{
+			client.query({
+				text: "SELECT mimetype, filename FROM index WHERE id=$1",
+				name: "download_check_dl",
+				values: [uploadID],
+			}, function(err, result){
+				if(dbError(err, client, done)) return juushError(res);
+				processDownload(req, res, client, err, result, done, uploadID, disposition);
+			});
+		}
 	});
 };
 
@@ -311,6 +365,26 @@ var getDatabaseConnectionAndURL = function(callback){
 	});
 };
 
+var parseHeadersFromUpload = function(data){
+	var headers = /[\s\S]+\r\n\r\n/.exec(data)[0];
+
+	try{
+		var key = /name="([A-Za-z0-9]+)"/.exec(headers)[1];
+		var filename = /filename="([^"]+)"/.exec(headers)[1];
+		var mimetype = /Content\-Type: (.+)\r/.exec(headers)[1];
+	}catch(e){
+		console.log("invalid headers received", e);
+		return null;
+	}
+
+	return {
+		key: key,
+		filename: filename,
+		mimetype: mimetype,
+		headerSize: headers.length,
+	};
+};
+
 //This appears at the end of every post request with 22x being a hex hash
 const match = new Buffer("\r\n----------------------xxxxxxxxxxxxxxx--\r\n");
 
@@ -321,8 +395,19 @@ const match = new Buffer("\r\n----------------------xxxxxxxxxxxxxxx--\r\n");
 var juushUpload = function(server, res, urldata, req){
 	getDatabaseConnectionAndURL(function(err, url, client, done){
 		if(err) return true;
+		console.log("File will appear at " + url);
 
-		var filepath = __dirname + "/juushFiles/" + url;
+		var timeoutID;
+		var fTimeout = function(){
+			if(timeoutID){
+				//console.log("timout remvoed", timeoutID);
+				clearTimeout(timeoutID);
+			}
+			timeoutID = setTimeout(error, 20000);
+			//console.log("added timeout", timeoutID);
+		};
+
+		var filepath = getFilename(url);
 		var wstream = fs.createWriteStream(filepath, {
 			flags: "w",
 			encoding: "binary",
@@ -330,17 +415,19 @@ var juushUpload = function(server, res, urldata, req){
 
 		var isError = false;
 		var error = function(){
+			console.log("Upload error for " + url);
 			isError = true;
-			wstream.end();
+			if(!wstream.finished) wstream.end();
+			if(!res.finished) res.end();
 			fs.unlink(filepath, function(){});
 			client.query({
 				text: "DELETE FROM index WHERE id=$1",
 				name: "upload_download_error_remove_entry",
 				values: [url],
 			}, function(err, result){
-				if(dbError(err, client, done)) return error();
-				done();
+				//if(dbError(err, client, done)) return error();
 			});
+			done();
 		};
 
 		var errorServe = function(){
@@ -357,6 +444,8 @@ var juushUpload = function(server, res, urldata, req){
 
 		wstream.on("finish", function(){
 			if(isError) return;
+			clearTimeout(timeoutID);
+			//console.log("done, timeout", timeoutID);
 			//TODO move to req end?
 			res.end("http://john2143.com/f/" + url);
 			done();
@@ -364,25 +453,29 @@ var juushUpload = function(server, res, urldata, req){
 
 		var headersReceived = false;
 
+		fTimeout();
 		req.on("data", function(data){
 			//This whole function sucks
 			if(isError) return;
+			fTimeout();
+
 			var write = data;
 			if(!headersReceived){
 				headersReceived = true;
-				var headers = data.toString().split("\r\n\r\n", 1)[0];
-				write = new Buffer(data.length - (headers.length + 4));
-				data.copy(write, 0, (headers.length + 4));
-				var spl1 = /Content\-Disposition: form\-data; name="([A-Za-z0-9]+)"; filename="([^"]+)"/.exec(headers);
-				var spl2 = /Content\-Type: (.+)/.exec(headers);
-				var key = spl1[1];
-				var filename = spl1[2];
-				var mimetype = spl2[1];
+
+				var headers = parseHeadersFromUpload(data);
+
+				if(!headers){
+					return error(); //Invalid headers
+				}
+
+				var write = new Buffer(data.length - (headers.headerSize));
+				data.copy(write, 0, (headers.headerSize));
 
 				client.query({
 					text: "SELECT id FROM keys WHERE key=$1",
 					name: "upload_check_key",
-					values: [key],
+					values: [headers.key],
 				}, function(err, result){
 					if(dbError(err, client, done)) return error();
 					if(result.rowCount == 0){
@@ -391,14 +484,13 @@ var juushUpload = function(server, res, urldata, req){
 							"Content-Type": "text/html"
 						});
 						res.end("You must supply a valid key in order to upload. Your key may be disabled or invalid.");
+						error();
 					}else{
-						//TODO move this to finish?
-						//File transfer may fail
 						client.query({
 							text: "INSERT INTO index(id, uploaddate, ip, filename, mimetype, keyid)" +
 								"VALUES($1, now(), $2, $3, $4, $5)",
 							name: "upload_insert_download",
-							values: [url, req.connection.remoteAddress, filename, mimetype, result.rows[0].id],
+							values: [url, req.connection.remoteAddress, headers.filename, headers.mimetype, result.rows[0].id],
 						}, function(err, result){
 							if(dbError(err, client, done)) return error();
 						});
