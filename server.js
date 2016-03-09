@@ -1,5 +1,7 @@
 var http = require("http");
 var fs = require("fs");
+var querystring = require("querystring");
+var url = require("url");
 sprintf = require("./sprintf.js").sprintf;
 
 var server = function(dat){
@@ -30,24 +32,17 @@ server.prototype.denyFavicon = function(url, res){
 	return false;
 };
 
-var URL_PARSE_REGEX = /\/([^\/]*)/g;
-server.prototype.parseURL = function(url){
-	var data = [];
-	while(true) {
-		var reg = URL_PARSE_REGEX.exec(url)
-		if(!reg)
-			break;
-		data.push(reg[1]);
-	}
-	if(data[data.length-1] == "") data.pop();
-	return data;
+server.prototype.parseURL = function(reqstr){
+	var parsed = url.parse(reqstr, true);
+	parsed.path = parsed.path.split("/").filter(function(x){return x;});
+	return parsed;
 };
 
 server.prototype.logConnection = function(req, data){
 	console.log(sprintf(
 		"%s %s",
 		req.connection.remoteAddress,
-		data.join("/"))
+		data.path.join("/"))
 	);
 };
 
@@ -79,7 +74,7 @@ server.prototype.parse = function(req, res){
 //};
 
 server.prototype.parse2 = function(req, res, urldata){
-	var dat = urldata[0];
+	var dat = urldata.path[0];
 	var redir;
 
 	if(dat){
@@ -129,7 +124,7 @@ server.prototype.getExtIP = function(callback, doreset){
 		.setTimeout(2000, function(){
 			callback(false);
 		});
-	} else {
+	}else{
 		callback(this.extip);
 	}
 };

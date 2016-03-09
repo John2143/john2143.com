@@ -279,8 +279,8 @@ var processInfoReq = function(res, result){
 };
 
 var juushDownload = function(server, res, urldata, req){
-	var uploadID = urldata[1];
-	var disposition = urldata[2];
+	var uploadID = urldata.path[1];
+	var disposition = urldata.path[2];
 
 	if(isStreamRequest(req)){
 		return serveStreamRequest(res, req, getFilename(uploadID));
@@ -376,6 +376,7 @@ var parseHeadersFromUpload = function(data){
 		console.log("invalid headers received", e);
 		return null;
 	}
+	//console.log(headers);
 
 	return {
 		key: key,
@@ -538,7 +539,7 @@ var juushNewUser = function(server, res, urldata, req){
 			client.query({
 				text: "INSERT INTO keys(name, key) VALUES ($1, $2)",
 				name: "new_user",
-				values: [urldata[1], newKey],
+				values: [urldata.path[1], newKey],
 			}, function(err, result){
 				if(dbError(err, client, done)) return;
 				res.writeHead(200, {
@@ -556,7 +557,7 @@ var juushNewUser = function(server, res, urldata, req){
 };
 
 var juushUserPage = function(server, res, urldata, req){
-	var page = urldata[1];
+	var page = urldata.path[1];
 	var userIP = req.connection.remoteAddress;
 	pg.connect(dbconstr, function(err, client, done){
 		if(dbError(err, client, done)) return juushError(res);
@@ -575,14 +576,16 @@ var juushUserPage = function(server, res, urldata, req){
 };
 
 var juushAPI = function(server, res, urldata, req){
-	if(urldata[1] == "db"){
+	if(urldata.path[1] == "db"){
 		pg.connect(dbconstr, function(err, client, done){
 			if(dbError(err, client, done)) return juushError(res);
-			if(urldata[2] == "uploads"){
+			//Usage:
+			// john2143.com/juush/db/uploads/<userid>/[page]
+			if(urldata.path[2] == "uploads"){
 				client.query({
 					text: "SELECT id, filename, mimetype, downloads FROM index WHERE keyid = $1 LIMIT 50 OFFSET $2",
 					name: "api_get_uploads",
-					values: [urldata[3], (urldata[4] || 0) * 50],
+					values: [urldata.path[3], (urldata.path[4] || 0) * 50],
 				}, function(err, result){
 					if(dbError(err, client, done)) return juushError(res);
 					res.writeHead(200, {
@@ -612,6 +615,8 @@ var redirs = {
 	me: juushUserPage,
 	juush: juushAPI,
 };
+
+redirs.ts = redirs.teamspeak;
 
 var srv = new server({
 	redirs: redirs,
