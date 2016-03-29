@@ -367,7 +367,7 @@ var getDatabaseConnectionAndURL = function(callback){
 };
 
 var parseHeadersFromUpload = function(data){
-	var headers = /[\s\S]+\r\n\r\n/.exec(data)[0];
+	var headers = /[\s\S]+?\r\n\r\n/.exec(data)[0];
 
 	try{
 		var key = /name="([A-Za-z0-9]+)"/.exec(headers)[1];
