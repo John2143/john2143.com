@@ -280,6 +280,7 @@ var processInfoReq = function(res, result){
 
 var juushDownload = function(server, res, urldata, req){
 	var uploadID = urldata.path[1];
+	uploadID = uploadID.split(".")[0];
 	var disposition = urldata.path[2];
 
 	if(isStreamRequest(req)){
