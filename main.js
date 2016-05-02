@@ -1,6 +1,7 @@
 //Node server for john2143.com
 // its pretty bloated but its more organized than it used to be
 // pending full rewrite
+"use strict"
 
 //import
 var server = require("./server.js");
@@ -13,6 +14,7 @@ const dbconstr = "pg://" +
 	":" + serverConst.dbpass +
 	"@" + serverConst.dbhost +
 	"/juush";
+console.log(dbconstr);
 
 var dbError = function(err, client, done){
 	if(err){
@@ -23,9 +25,9 @@ var dbError = function(err, client, done){
 	return false;
 };
 
-var showIP = function(server, res){
+var showIP = function(server, reqx){
 	server.getExtIP(function(ip){
-		server.doHTML(res, ip);
+		reqx.doHTML(ip);
 	});
 };
 
@@ -36,13 +38,13 @@ var juushError = function(res){
 	res.end("Internal server error.");
 };
 
-var randomStr = function(length){
-	var str = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-	var ran = function(){
+var randomStr = function(length = 32){
+	const str = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+-";
+	const ran = function(){
 		return Math.floor(Math.random() * str.length);
 	};
 	var final = "";
-	for(var i = 0; i < (length || 32); i++){
+	for(var i = 0; i < length; i++){
 		final += str[ran() % str.length];
 	}
 	return final;
@@ -85,18 +87,18 @@ var isStreamRequest = function(req){
 	return req.headers.referer && req.headers.range;
 };
 
-var serveStreamRequest = function(res, req, filepath){
+var serveStreamRequest = function(reqx, filepath){
 	const rangeRequestRegex = /bytes=(\d*)-(\d*)/;
 	try{
 		//statSync fails if filepath does not exist
 		var stat = fs.statSync(filepath);
 	}catch(e){
-		res.writeHead(400, {});
-		res.end();
+		reqx.res.writeHead(400, {});
+		reqx.res.end();
 		return;
 	}
 
-	var range = rangeRequestRegex.exec(req.headers.range);
+	var range = rangeRequestRegex.exec(reqx.req.headers.range);
 	var fullContentLength = stat.size;
 	var rangeStart = Number(range[1]);
 
@@ -112,8 +114,8 @@ var serveStreamRequest = function(res, req, filepath){
 		rangeStart >= fullContentLength ||
 		rangeEnd >= fullContentLength
 	){
-		res.writeHead(416, {}); //Cannot deliver range
-		res.end();
+		reqx.res.writeHead(416, {}); //Cannot deliver range
+		reqx.res.end();
 		return;
 	}
 
@@ -124,7 +126,7 @@ var serveStreamRequest = function(res, req, filepath){
 	});
 
 	var filePipe = fs.createReadStream(filepath, {start: rangeStart, end: rangeEnd});
-	res.on("error", function(){filePipe.end();});
+	res.on("error", () => filePipe.end());
 	filePipe.pipe(res);
 }
 
@@ -278,56 +280,58 @@ var processInfoReq = function(res, result){
 	res.end();
 };
 
-var juushDownload = function(server, res, urldata, req){
-	var uploadID = urldata.path[1];
+var juushDownload = function(server, reqx){
+	var uploadID = reqx.urldata.path[1];
+	//ignore extension
 	uploadID = uploadID.split(".")[0];
-	var disposition = urldata.path[2];
 
-	if(isStreamRequest(req)){
-		return serveStreamRequest(res, req, getFilename(uploadID));
+	var disposition = reqx.urldata.path[2];
+
+	if(isStreamRequest(reqx.req)){
+		return serveStreamRequest(reqx, getFilename(uploadID));
 	};
 
 	pg.connect(dbconstr, function(err, client, done){
-		if(dbError(err, client, done)) return juushError(res);
+		if(dbError(err, client, done)) return juushError(reqx.res);
 		if(disposition === "delete"){
 			client.query({
 				text: "SELECT ip FROM index WHERE id=$1",
 				name: "delete_check_ip",
 				values: [uploadID],
 			}, function(err, result){
-				if(dbError(err, client, done)) return juushError(res);
+				if(dbError(err, client, done)) return juushError(reqx.res);
 
 				if(result.rowCount === 0){
-					res.writeHead(404, {
+					reqx.res.writeHead(404, {
 						"Content-Type": "text/html"
 					});
-					res.end("File does not exist");
+					reqx.res.end("File does not exist");
 					return done();
 				}
 
 				var data = result.rows[0];
 
-				if(!IPEqual(data.ip, req.connection.remoteAddress)){
-					res.writeHead(401, {
+				if(!IPEqual(data.ip, reqx.req.connection.remoteAddress)){
+					reqx.res.writeHead(401, {
 						"Content-Type": "text/html"
 					});
-					res.end("You do not have access to delete this file.");
+					reqx.res.end("You do not have access to delete this file.");
 					return done();
 				}
 
 				setMimeType(client, uploadID, "deleted", function(err, result){
-					if(dbError(err, client, done)) return juushError(res);
-					res.writeHead(200, {
+					if(dbError(err, client, done)) return juushError(reqx.res);
+					reqx.res.writeHead(200, {
 						"Content-Type": "text/html"
 					});
-					res.end("File successfully deleted. It will still appear in your user page.");
+					reqx.res.end("File successfully deleted. It will still appear in your user page.");
 				});
 				done();
 			});
 		}else if(disposition === "info"){
 			juushUploadInfo(client, uploadID, function(err, result){
-				if(dbError(err, client, done)) return juushError(res);
-				processInfoReq(res, result);
+				if(dbError(err, client, done)) return juushError(reqx.res);
+				processInfoReq(reqx.res, result);
 			});
 			done();
 		}else{
@@ -336,8 +340,9 @@ var juushDownload = function(server, res, urldata, req){
 				name: "download_check_dl",
 				values: [uploadID],
 			}, function(err, result){
-				if(dbError(err, client, done)) return juushError(res);
-				processDownload(req, res, client, err, result, done, uploadID, disposition);
+				if(dbError(err, client, done)) return juushError(reqx.res);
+				//very no bueno
+				processDownload(reqx.req, reqx.res, client, err, result, done, uploadID, disposition);
 			});
 		}
 	});
@@ -394,7 +399,8 @@ const match = new Buffer("\r\n----------------------xxxxxxxxxxxxxxx--\r\n");
 //The exucution order could in theory be changed to connect to the database only
 //  after the connection is established by not waiting for the client and such
 
-var juushUpload = function(server, res, urldata, req){
+var juushUpload = function(server, reqx){
+	var {res, urldata, req} = reqx;
 	getDatabaseConnectionAndURL(function(err, url, client, done){
 		if(err) return true;
 		console.log("File will appear at " + url);
@@ -532,7 +538,8 @@ var juushUpload = function(server, res, urldata, req){
 	});
 };
 
-var juushNewUser = function(server, res, urldata, req){
+var juushNewUser = function(server, reqx){
+	var {res, urldata, req} = reqx;
 	if(req.connection.remoteAddress.indexOf("192.168") >= 0){
 		pg.connect(dbconstr, function(err, client, done){
 			if(dbError(err, client, done)) return;
@@ -557,7 +564,8 @@ var juushNewUser = function(server, res, urldata, req){
 	}
 };
 
-var juushUserPage = function(server, res, urldata, req){
+var juushUserPage = function(server, reqx){
+	var {res, urldata, req} = reqx;
 	var page = urldata.path[1];
 	var userIP = req.connection.remoteAddress;
 	pg.connect(dbconstr, function(err, client, done){
@@ -576,7 +584,8 @@ var juushUserPage = function(server, res, urldata, req){
 	});
 };
 
-var juushAPI = function(server, res, urldata, req){
+var juushAPI = function(server, reqx){
+	var {res, urldata, req} = reqx;
 	if(urldata.path[1] == "db"){
 		pg.connect(dbconstr, function(err, client, done){
 			if(dbError(err, client, done)) return juushError(res);

@@ -5,57 +5,80 @@ var fs = require("fs");
 var querystring = require("querystring");
 var url = require("url");
 
+class request{
+	constructor(req, res){
+		this.req = req;
+		this.res = res;
+	}
+
+	denyFavicon(){
+		if(this.req.url === "/favicon.ico"){
+			this.res.writeHead(200, {"Content-Type": "image/x-icon"});
+			this.res.end();
+			return true;
+		}
+		return false;
+	}
+
+	createURLData(){
+		this.urldata = url.parse(this.req.url, true);
+		//Filter all empty or null parameters
+		this.urldata.path = this.urldata.path.split("/").filter((x) => x);
+	}
+
+	logConnection(){
+		console.log(
+			Date() + " | " +
+			this.req.connection.remoteAddress + " | " +
+			this.urldata.path.join("/")
+		);
+	}
+
+	doRedirect(redir){
+		this.res.writeHead(302, {
+			"Content-Type": "text/html",
+			"Location": redir,
+		});
+		this.res.end("Redirecting to '" + redir + "'...");
+	}
+
+	doHTML(html){
+		this.res.writeHead(200, {"Content-Type": "text/html"});
+		this.res.end(html);
+	}
+}
+
 class server{
 	constructor(dat){
 		this.ip = dat.ip || "0.0.0.0";
 		this.port = dat.port || 80;
 		this.redirs = dat.redirs || {};
 		this.extip = null;
-		var _this = this;
-		this.server = http.createServer(function(req, res){
-			_this.parse(req, res);
+		this.server = http.createServer((req, res) => {
+			this.route(new request(req, res));
 		});
+
 		try{
 			this.server.listen(this.port, this.ip);
 		}catch(err){
 			console.log("There was an error starting the server. Are you sure you can access that port?");
 		}
+
 		this.getExtIP(function(ip){
 			console.log("EXTIP is " + String(ip));
 		});
 	}
-	static denyFavicon(url, res){
-		if (url === "/favicon.ico"){
-			res.writeHead(200, {"Content-Type": "image/x-icon"} );
-			res.end();
-			return true;
-		}
-		return false;
-	}
-	static parseURL(reqstr){
-		var parsed = url.parse(reqstr, true);
-		parsed.path = parsed.path.split("/").filter((x) => x);
-		return parsed;
-	}
-	static logConnection(req, data){
-		console.log(
-			Date() + " | " +
-			req.connection.remoteAddress + " | " +
-			data.path.join("/")
-		);
-	}
-	static parse(req, res){
-		const existFunc = fs.exists || require("path").exists;
-		if(this.denyFavicon(req.url, res))
-			return;
 
-		const urldata = this.parseURL(req.url);
-		this.logConnection(req, urldata);
+	route(reqx){
+		if(reqx.denyFavicon()) return;
 
-		const filepath = __dirname + "/pages" + req.url + ".html";
-		existFunc(filepath, function(exists){
-			if(!exists){
-				var dat = urldata.path[0];
+		reqx.createURLData();
+		reqx.logConnection();
+
+		var filepath = __dirname + "/pages" + reqx.req.url + ".html";
+		fs.stat(filepath, function(err, stats){
+			if(err){
+				var dat = reqx.urldata.path[0];
 				var redir;
 
 				if(dat){
@@ -66,34 +89,23 @@ class server{
 
 				if(redir){
 					if(typeof redir === "function"){
-						redir(this, res, urldata, req);
+						redir(this, reqx);
 					}else{
-						this.doRedirect(res, redir);
+						reqx.doRedirect(redir);
 					}
 				}else{
-					this.doHTML(res, "That page wasnt found :(");
+					reqx.doHTML("That page wasnt found :(");
 				}
 			}else{
+				//TODO transform into pipe
 				fs.readFile(filepath, "utf8", function(err, dat){
-					this.doHTML(res, dat);
+					reqx.doHTML(dat);
 				});
 			}
 		}.bind(this));
 	}
-	static doRedirect(res, redir){
-		res.writeHead(302, {
-			"Content-Type": "text/html",
-			"Location": redir,
-		});
-		res.end("Redirecting to " + redir);
-	}
-	static doHTML(res, html){
-		res.writeHead(200, {
-			"Content-Type": "text/html",
-		});
-		res.end(html);
-	}
-	static getExtIP(callback, doreset){
+
+	getExtIP(callback, doreset){
 		if(doreset || !this.extip){
 			http.get({
 				host: "myexternalip.com",
