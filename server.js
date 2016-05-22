@@ -20,10 +20,13 @@ class request{
 		return false;
 	}
 
-	createURLData(){
-		this.urldata = url.parse(this.req.url, true);
-		//Filter all empty or null parameters
-		this.urldata.path = this.urldata.path.split("/").filter((x) => x);
+	get urldata(){
+		if(!this._urldata){
+			this._urldata = url.parse(this.req.url, true);
+			//Filter all empty or null parameters
+			this._urldata.path = this._urldata.path.split("/").filter((x) => x);
+		}
+		return this._urldata;
 	}
 
 	logConnection(){
@@ -42,8 +45,8 @@ class request{
 		this.res.end("Redirecting to '" + redir + "'...");
 	}
 
-	doHTML(html){
-		this.res.writeHead(200, {"Content-Type": "text/html"});
+	doHTML(html, code = 200){
+		this.res.writeHead(code, {"Content-Type": "text/html"});
 		this.res.end(html);
 	}
 }
@@ -72,7 +75,6 @@ class server{
 	route(reqx){
 		if(reqx.denyFavicon()) return;
 
-		reqx.createURLData();
 		reqx.logConnection();
 
 		var filepath = __dirname + "/pages" + reqx.req.url + ".html";
