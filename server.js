@@ -94,7 +94,9 @@ class server{
 						reqx.doRedirect(redir);
 					}
 				}else{
-					fs.readFile(__dirname + "pages/404.html");
+					fs.readFile(__dirname + "/pages/404.html", "utf8", function(err, dat){
+						reqx.doHTML(dat);
+					});
 				}
 			}else{
 				//TODO transform into pipe
