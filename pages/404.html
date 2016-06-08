@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+	<style>
+		body {
+			background-color: #2067b2;
+			font-family: Segoe UI;
+			color: white;
+			padding-left: 300px;
+			text-shadow: 1px 1px 75px white;
+			animation-name: example;
+			animation-duration: 7.5s;
+			animation-play-state: running;
+			animation-iteration-count: infinite;
+			animation-direction: alternate;
+			animation-timing-function: ease;
+		}
+		#big {
+			font-size: 111px;
+		}
+		#medium {
+			font-size: 24px;
+		}
+		#small {
+			font-size: 12px;
+			padding-top: 64px;
+		}
+		p {
+			display:inline-block;
+			transform:scale(1,1.65); /* W3C */
+		}	
+		
+		@keyframes example {
+			0%   {text-shadow: 1px 1px 128px white;}
+			50%   {text-shadow: 1px 1px 128px white;}
+			100% {text-shadow: 1px 1px 32px white;} 
+		}
+		
+	</style>
+  </head>
+  <body>
+	<p id= "big">:(</p>
+	<p id= "medium">Your server ran into a problem and needs to restart. We're just collecting some error info, and then we'll restart for you. (<span id= "num">0</span>% complete)</p>
+	<p id= "small">If you'd like to know more, you can search online later for this error: PAGE_NOT_FOUND</p>
+  </body>
+  <script>
+
+	var pct = 0
+	doSomething()
+	function doSomething() {}
+
+	(function loop() {
+		var rand = Math.round(Math.random() * 25000);
+		console.log(rand);
+		setTimeout(function() {
+			doSomething();
+			loop(); 
+			pct = pct + Math.round(Math.random() * 10);
+			document.getElementById("num").innerHTML = pct;
+		}, rand);
+	}());
+  </script>
+  
+</html>
