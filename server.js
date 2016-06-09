@@ -96,7 +96,9 @@ class server{
 						reqx.doRedirect(redir);
 					}
 				}else{
-					reqx.doHTML("That page wasnt found :(");
+					fs.readFile(__dirname + "/pages/404.html", "utf8", function(err, dat){
+						reqx.doHTML(dat);
+					});
 				}
 			}else{
 				//TODO transform into pipe
