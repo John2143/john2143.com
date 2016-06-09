@@ -49,6 +49,17 @@ class request{
 		this.res.writeHead(code, {"Content-Type": "text/html"});
 		this.res.end(html);
 	}
+
+	serveStatic(path, headers = {"Content-Type": "text/html"}, code = 200){
+		fs.readFile(path, "utf8", function(err, dat){
+			if(err){
+				this.doHTML("Failed to serve content", 500);
+			}else{
+				this.res.writeHead(code, headers);
+				this.res.end(dat);
+			}
+		})
+	}
 }
 
 class server{
@@ -96,15 +107,11 @@ class server{
 						reqx.doRedirect(redir);
 					}
 				}else{
-					fs.readFile(__dirname + "/pages/404.html", "utf8", function(err, dat){
-						reqx.doHTML(dat);
-					});
+					reqx.serveStatic(__dirname + "/pages/404.html");
 				}
 			}else{
 				//TODO transform into pipe
-				fs.readFile(filepath, "utf8", function(err, dat){
-					reqx.doHTML(dat);
-				});
+				reqx.serveStatic(filepath);
 			}
 		}.bind(this));
 	}
