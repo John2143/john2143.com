@@ -58,7 +58,7 @@ class request{
 				this.res.writeHead(code, headers);
 				this.res.end(dat);
 			}
-		})
+		}.bind(this))
 	}
 }
 

@@ -32,7 +32,7 @@ var juushError = function(res){
 };
 
 var randomStr = function(length = 32){
-	const str = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+-";
+	const str = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 	const ran = function(){
 		return Math.floor(Math.random() * str.length);
 	};
