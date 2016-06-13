@@ -311,15 +311,15 @@ var parseHeadersFromUpload = function(data, reqHeaders){
 		var key = /name="([A-Za-z0-9]+)"/.exec(headers)[1];
 		var filename = /filename="([^"]+)"/.exec(headers)[1];
 		var mimetype = /Content\-Type: (.+)\r/.exec(headers)[1];
-		var boundary = "--" + /boundary=(\S+)/.exec(reqHeaders["content-type"])[1] + "--"; 
+		var boundary = "--" + /boundary=(\S+)/.exec(reqHeaders["content-type"])[1] + "--";
+		boundary = Buffer.from(boundary, "utf8");
 	}catch(e){
-		console.log("invalid headers received");
-		console.log("DATA START");
-		console.log(data);
-		console.log("DATA END");
+		console.log("invalid headers received", e);
+		// console.log("DATA START");
+		// console.log(data);
+		// console.log("DATA END");
 		return null;
 	}
-	console.log(headers);
 
 	return {
 		key,
