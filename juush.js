@@ -113,7 +113,8 @@ var shouldInline = function(filedata, mime){
 		//"txt", "text", "png", "jpg", "jpeg", "html",
 		//"webm", "mp4", "mp3", "wav", "vorbis"
 	//];
-	const regex = /(.+)\/(.+)/g;
+	//Mimetype is supplied by the user, meaning the subset may not exist
+	const regex = /(.+)\/?(.+)?/g;
 	var regexResult = regex.exec(mime);
 	var category = regexResult[1];
 	var subset = regexResult[2];
@@ -303,29 +304,31 @@ var getDatabaseConnectionAndURL = function(callback){
 	});
 };
 
-var parseHeadersFromUpload = function(data){
-	var headers = /[\s\S]+?\r\n\r\n/.exec(data)[0];
-
+var parseHeadersFromUpload = function(data, reqHeaders){
+	data = data.toString("utf8");
 	try{
+		var headers = /[\s\S]+?\r\n\r\n/.exec(data)[0];
 		var key = /name="([A-Za-z0-9]+)"/.exec(headers)[1];
 		var filename = /filename="([^"]+)"/.exec(headers)[1];
 		var mimetype = /Content\-Type: (.+)\r/.exec(headers)[1];
+		var boundary = "--" + /boundary=(\S+)/.exec(reqHeaders["content-type"])[1] + "--"; 
 	}catch(e){
-		console.log("invalid headers received", e);
+		console.log("invalid headers received");
+		console.log("DATA START");
+		console.log(data);
+		console.log("DATA END");
 		return null;
 	}
-	//console.log(headers);
+	console.log(headers);
 
 	return {
-		key: key,
-		filename: filename,
-		mimetype: mimetype,
+		key,
+		filename,
+		mimetype,
+		boundary,
 		headerSize: headers.length,
 	};
 };
-
-//This appears at the end of every post request with 22x being a hex hash
-const match = new Buffer("\r\n----------------------xxxxxxxxxxxxxxx--\r\n");
 
 //TODO
 //The exucution order could in theory be changed to connect to the database only
@@ -336,28 +339,29 @@ var juushUpload = function(server, reqx){
 		if(err) return true;
 		console.log("File will appear at " + url);
 
-		var timeoutID;
-		var fTimeout = function(){
-			if(timeoutID){
-				//console.log("timout remvoed", timeoutID);
-				clearTimeout(timeoutID);
-			}
-			timeoutID = setTimeout(error, 20000);
+		let timeoutID;
+		let fTimeout = function(){
+			clearTimeout(timeoutID);
+			timeoutID = setTimeout(function(){error("Timeout error")}, 20000);
 			//console.log("added timeout", timeoutID);
 		};
 
-		var filepath = getFilename(url);
-		var wstream = fs.createWriteStream(filepath, {
+		let filepath = getFilename(url);
+		let wstream = fs.createWriteStream(filepath, {
 			flags: "w",
 			encoding: "binary",
 		});
 
-		var isError = false;
-		var error = function(){
-			console.log("Upload error for " + url);
+		let isError = false;
+		let error = function(errt = "Generic error", errc = 400){
+			console.log("Upload error for " + url, ":", errt);
 			isError = true;
+			clearTimeout(timeoutID);
 			if(!wstream.finished) wstream.end();
-			if(!reqx.res.finished) reqx.res.end();
+			if(!reqx.res.finished){
+				reqx.res.writeHead(errc, {});
+				reqx.res.end(errt);
+			}
 			fs.unlink(filepath, function(){});
 			client.query({
 				text: "DELETE FROM index WHERE id=$1",
@@ -369,28 +373,21 @@ var juushUpload = function(server, reqx){
 			done();
 		};
 
-		var errorServe = function(){
-			reqx.res.writeHead(500, {
-				"Content-Type": "text/html"
-			});
-			reqx.res.end("Internal server error.");
-		};
 
 		wstream.addListener("error", function(){
-			error();
-			errorServe();
+			error("Writestream failed (server error)");
 		});
 
 		wstream.on("finish", function(){
 			if(isError) return;
-			clearTimeout(timeoutID);
 			//console.log("done, timeout", timeoutID);
 			//TODO move to req end?
 			reqx.res.end("http://john2143.com/f/" + url);
 			done();
 		});
 
-		var headersReceived = false;
+		let headersReceived = false;
+		let headers = false;
 
 		fTimeout();
 		reqx.req.on("data", function(data){
@@ -398,17 +395,15 @@ var juushUpload = function(server, reqx){
 			if(isError) return;
 			fTimeout();
 
-			var write = data;
-			if(!headersReceived){
-				headersReceived = true;
-
-				var headers = parseHeadersFromUpload(data);
-
+			let write = data;
+			let headers;
+			if(!headers){
+				headers = parseHeadersFromUpload(data, reqx.req.headers);
 				if(!headers){
-					return error(); //Invalid headers
+					return error("Invalid headers");
 				}
 
-				var write = new Buffer(data.length - (headers.headerSize));
+				let write = Buffer.allocUnsafe(data.length - (headers.headerSize));
 				data.copy(write, 0, (headers.headerSize));
 
 				client.query({
@@ -418,12 +413,7 @@ var juushUpload = function(server, reqx){
 				}, function(err, result){
 					if(dbError(err, client, done)) return error();
 					if(result.rowCount == 0){
-						done();
-						reqx.res.writeHead(401, {
-							"Content-Type": "text/html"
-						});
-						reqx.res.end("You must supply a valid key in order to upload. Your key may be disabled or invalid.");
-						error();
+						error("You must supply a valid key in order to upload.");
 					}else{
 						client.query({
 							text: "INSERT INTO index(id, uploaddate, ip, filename, mimetype, keyid)" +
@@ -437,19 +427,19 @@ var juushUpload = function(server, reqx){
 				});
 			}
 
-			var lenw = write.length;
-			var lenm = match.length;
-			var diff = lenw - lenm;
-			//0xA = \n, 0xD = \r, 120 == x
-			var slice = true;
-			for(var i = 0; i < lenm; i++){
-				if(match[i] != 120 && write[diff + i] != match[i]){
+			let boundary = headers.boundary;
+			let lenw = write.length;
+			let lenm = boundary.length;
+			let diff = lenw - lenm;
+			let slice = true;
+			for(let i = 0; i < lenm; i++){
+				if(write[diff + i] != boundary[i]){
 					slice = false;
 					break;
 				}
 			}
 			if(slice){
-				var write2 = new Buffer(diff);
+				let write2 = Buffer.allocUnsafe(diff);
 				write.copy(write2, 0, 0, diff)
 				wstream.write(write2);
 			}else{
@@ -458,12 +448,12 @@ var juushUpload = function(server, reqx){
 		});
 
 		reqx.req.on("error", function(){
-			error();
-			errorServe();
+			error("Upload error.");
 		});
 
 		reqx.req.on("end", function(){
 			if(isError) return;
+			clearTimeout(timeoutID);
 			wstream.end();
 		});
 	});
@@ -471,7 +461,7 @@ var juushUpload = function(server, reqx){
 
 var juushNewUser = function(server, reqx){
 	var {res, urldata, req} = reqx;
-	if(req.connection.remoteAddress.indexOf("192.168") >= 0){
+	if(req.connection.remoteAddress.indexOf("192.168") >= 0 || req.connection.remoteAddress === "127.0.0.1"){
 		pg.connect(dbconstr, function(err, client, done){
 			if(dbError(err, client, done)) return;
 			var newKey = randomStr(32);
