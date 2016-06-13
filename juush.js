@@ -310,12 +310,12 @@ var parseHeadersFromUpload = function(data, reqHeaders){
 	data = data.toString("utf8");
 	try{
 		var boundary = "\r\n--" + /boundary=(\S+)/.exec(reqHeaders["content-type"])[1] + "--\r\n";
+		boundary = Buffer.from(boundary, "utf8");
 
 		var headers = /[\s\S]+?\r\n\r\n/.exec(data)[0];
 		var key = /name="([A-Za-z0-9]+)"/.exec(headers)[1];
 		var filename = /filename="([^"]+)"/.exec(headers)[1];
 		var mimetype = /Content\-Type: (.+)\r/.exec(headers)[1];
-		boundary = Buffer.from(boundary, "utf8");
 	}catch(e){
 		console.log("invalid headers received", e);
         console.log("DATA START");
@@ -406,8 +406,9 @@ var juushUpload = function(server, reqx){
 					return error("Invalid headers");
 				}
 
-				let write = Buffer.allocUnsafe(data.length - (headers.headerSize));
-				data.copy(write, 0, (headers.headerSize));
+				write = Buffer.allocUnsafe(data.length - headers.headerSize);
+				data.copy(write, 0, headers.headerSize);
+                //console.log(headers, write);
 
 				client.query({
 					text: "SELECT id FROM keys WHERE key=$1",
