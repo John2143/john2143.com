@@ -114,13 +114,15 @@ var shouldInline = function(filedata, mime){
 		//"webm", "mp4", "mp3", "wav", "vorbis"
 	//];
 	//Mimetype is supplied by the user, meaning the subset may not exist
-	const regex = /(.+)\/?(.+)?/g;
-	var regexResult = regex.exec(mime);
-	var category = regexResult[1];
-	var subset = regexResult[2];
 
-	return category === "video" || category === "audio" ||
-		category === "image" || category === "text";
+	//const regex = /(.+)\/?(.+)?/g;
+	//var regexResult = regex.exec(mime);
+	//var category = regexResult[1];
+	//var subset = regexResult[2];
+
+	//return category === "video" || category === "audio" ||
+		//category === "image" || category === "text";
+    return true;
 };
 
 var processDownload = function(reqx, client, err, result, done, uploadID, disposition){
@@ -307,17 +309,20 @@ var getDatabaseConnectionAndURL = function(callback){
 var parseHeadersFromUpload = function(data, reqHeaders){
 	data = data.toString("utf8");
 	try{
+		var boundary = "\r\n--" + /boundary=(\S+)/.exec(reqHeaders["content-type"])[1] + "--\r\n";
+
 		var headers = /[\s\S]+?\r\n\r\n/.exec(data)[0];
 		var key = /name="([A-Za-z0-9]+)"/.exec(headers)[1];
 		var filename = /filename="([^"]+)"/.exec(headers)[1];
 		var mimetype = /Content\-Type: (.+)\r/.exec(headers)[1];
-		var boundary = "--" + /boundary=(\S+)/.exec(reqHeaders["content-type"])[1] + "--";
 		boundary = Buffer.from(boundary, "utf8");
 	}catch(e){
 		console.log("invalid headers received", e);
-		// console.log("DATA START");
-		// console.log(data);
-		// console.log("DATA END");
+        console.log("DATA START");
+        console.log(data);
+        console.log("DATA END;BOUNDARY START");
+        console.log(boundary);
+        console.log("BOUNDARY END");
 		return null;
 	}
 
@@ -386,7 +391,6 @@ var juushUpload = function(server, reqx){
 			done();
 		});
 
-		let headersReceived = false;
 		let headers = false;
 
 		fTimeout();
@@ -396,7 +400,6 @@ var juushUpload = function(server, reqx){
 			fTimeout();
 
 			let write = data;
-			let headers;
 			if(!headers){
 				headers = parseHeadersFromUpload(data, reqx.req.headers);
 				if(!headers){
