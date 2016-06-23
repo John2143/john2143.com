@@ -24,7 +24,14 @@ class request{
 		if(!this._urldata){
 			this._urldata = url.parse(this.req.url, true);
 			//Filter all empty or null parameters
-			this._urldata.path = this._urldata.path.split("/").filter((x) => x);
+			this._urldata.path = this._urldata.path.split("/");
+			let path = this._urldata.path;
+			if(!path[path.length - 1]){
+				path.pop();
+			}
+			if(!path[0]){
+				path.shift();
+			}
 		}
 		return this._urldata;
 	}
@@ -94,7 +101,7 @@ class server{
 				var dat = reqx.urldata.path[0];
 				var redir;
 
-				if(dat){
+				if(dat !== undefined){
 					redir = this.redirs[dat];
 				}else{
 					redir = this.redirs[this.redirs._def]; //Default to default action defined by the redirect table

@@ -24,6 +24,7 @@ var redirs = {
 	ip: showIP,
 	_def: "git",
 
+	"": juush.download,
 	f: juush.download,
 	uf: juush.upload,
 	nuser: juush.newUser,

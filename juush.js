@@ -387,7 +387,7 @@ var juushUpload = function(server, reqx){
 			if(isError) return;
 			//console.log("done, timeout", timeoutID);
 			//TODO move to req end?
-			reqx.res.end("http://john2143.com/f/" + url);
+			reqx.res.end("http://john2143.com//" + url);
 			done();
 		});
 
