@@ -12,8 +12,8 @@ class request{
 	}
 
 	denyFavicon(){
-		if(this.req.url === "/favicon.ico"){
-			this.res.writeHead(200, {"Content-Type": "image/x-icon"});
+		if(this.req.url === "/favicon.ico" || this.req.url === "/apple-touch-icon.png"){
+			this.res.writeHead(404, {"Content-Type": "image/x-icon"});
 			this.res.end();
 			return true;
 		}
