@@ -1,5 +1,6 @@
 "use strict";
 
+var https = require("https");
 var http = require("http");
 var fs = require("fs");
 var querystring = require("querystring");
@@ -45,7 +46,7 @@ class request{
 	}
 
 	doRedirect(redir){
-		this.res.writeHead(302, {
+		this.res.writeHead(301, {
 			"Content-Type": "text/html",
 			"Location": redir,
 		});
@@ -72,15 +73,31 @@ class request{
 class server{
 	constructor(dat){
 		this.ip = dat.ip || "0.0.0.0";
-		this.port = dat.port || 80;
+		this.port = dat.port || 443;
 		this.redirs = dat.redirs || {};
 		this.extip = null;
-		this.server = http.createServer((req, res) => {
-			this.route(new request(req, res));
-		});
+        if(this.port === 443){
+            console.log("Starting http upgrade server");
+            this.serverHTTPUpgrade = http.createServer((req, res) => {
+                res.writeHead(301, {"Location": "https://" + req.headers["host"] + req.url});
+                res.end();
+            });
+        }
+        try{
+            let pathToKeys = "/etc/letsencrypt/live/www.john2143.com/";
+            this.server = https.createServer({
+                key:  fs.readFileSync(pathToKeys + "privkey.pem"),
+                cert: fs.readFileSync(pathToKeys + "cert.pem")
+            },(req, res) => {
+                this.route(new request(req, res));
+            });
+        }catch(err){
+            console.log("Err starting: " + err);
+        }
 
 		try{
 			this.server.listen(this.port, this.ip);
+            if(this.serverHTTPUpgrade) this.serverHTTPUpgrade.listen(80, this.ip);
 		}catch(err){
 			console.log("There was an error starting the server. Are you sure you can access that port?");
 		}
@@ -125,9 +142,9 @@ class server{
 
 	getExtIP(callback, doreset){
 		if(doreset || !this.extip){
-			http.get({
+			https.get({
 				host: "myexternalip.com",
-				port: 80,
+				port: 443,
 				path: "/raw"
 			}, function(r){
 				r.setEncoding("utf8");
