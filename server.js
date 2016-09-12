@@ -87,7 +87,8 @@ class server{
             let pathToKeys = "/etc/letsencrypt/live/www.john2143.com/";
             this.server = https.createServer({
                 key:  fs.readFileSync(pathToKeys + "privkey.pem"),
-                cert: fs.readFileSync(pathToKeys + "cert.pem")
+                cert: fs.readFileSync(pathToKeys + "cert.pem"),
+                ca:   fs.readFileSync(pathToKeys + "fullchain.pem"),
             },(req, res) => {
                 this.route(new request(req, res));
             });

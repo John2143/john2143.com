@@ -307,22 +307,29 @@ var getDatabaseConnectionAndURL = function(callback){
 };
 
 var parseHeadersFromUpload = function(data, reqHeaders){
-	data = data.toString("utf8");
+	let strData = data.toString("utf8");
 	try{
 		var boundary = "\r\n--" + /boundary=(\S+)/.exec(reqHeaders["content-type"])[1] + "--\r\n";
 		boundary = Buffer.from(boundary, "utf8");
 
-		var headers = /[\s\S]+?\r\n\r\n/.exec(data)[0];
+		var headers = /[\s\S]+?\r\n\r\n/.exec(strData)[0];
 		var key = /name="([A-Za-z0-9]+)"/.exec(headers)[1];
 		var filename = /filename="([^"]+)"/.exec(headers)[1];
 		var mimetype = /Content\-Type: (.+)\r/.exec(headers)[1];
-	}catch(e){
-		console.log("invalid headers received", e);
-        console.log("DATA START");
-        console.log(data);
-        console.log("DATA END;BOUNDARY START");
-        console.log(boundary);
-        console.log("BOUNDARY END");
+    }catch(e){
+        //console.log("==============================================start");
+        //console.log("==============================================start");
+        //console.log("==============================================start");
+        //console.log("invalid headers received", e);
+        //console.log("==============================================DATA START");
+        //console.log(strData);
+        //console.log("==============================================DATA END;BOUNDARY START");
+        //console.log(boundary);
+        //console.log("==============================================BOUNDARY END;reqHeaders START");
+        //console.log(reqHeaders);
+        //console.log("==============================================finish");
+        //console.log("==============================================finish");
+        //console.log("==============================================finish");
 		return null;
 	}
 
@@ -392,6 +399,8 @@ var juushUpload = function(server, reqx){
 		});
 
 		let headers = false;
+        const maxHeaderBufferSize = 4096;
+        let headerBuffer = "";
 
 		fTimeout();
 		reqx.req.on("data", function(data){
@@ -401,13 +410,20 @@ var juushUpload = function(server, reqx){
 
 			let write = data;
 			if(!headers){
-				headers = parseHeadersFromUpload(data, reqx.req.headers);
+                headerBuffer += data;
+				headers = parseHeadersFromUpload(headerBuffer, reqx.req.headers);
+
 				if(!headers){
-					return error("Invalid headers");
+                    if(headerBuffer.length + data.length >= maxHeaderBufferSize + 1){
+                        return error("Invalid headers");
+                    }
+					return;
 				}
 
-				write = Buffer.allocUnsafe(data.length - headers.headerSize);
-				data.copy(write, 0, headers.headerSize);
+				write = Buffer.allocUnsafe(headerBuffer.length - headers.headerSize);
+                for(let i = headers.headerSize; i < headerBuffer.length; i++){
+                    write[i - headers.headerSize] = headerBuffer.charCodeAt(i);
+                }
                 //console.log(headers, write);
 
 				client.query({
