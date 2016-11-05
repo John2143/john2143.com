@@ -6,6 +6,8 @@ var fs = require("fs");
 var querystring = require("querystring");
 var url = require("url");
 
+var favicon = fs.readFileSync("favicon.ico");
+
 class request{
 	constructor(req, res){
 		this.req = req;
@@ -14,8 +16,11 @@ class request{
 
 	denyFavicon(){
 		if(this.req.url === "/favicon.ico" || this.req.url === "/apple-touch-icon.png"){
-			this.res.writeHead(404, {"Content-Type": "image/x-icon"});
-			this.res.end();
+			this.res.writeHead(200, {
+                "Content-Type": "image/x-icon",
+                "Content-Length": favicon.length,
+            });
+            this.res.end(favicon);
 			return true;
 		}
 		return false;
@@ -73,32 +78,42 @@ class request{
 class server{
 	constructor(dat){
 		this.ip = dat.ip || "0.0.0.0";
-		this.port = dat.port || 443;
+        this.isHTTPS = !!dat.port;
+		this.port = dat.port || dat.httpPort;
+        this.httpPort = dat.httpPort;
 		this.redirs = dat.redirs || {};
 		this.extip = null;
-        if(this.port === 443){
-            console.log("Starting http upgrade server");
+        if(this.isHTTPS && this.port != this.httpPort){
+            console.log("Starting http upgrade server: port " + this.httpPort + " -> " + this.port);
             this.serverHTTPUpgrade = http.createServer((req, res) => {
-                res.writeHead(301, {"Location": "https://" + req.headers["host"] + req.url});
+                res.writeHead(301, {"Location": "https://" + req.headers["host"] + ":" + this.port + req.url});
                 res.end();
             });
         }
         try{
-            let pathToKeys = "/etc/letsencrypt/live/www.john2143.com/";
-            this.server = https.createServer({
-                key:  fs.readFileSync(pathToKeys + "privkey.pem"),
-                cert: fs.readFileSync(pathToKeys + "fullchain.pem"),
-                ca:   fs.readFileSync(pathToKeys + "chain.pem"),
-            },(req, res) => {
-                this.route(new request(req, res));
-            });
+            if(this.isHTTPS){
+                console.log("Starting https server on " + this.port);
+                let pathToKeys = "/etc/letsencrypt/live/www.john2143.com/";
+                this.server = https.createServer({
+                    key:  fs.readFileSync(pathToKeys + "privkey.pem"),
+                    cert: fs.readFileSync(pathToKeys + "fullchain.pem"),
+                    ca:   fs.readFileSync(pathToKeys + "chain.pem"),
+                },(req, res) => {
+                    this.route(new request(req, res));
+                });
+            }else{
+                console.log("Starting http server on " + this.port);
+                this.server = http.createServer((req, res) => {
+                    this.route(new request(req, res));
+                });
+            }
         }catch(err){
             console.log("Err starting: " + err);
         }
 
 		try{
 			this.server.listen(this.port, this.ip);
-            if(this.serverHTTPUpgrade) this.serverHTTPUpgrade.listen(80, this.ip);
+            if(this.serverHTTPUpgrade) this.serverHTTPUpgrade.listen(dat.httpPort || 80, this.ip);
 		}catch(err){
 			console.log("There was an error starting the server. Are you sure you can access that port?");
 		}

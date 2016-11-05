@@ -37,5 +37,6 @@ redirs.ts = redirs.teamspeak;
 var srv = new server({
 	redirs: redirs,
 	ip: serverConst.IP,
-	port: serverConst.PORT,
+    port: serverConst.PORT,
+	httpPort: serverConst.HTTPPORT,
 });
