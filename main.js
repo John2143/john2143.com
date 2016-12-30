@@ -28,7 +28,7 @@ var redirs = {
 	f: juush.download,
 	uf: juush.upload,
 	nuser: juush.newUser,
-	me: juush.userPage,
+	//me: juush.userPage,
 	juush: juush.API,
 };
 
