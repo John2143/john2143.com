@@ -1,14 +1,9 @@
 "use strict";
 
 var pg = require("pg"); //postgres
+var Pool = pg.Pool;
 var serverConst = require("./const.js");
 var fs = require("fs");
-
-const dbconstr = "pg://" +
-	serverConst.dbuser +
-	":" + serverConst.dbpass +
-	"@" + serverConst.dbhost +
-	"/juush";
 
 var dbError = function(err, client, done){
 	if(err){
@@ -19,9 +14,17 @@ var dbError = function(err, client, done){
 	return false;
 };
 
-pg.connect(dbconstr, function(err, client, done){
-	console.log("CONNECTING TO DB", err)
-	done();
+let pool = new Pool({
+    user: serverConst.dbuser,
+    password: serverConst.dbpass,
+    host: serverConst.dbhost,
+    database: "juush",
+    max: 10,
+    idleTimeoutMillis: 500,
+})
+
+pool.on("error", function(err, client){
+	console.log("Error in client", err)
 });
 
 var juushError = function(res){
@@ -29,6 +32,7 @@ var juushError = function(res){
 		"Content-Type": "text/html",
 	});
 	res.end("Internal server error.");
+    console.log("JuushError!");
 };
 
 var randomStr = function(length = 32){
@@ -154,8 +158,11 @@ var processDownload = function(reqx, client, err, result, done, uploadID, dispos
 	}
 
 
+    let incDL = true;
 	if(disposition === "dl"){
 		var codisp = "attachment";
+    }else if(disposition == "thumb"){
+        incDL = false;
 	}else{
 		if(shouldInline(stat, data.mimetype)){
 			var codisp = "inline";
@@ -166,23 +173,26 @@ var processDownload = function(reqx, client, err, result, done, uploadID, dispos
 
 	codisp += '; filename="' + data.filename + '"';
 
-	client.query({
-		text: "UPDATE index SET " +
-			"downloads=downloads+1, " +
-			"lastdownload=now() " +
-			"WHERE id=$1",
-		name: "download_increment_downloads",
-		values: [uploadID],
-	}, function(err, result){
-		if(err)
-			console.log("Error when incrementing download.", err);
-		done();
-	});
+    if(incDL){
+        client.query({
+            text: "UPDATE index SET " +
+                "downloads=downloads+1, " +
+                "lastdownload=now() " +
+                "WHERE id=$1",
+            name: "download_increment_downloads",
+            values: [uploadID],
+        }, function(err, result){
+            if(err)
+                console.log("Error when incrementing download.", err);
+        });
+    }
+    done();
 
 	reqx.res.writeHead(200, {
 		"Content-Type": data.mimetype,
 		"Content-Disposition": codisp,
 		"Content-Length": stat.size,
+        "Cache-Control": "max-age=300",
 		"Accept-Ranges": "bytes",
 	});
 
@@ -234,7 +244,7 @@ var juushDownload = function(server, reqx){
 		return serveStreamRequest(reqx, getFilename(uploadID));
 	};
 
-	pg.connect(dbconstr, function(err, client, done){
+	pool.connect(function(err, client, done){
 		if(dbError(err, client, done)) return juushError(reqx.res);
 		if(disposition === "delete"){
 			client.query({
@@ -284,7 +294,7 @@ var juushDownload = function(server, reqx){
 };
 
 var getDatabaseConnectionAndURL = function(callback){
-	pg.connect(dbconstr, function(err, client, done){
+	pool.connect(function(err, client, done){
 		if(dbError(err, client, done)) return callback(true);
 
 		var newURL = function(){return randomStr(5)};
@@ -390,15 +400,24 @@ var juushUpload = function(server, reqx){
 			error("Writestream failed (server error)");
 		});
 
+		let headers = false;
+
 		wstream.on("finish", function(){
 			if(isError) return;
 			//console.log("done, timeout", timeoutID);
 			//TODO move to req end?
-			reqx.res.end((server.isHTTPS ? "https" : "http") + "://john2143.com//" + url);
+            let possibleExt;
+            try{
+                possibleExt = headers.filename.split(".");
+                possibleExt = possibleExt[possibleExt.length - 1];
+                if(possibleExt.length > 8) throw "";
+            }catch(e){
+                possibleExt = "";
+            }
+			reqx.res.end((server.isHTTPS ? "https" : "http") + "://john2143.com/f/" + url + "." + possibleExt);
 			done();
 		});
 
-		let headers = false;
         const maxHeaderBufferSize = 4096;
         let headerBuffer = "";
 
@@ -482,7 +501,7 @@ var juushUpload = function(server, reqx){
 var juushNewUser = function(server, reqx){
 	var {res, urldata, req} = reqx;
 	if(req.connection.remoteAddress.indexOf("192.168") >= 0 || req.connection.remoteAddress === "127.0.0.1"){
-		pg.connect(dbconstr, function(err, client, done){
+		pool.connect(function(err, client, done){
 			if(dbError(err, client, done)) return;
 			var newKey = randomStr(32);
 			client.query({
@@ -509,7 +528,7 @@ var juushUserPage = function(server, reqx){
 	var {res, urldata, req} = reqx;
 	var page = urldata.path[1];
 	var userIP = req.connection.remoteAddress;
-	pg.connect(dbconstr, function(err, client, done){
+	pool.connect(function(err, client, done){
 		if(dbError(err, client, done)) return juushError(res);
 		client.query({
 			text: "SELECT * FROM keys WHERE $1 = ANY (ips)",
@@ -528,28 +547,65 @@ var juushUserPage = function(server, reqx){
 var juushAPI = function(server, reqx){
 	var {res, urldata, req} = reqx;
 	if(urldata.path[1] == "db"){
-		pg.connect(dbconstr, function(err, client, done){
+		pool.connect(function(err, client, done){
 			if(dbError(err, client, done)) return juushError(res);
 			//Usage:
 			// john2143.com/juush/db/uploads/<userid>/[page]
 			if(urldata.path[2] == "uploads"){
+                const perPage = 25;
 				client.query({
-					text: "SELECT id, filename, mimetype, downloads FROM index WHERE keyid = $1 LIMIT 50 OFFSET $2",
+					text: "SELECT id, filename, mimetype, downloads, uploaddate FROM index WHERE keyid = $1 ORDER BY uploaddate DESC LIMIT $3 OFFSET $2",
 					name: "api_get_uploads",
-					values: [urldata.path[3], (urldata.path[4] || 0) * 50],
+					values: [urldata.path[3], (urldata.path[4] || 0) * perPage, perPage],
 				}, function(err, result){
 					if(dbError(err, client, done)) return juushError(res);
-					res.writeHead(200, {
-						"Content-Type": "text/html"
-					});
 					res.end(JSON.stringify(result.rows));
-					done();
+				});
+            }else if(urldata.path[2] == "users"){
+				client.query({
+					text: "SELECT id, name FROM keys;",
+					name: "api_get_uers",
+				}, function(err, result){
+					if(dbError(err, client, done)) return juushError(res);
+                    res.end(JSON.stringify(result.rows));
+                });
+            }else if(urldata.path[2] == "userinfo"){
+                let ret = {};
+                let rtot = -2;
+
+                const sendResult = () => res.end(JSON.stringify(ret));
+                const sendNone = () => res.end("Not found");
+
+				client.query({
+					text: "SELECT name FROM keys WHERE id = $1;",
+					name: "api_get_info1",
+					values: [urldata.path[3]],
+				}, function(err, result){
+					if(dbError(err, client, done)) return juushError(res);
+                    if(!result.rows[0]) return sendNone();
+                    ret.name = result.rows[0].name;
+                    if(!++rtot) sendResult();
+				});
+				client.query({
+					text: "SELECT SUM(downloads), COUNT(*) FROM index WHERE keyid = $1;",
+					name: "api_get_info2",
+					values: [urldata.path[3]],
+				}, function(err, result){
+					if(dbError(err, client, done)) return juushError(res);
+                    let r = result.rows[0];
+                    if(!r) return sendNone();
+                    ret.downloads = r.sum;
+                    ret.total = r.count;
+                    if(!++rtot) sendResult();
 				});
 			}else{
-				done();
+                res.end("Unknown endpoint");
 			}
+            done();
 		});
-	}
+	}else{
+        res.end("Unknown method");
+    }
 };
 
 module.exports = {
