@@ -1,0 +1,194 @@
+<html>
+    <head>
+        <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.1/angular.min.js"></script>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+        <script src="https://use.fontawesome.com/ed4d2de3d2.js"></script>
+        <script>
+
+angular.module("app", []).controller("controller", function($scope, $http){
+    //Date.getMonth index to abbriv.
+    const abvr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    //Add leading 0's
+    const lead0 = num => num < 10 ? "0" + num : num;
+    $scope.round = num => num.toFixed(2);
+
+    const now = Date.now() / 1000;
+    const dateDistance = d => {
+        let time = now - d.getTime() / 1000;
+        const plural = () => time == 1 ? " ago" : "s ago";
+        time = Math.floor(time);
+        if(time < 60) return time + " second" + plural();
+        time /= 60;
+        time = Math.floor(time);
+        if(time < 60) return time + " minute" + plural();
+        time /= 60;
+        time = Math.floor(time);
+        if(time < 24) return time + " hour" + plural();;
+        if(time < 48) return "Yesterday";
+        time /= 24;
+        time = Math.floor(time);
+        if(time < 31) return time + " day" + plural();
+        time /= 30;
+        time = Math.floor(time);
+        if(time < 12) return time + " month" + plural();
+        time /= 12;
+        time = Math.floor(time);
+        return time + " year" + plural();
+    };
+
+    $scope.users = {};
+
+    $http({
+        method: "GET",
+        url: "/juush/db/users",
+    }).then(function(res){
+        $scope.users = res.data;
+    }, function(res){
+        document.innerHTML = "Error";
+    });
+
+    $scope.updateUserpage = () => {
+        if(!$scope.selected){
+            $scope.uploads = null;
+            return;
+        }
+        $http({
+            method: "GET",
+            url: "/juush/db/uploads/" + $scope.selected.id + "/" + $scope.page,
+        }).then(function(res){
+            $scope.uploads = res.data;
+            for(let ul of $scope.uploads){
+                ul.img = ul.mimetype[0] === "i" && ul.mimetype[5] === "/";
+                ul.video = ul.mimetype[0] === "v" && ul.mimetype[5] === "/";
+                ul.audio = ul.mimetype[0] === "a" && ul.mimetype[5] === "/";
+                const dt = new Date(ul.uploaddate);
+                ul.dispDate =
+                      abvr[dt.getMonth()] + " "
+                    + dt.getDate() + " "
+                    + dt.getFullYear() + ", "
+                    + lead0(dt.getHours()) + ":"
+                    + lead0(dt.getMinutes()) + ":"
+                    + lead0(dt.getSeconds());
+
+                ul.timeAgo = dateDistance(dt);
+            }
+        }, function(){
+
+        });
+
+    };
+
+    $scope.updateInfo = () => {
+        $scope.page = 0;
+        $scope.updateUserpage();
+        if(!$scope.selected){
+            $scope.uinfo = null;
+            return;
+        }
+        $http({
+            method: "GET",
+            url: "/juush/db/userinfo/" + $scope.selected.id,
+        }).then(function(res){
+            $scope.uinfo = res.data;
+        });
+    };
+
+    $scope.$watch("selected", $scope.updateUserpage);
+    $scope.$watch("selected", $scope.updateInfo);
+    $scope.$watch("page", $scope.updateUserpage);
+});
+        </script>
+        <style>
+
+.consv{
+    width: 100%;
+    height:auto;
+}
+.cons{
+    width: 100%;
+    height:auto;
+}
+.dank {
+    color: yellow;
+
+    /*Reset*/
+    display: inline-block;
+    outline: none;
+    background-color: white;
+    /*Some fancy stuff*/
+    padding: 0 20px;
+    line-height: 200%;
+    border: 1px solid silver;
+
+    /*Magic*/
+    background-image: linear-gradient(magenta,cyan , blue , yellow , green , brown, orange);
+    background-size: 100% 200%;
+    transition: background-position 200000s;
+}
+
+.dank:hover {
+    background-position: 0 -3434343400%;
+    background-position: 1 3434343400%;
+    color: red;
+    text-transform: uppercase;
+}
+
+.fameme:hover{
+    -webkit-animation: spin 4s infinite linear;
+    font-size: 1000px;
+    colour: red;
+}
+
+@-webkit-keyframes spin {
+    0%  {-webkit-transform: rotate(0deg);}
+    100% {-webkit-transform: rotate(360deg);}
+}
+        </style>
+    </head>
+    <body>
+        <div ng-app="app" ng-controller="controller" class="container">
+            <div class="row">
+                <div class="col-md-2">
+                    <div style="position:fixed">
+                        <select ng-class="{dank: memify}" ng-model="selected" ng-options="user.name for user in users"></select><br>
+                        Page {{page + 1}}
+                        <br><input type="checkbox" ng-model="memify"> Memify
+                        <br><button ng-init="page = 0" type="btn btn-primary" ng-click="page = page + 1"                  ng-class="{dank: memify}">Next</button>
+                            <button                    type="btn btn-primary" ng-click="page = page >= 1 ? page-1 : page" ng-class="{dank: memify}">Previous</button>
+                        <br>
+                        <span ng-if="uinfo" ng-class="{dank: memify}">
+                            <i class="fa fa-eye"      ng-class="{fameme: memify}"></i> {{uinfo.downloads}} Total Views <br>
+                            <i class="fa fa-upload"   ng-class="{fameme: memify}"></i> {{uinfo.total}} Uploads <br>
+                            <i class="fa fa-arrows-v" ng-class="{fameme: memify}"></i> {{round(uinfo.downloads/uinfo.total)}} Avg. Downloads/uploads
+                        </span>
+                    </div>
+                </div>
+                <div class="col-md-10">
+                    <div class="row">
+                        <div ng-repeat="pic in uploads" class="col-md-3 col-sm-4 col-xs-6 col-lg-3" style="height: 40%; padding: 40px;">
+                            <a href="/f/{{pic.id}}">
+                                <center>
+                                    <img ng-if="pic.img" ng-src="/f/{{pic.id}}/thumb" class="card-img-top img-fluid cons"/>
+                                    <img ng-if="pic.video" class="card-img-top consv" ng-src="https://john2143.com/f/gqKBv.png"/>
+                                    <audio ng-if="pic.audio" class="card-img-top" controls preload="none">
+                                        <source ng-src="/f/{{pic.id}}"/>
+                                    <audio>
+                                </center>
+                            </a>
+                            <div class="card-block">
+                                <!--{{pic.filename}}<br>-->
+                                <!--<hr>-->
+                                <a href="/f/{{pic.id}}/dl">
+                                    <i class="fa fa-arrow-down"></i> {{pic.downloads}}<br>
+                                </a>
+                                <i class="fa fa-clock-o"></i> {{pic.dispDate}} <br>
+                                <i class="fa fa-clock-o"></i> {{pic.timeAgo}} <br>
+                                <i class="fa fa-file-code-o"></i> {{pic.mimetype}} <br>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
