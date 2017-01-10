@@ -1,12 +1,12 @@
 "use strict";
 
-var https = require("https");
-var http = require("http");
-var fs = require("fs");
-var querystring = require("querystring");
-var url = require("url");
+const https = require("https");
+const http = require("http");
+const fs = require("fs");
+const querystring = require("querystring");
+const url = require("url");
 
-var favicon = fs.readFileSync("favicon.ico");
+const favicon = fs.readFileSync("favicon.ico");
 
 class request{
     constructor(req, res){
@@ -128,12 +128,12 @@ class server{
 
         reqx.logConnection();
 
-        var filepath = __dirname + "/pages" + reqx.req.url + ".html";
+        const filepath = __dirname + "/pages" + reqx.req.url + ".html";
         fs.stat(filepath, function(err, stats){
             if(err){
-                var dat = reqx.urldata.path[0];
-                var redir;
+                const dat = reqx.urldata.path[0];
 
+                let redir;
                 if(dat !== undefined){
                     redir = this.redirs[dat];
                 }else{

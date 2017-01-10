@@ -4,19 +4,19 @@
 "use strict"
 
 //import
-var server = require("./server.js");
-var serverConst = require("./const.js");
-var fs = require("fs");
-var pg = require("pg"); //postgres
-var juush = require("./juush.js");
+const server = require("./server.js");
+const serverConst = require("./const.js");
+const fs = require("fs");
+const pg = require("pg"); //postgres
+const juush = require("./juush.js");
 
-var showIP = function(server, reqx){
+const showIP = function(server, reqx){
     server.getExtIP(function(ip){
         reqx.doHTML(ip);
     });
 };
 
-var redirs = {
+const redirs = {
     git: "//github.com/John2143658709/",
     teamspeak: "ts3server://john2143.com",
     steam: "//steamcommunity.com/profiles/76561198027378405",
@@ -34,7 +34,7 @@ var redirs = {
 
 redirs.ts = redirs.teamspeak;
 
-var srv = new server({
+const srv = new server({
     redirs: redirs,
     ip: serverConst.IP,
     port: serverConst.PORT,
