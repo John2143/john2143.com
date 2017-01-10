@@ -11,32 +11,32 @@ var pg = require("pg"); //postgres
 var juush = require("./juush.js");
 
 var showIP = function(server, reqx){
-	server.getExtIP(function(ip){
-		reqx.doHTML(ip);
-	});
+    server.getExtIP(function(ip){
+        reqx.doHTML(ip);
+    });
 };
 
 var redirs = {
-	git: "//github.com/John2143658709/",
-	teamspeak: "ts3server://john2143.com",
-	steam: "//steamcommunity.com/profiles/76561198027378405",
-	osu: "//osu.ppy.sh/u/2563776",
-	ip: showIP,
-	_def: "git",
+    git: "//github.com/John2143658709/",
+    teamspeak: "ts3server://john2143.com",
+    steam: "//steamcommunity.com/profiles/76561198027378405",
+    osu: "//osu.ppy.sh/u/2563776",
+    ip: showIP,
+    _def: "git",
 
-	"": juush.download,
-	f: juush.download,
-	uf: juush.upload,
-	nuser: juush.newUser,
-	//me: juush.userPage,
-	juush: juush.API,
+    "": juush.download,
+    f: juush.download,
+    uf: juush.upload,
+    nuser: juush.newUser,
+    //me: juush.userPage,
+    juush: juush.API,
 };
 
 redirs.ts = redirs.teamspeak;
 
 var srv = new server({
-	redirs: redirs,
-	ip: serverConst.IP,
+    redirs: redirs,
+    ip: serverConst.IP,
     port: serverConst.PORT,
-	httpPort: serverConst.HTTPPORT,
+    httpPort: serverConst.HTTPPORT,
 });
