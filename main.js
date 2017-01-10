@@ -8,6 +8,7 @@ let serverConst;
 try{
     serverConst = require("./const.js");
 }catch(e){
+    console.log("Error: " + e);
     return console.log("You must have a const.js file in order to run this. See serverConst for an example.");
 }
 
@@ -28,13 +29,11 @@ redirs.ts = redirs.teamspeak;
 
 if(serverConst.dbuser){
     const juush = require("./juush.js");
-    ({
-        "": juush.download,
-        f: juush.download,
-        uf: juush.upload,
-        nuser: juush.newUser,
-        juush: juush.API,
-    }).forEach((val, ind) => redirs[ind] = val);
+    redirs[""] = juush.download;
+    redirs.f = juush.download;
+    redirs.uf = juush.upload;
+    redirs.nuser = juush.newUser;
+    redirs.juush = juush.API;
 }
 
 const server = require("./server.js");
