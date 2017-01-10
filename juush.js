@@ -601,6 +601,10 @@ const juushAPI = function(server, reqx){
         //instances
         pool.connect(function(err, client, done){
             if(dbError(err, client, done)) return juushError(res);
+            const genericAPIResult = (err, result) => {
+                if(dbError(err, client, done)) return juushError(res);
+                res.end(JSON.stringify(result.rows));
+            };
             // /juush/db/uploads/<userid>/[page]/
             // lists some number of uploads from a user, with an optional offset
             if(urldata.path[2] === "uploads"){
@@ -611,20 +615,14 @@ const juushAPI = function(server, reqx){
                           "DESC LIMIT $3 OFFSET $2",
                     name: "api_get_uploads",
                     values: [urldata.path[3], (urldata.path[4] || 0) * perPage, perPage],
-                }, function(err, result){
-                    if(dbError(err, client, done)) return juushError(res);
-                    res.end(JSON.stringify(result.rows));
-                });
+                }, genericAPIResult);
             // /juush/db/users/
             // Return all juush users
             }else if(urldata.path[2] === "users"){
                 client.query({
                     text: "SELECT id, name FROM keys;",
                     name: "api_get_uers",
-                }, function(err, result){
-                    if(dbError(err, client, done)) return juushError(res);
-                    res.end(JSON.stringify(result.rows));
-                });
+                }, genericAPIResult);
             // /juush/db/userinfo/<userid>
             // Give info about a user.
             }else if(urldata.path[2] === "userinfo"){
