@@ -24,10 +24,10 @@ const pool = new Pool({
     database: "juush",
     max: 20,
     idleTimeoutMillis: 500,
-})
+});
 
 pool.on("error", function(err, client){
-    console.log("Error in client", err)
+    console.log("Error in client", err);
 });
 
 //This works with dbError to end a broken session
@@ -41,15 +41,14 @@ const juushError = function(res){
 
 //This is used to create a random string as an ID
 const randomStr = function(length = 32){
-    const str = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    const ran = function(){
-        return Math.floor(Math.random() * str.length);
-    };
-    let final = "";
+    const charSet = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    //Random index from charset
+    const ran = () => Math.floor(Math.random() * charSet.length);
+    let str = "";
     for(let i = 0; i < length; i++){
-        final += str[ran() % str.length];
+        str += charSet[ran() % charSet.length];
     }
-    return final;
+    return str;
 };
 
 //You will get a referer and range if you are trying to stream an audio/video
@@ -59,10 +58,11 @@ const isStreamRequest = req => req.headers.referer && req.headers.range;
 //if the user can actually access that content.
 const serveStreamRequest = function(reqx, filepath){
     const rangeRequestRegex = /bytes=(\d*)-(\d*)/;
+    let stat;
 
     try{
         //statSync fails if filepath does not exist
-        var stat = fs.statSync(filepath);
+        stat = fs.statSync(filepath);
     }catch(e){
         reqx.res.writeHead(400, {});
         reqx.res.end();
@@ -72,11 +72,12 @@ const serveStreamRequest = function(reqx, filepath){
     const range = rangeRequestRegex.exec(reqx.req.headers.range || "");
     const fullContentLength = stat.size;
     const rangeStart = Number(range[1]);
+    let rangeEnd;
 
     if(range[2] === ""){
-        var rangeEnd = fullContentLength - 1;
+        rangeEnd = fullContentLength - 1;
     }else{
-        var rangeEnd = Number(range[2]);
+        rangeEnd = Number(range[2]);
     }
 
     const contentLength = rangeEnd - rangeStart + 1;
@@ -102,14 +103,8 @@ const serveStreamRequest = function(reqx, filepath){
     filePipe.pipe(reqx.res);
 };
 
-//bad
-const IPEqual = function(a, b){
-    return a.split("/")[0] === b.split("/")[0];
-};
-
-const getFilename = function(id){
-    return __dirname + "/juushFiles/" + id;
-};
+const IPEqual = (a, b) => a.split("/")[0] === b.split("/")[0];
+const getFilename = id => __dirname + "/juushFiles/" + id;
 
 const setMimeType = function(client, id, newmime, cb){
     fs.unlink(getFilename(id), function(){});
@@ -160,8 +155,9 @@ const processDownload = function(reqx, client, err, result, done, uploadID, disp
     }
 
     //Try to get file details
+    let stat;
     try{
-        var stat = fs.statSync(filepath);
+        stat = fs.statSync(filepath);
     }catch(e){
         reqx.doHTML("Internal error: file may have been manually deleted.", 500);
         return done();
@@ -175,7 +171,7 @@ const processDownload = function(reqx, client, err, result, done, uploadID, disp
 
     //dl for download
     if(disposition === "dl"){
-        var codisp = "attachment";
+        codisp = "attachment";
     //thumbnail
     }else if(disposition === "thumb"){
         incDL = false;
@@ -184,7 +180,7 @@ const processDownload = function(reqx, client, err, result, done, uploadID, disp
         if(shouldInline(stat, data.mimetype)){
             //NOOP
         }else{
-            var codisp = "attachment";
+            codisp = "attachment";
         }
     }
 
@@ -261,7 +257,7 @@ const juushDownload = function(server, reqx){
 
     if(isStreamRequest(reqx.req)){
         return serveStreamRequest(reqx, getFilename(uploadID));
-    };
+    }
 
     pool.connect(function(err, client, done){
         if(dbError(err, client, done)) return juushError(reqx.res);
@@ -390,9 +386,9 @@ var juushUpload = function(server, reqx){
         let timeoutID = null;
 
         //Refresh timer
-        const fTimeout = function(){
+        const fTimeout = () => {
             clearTimeout(timeoutID);
-            timeoutID = setTimeout(function(){error("Timeout error")}, 20000);
+            timeoutID = setTimeout(() => error("Timeout error"), 20000);
             //console.log("added timeout", timeoutID);
         };
 
@@ -515,7 +511,7 @@ var juushUpload = function(server, reqx){
                         //Add info to database now, no reason to wait
                         client.query({
                             text: "INSERT INTO index(id, uploaddate, ip, filename, mimetype, keyid)" +
-                                "VALUES($1, now(), $2, $3, $4, $5)",
+                                  "VALUES($1, now(), $2, $3, $4, $5)",
                             name: "upload_insert_download",
                             values: [url, reqx.req.connection.remoteAddress, headers.filename, headers.mimetype, result.rows[0].id],
                         }, function(err, result){
@@ -549,7 +545,7 @@ var juushUpload = function(server, reqx){
             if(slice){
                 //Only write the portion of the buffer
                 let write2 = Buffer.allocUnsafe(diff);
-                write.copy(write2, 0, 0, diff)
+                write.copy(write2, 0, 0, diff);
                 wstream.write(write2);
             }else{
                 wstream.write(write);
@@ -598,26 +594,6 @@ const juushNewUser = function(server, reqx){
     }
 };
 
-const juushUserPage = function(server, reqx){
-    const {res, urldata, req} = reqx;
-    const page = urldata.path[1];
-    const userIP = req.connection.remoteAddress;
-    pool.connect(function(err, client, done){
-        if(dbError(err, client, done)) return juushError(res);
-        client.query({
-            text: "SELECT * FROM keys WHERE $1 = ANY (ips)",
-            name: "is_active_user",
-            values: [userIP],
-        }, function(err, result){
-            if(dbError(err, client, done)) return juushError(res);
-            res.writeHead(200, {
-                "Content-Type": "text/html"
-            });
-            res.end(newKey);
-        });
-    });
-};
-
 const juushAPI = function(server, reqx){
     const {res, urldata, req} = reqx;
     if(urldata.path[1] === "db"){
@@ -630,9 +606,9 @@ const juushAPI = function(server, reqx){
             if(urldata.path[2] === "uploads"){
                 const perPage = 25;
                 client.query({
-                    text: "SELECT id, filename, mimetype, downloads, uploaddate "
-                        + "FROM index WHERE keyid = $1 ORDER BY uploaddate "
-                        + "DESC LIMIT $3 OFFSET $2",
+                    text: "SELECT id, filename, mimetype, downloads, uploaddate " +
+                          "FROM index WHERE keyid = $1 ORDER BY uploaddate " +
+                          "DESC LIMIT $3 OFFSET $2",
                     name: "api_get_uploads",
                     values: [urldata.path[3], (urldata.path[4] || 0) * perPage, perPage],
                 }, function(err, result){
@@ -695,5 +671,4 @@ module.exports = {
     download: juushDownload,
     upload: juushUpload,
     newUser: juushNewUser,
-    userPage: juushUserPage,
-}
+};

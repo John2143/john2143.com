@@ -3,7 +3,6 @@
 const https = require("https");
 const http = require("http");
 const fs = require("fs");
-const querystring = require("querystring");
 const url = require("url");
 
 const favicon = fs.readFileSync("favicon.ico");
@@ -64,14 +63,14 @@ class request{
     }
 
     serveStatic(path, headers = {"Content-Type": "text/html"}, code = 200){
-        fs.readFile(path, "utf8", function(err, dat){
+        fs.readFile(path, "utf8", (err, dat) => {
             if(err){
                 this.doHTML("Failed to serve content", 500);
             }else{
                 this.res.writeHead(code, headers);
                 this.res.end(dat);
             }
-        }.bind(this))
+        });
     }
 }
 
@@ -86,19 +85,19 @@ class server{
         if(this.isHTTPS && this.port != this.httpPort){
             console.log("Starting http upgrade server: port " + this.httpPort + " -> " + this.port);
             this.serverHTTPUpgrade = http.createServer((req, res) => {
-                res.writeHead(301, {"Location": "https://" + req.headers["host"] + ":" + this.port + req.url});
+                res.writeHead(301, {"Location": "https://" + req.headers.host + ":" + this.port + req.url});
                 res.end();
             });
         }
         try{
             if(this.isHTTPS){
                 console.log("Starting https server on " + this.port);
-                let pathToKeys = "/etc/letsencrypt/live/www.john2143.com/";
+                const pathToKeys = "/etc/letsencrypt/live/www.john2143.com/";
                 this.server = https.createServer({
                     key:  fs.readFileSync(pathToKeys + "privkey.pem"),
                     cert: fs.readFileSync(pathToKeys + "fullchain.pem"),
                     ca:   fs.readFileSync(pathToKeys + "chain.pem"),
-                },(req, res) => {
+                }, (req, res) => {
                     this.route(new request(req, res));
                 });
             }else{
@@ -109,6 +108,7 @@ class server{
             }
         }catch(err){
             console.log("Err starting: " + err);
+            return;
         }
 
         try{
@@ -118,9 +118,7 @@ class server{
             console.log("There was an error starting the server. Are you sure you can access that port?");
         }
 
-        this.getExtIP(function(ip){
-            console.log("EXTIP is " + String(ip));
-        });
+        this.getExtIP(ip => console.log("EXTIP is " + String(ip)));
     }
 
     route(reqx){
@@ -162,13 +160,13 @@ class server{
                 host: "myexternalip.com",
                 port: 443,
                 path: "/raw"
-            }, function(r){
+            }, r => {
                 r.setEncoding("utf8");
-                r.on("data", function(d){
+                r.on("data", d => {
                     this.extip = d;
                     callback(this.extip);
                 });
-            }) .setTimeout(2000, function(){
+            }).setTimeout(2000, () => {
                 callback(false);
             });
         }else{

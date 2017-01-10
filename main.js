@@ -1,7 +1,7 @@
 //Node server for john2143.com
 // its pretty bloated but its more organized than it used to be
 // pending full rewrite
-"use strict"
+"use strict";
 
 //import
 const server = require("./server.js");
@@ -11,9 +11,7 @@ const pg = require("pg"); //postgres
 const juush = require("./juush.js");
 
 const showIP = function(server, reqx){
-    server.getExtIP(function(ip){
-        reqx.doHTML(ip);
-    });
+    server.getExtIP(ip => reqx.doHTML(ip));
 };
 
 const redirs = {
@@ -28,7 +26,6 @@ const redirs = {
     f: juush.download,
     uf: juush.upload,
     nuser: juush.newUser,
-    //me: juush.userPage,
     juush: juush.API,
 };
 
