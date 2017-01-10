@@ -11,6 +11,7 @@ class request{
     constructor(req, res){
         this.req = req;
         this.res = res;
+        this.shouldLog = true;
     }
 
     denyFavicon(){
@@ -41,7 +42,12 @@ class request{
         return this._urldata;
     }
 
+    noLog(){
+        this.shouldLog = false;
+    }
+
     logConnection(){
+        if(!this.shouldLog) return;
         console.log(
             Date() + " | " +
             this.req.connection.remoteAddress + " | " +
@@ -117,8 +123,6 @@ class server{
     route(reqx){
         if(reqx.denyFavicon()) return;
 
-        reqx.logConnection();
-
         const filepath = __dirname + "/pages" + reqx.req.url + ".html";
         fs.stat(filepath, function(err, stats){
             if(err){
@@ -144,6 +148,7 @@ class server{
                 //TODO transform into pipe
                 reqx.serveStatic(filepath);
             }
+            reqx.logConnection();
         }.bind(this));
     }
 
