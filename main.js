@@ -4,17 +4,18 @@
 "use strict";
 
 //import
-const server = require("./server.js");
-const serverConst = require("./const.js");
-const fs = require("fs");
-const pg = require("pg"); //postgres
-const juush = require("./juush.js");
+let serverConst;
+try{
+    serverConst = require("./const.js");
+}catch(e){
+    return console.log("You must have a const.js file in order to run this. See serverConst for an example.");
+}
 
 const showIP = function(server, reqx){
     server.getExtIP(ip => reqx.doHTML(ip));
 };
 
-const redirs = {
+let redirs = {
     git: "//github.com/John2143658709/",
     teamspeak: "ts3server://john2143.com",
     steam: "//steamcommunity.com/profiles/76561198027378405",
@@ -22,18 +23,25 @@ const redirs = {
     ip: showIP,
     _def: "git",
 
-    "": juush.download,
-    f: juush.download,
-    uf: juush.upload,
-    nuser: juush.newUser,
-    juush: juush.API,
 };
-
 redirs.ts = redirs.teamspeak;
 
+if(serverConst.dbuser){
+    const juush = require("./juush.js");
+    ({
+        "": juush.download,
+        f: juush.download,
+        uf: juush.upload,
+        nuser: juush.newUser,
+        juush: juush.API,
+    }).forEach((val, ind) => redirs[ind] = val);
+}
+
+const server = require("./server.js");
 const srv = new server({
     redirs: redirs,
     ip: serverConst.IP,
     port: serverConst.PORT,
     httpPort: serverConst.HTTPPORT,
+    keys: serverConst.keys,
 });

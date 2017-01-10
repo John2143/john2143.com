@@ -4,13 +4,14 @@
   "description": "Server for john2143.com, including juush",
   "main": "main.js",
   "dependencies": {
-    "ip": "^1.1.4",
     "pg": "^6.1.2"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "jshint": "^2.9.4"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "test": "jshint *.js",
+    "start": "node main | tee \"logs/`date`.txt\""
   },
   "repository": {
     "type": "git",
@@ -21,5 +22,5 @@
   "bugs": {
     "url": "https://github.com/John2143658709/john2143.com/issues"
   },
-  "homepage": "https://github.com/John2143658709/john2143.com#readme"
+  "homepage": "https://john2143.com"
 }

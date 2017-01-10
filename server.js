@@ -77,12 +77,13 @@ class request{
 class server{
     constructor(dat){
         this.ip = dat.ip || "0.0.0.0";
-        this.isHTTPS = !!dat.port;
+        this.isHTTPS = dat.port && dat.httpPort && dat.port != dat.httpPort;
         this.port = dat.port || dat.httpPort;
-        this.httpPort = dat.httpPort;
+        this.httpPort = dat.httpPort || dat.port;
         this.redirs = dat.redirs || {};
         this.extip = null;
-        if(this.isHTTPS && this.port != this.httpPort){
+
+        if(this.isHTTPS){
             console.log("Starting http upgrade server: port " + this.httpPort + " -> " + this.port);
             this.serverHTTPUpgrade = http.createServer((req, res) => {
                 res.writeHead(301, {"Location": "https://" + req.headers.host + ":" + this.port + req.url});
@@ -90,21 +91,13 @@ class server{
             });
         }
         try{
+            const sfunc = (req, res) => this.route(new request(req, res));
             if(this.isHTTPS){
                 console.log("Starting https server on " + this.port);
-                const pathToKeys = "/etc/letsencrypt/live/www.john2143.com/";
-                this.server = https.createServer({
-                    key:  fs.readFileSync(pathToKeys + "privkey.pem"),
-                    cert: fs.readFileSync(pathToKeys + "fullchain.pem"),
-                    ca:   fs.readFileSync(pathToKeys + "chain.pem"),
-                }, (req, res) => {
-                    this.route(new request(req, res));
-                });
+                this.server = https.createServer(dat.keys, sfunc);
             }else{
                 console.log("Starting http server on " + this.port);
-                this.server = http.createServer((req, res) => {
-                    this.route(new request(req, res));
-                });
+                this.server = http.createServer(sfunc);
             }
         }catch(err){
             console.log("Err starting: " + err);

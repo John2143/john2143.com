@@ -5,6 +5,15 @@ exports.PORT = 443;
 //HTTP port
 exports.HTTPPORT = 80;
 
+//SSL info
+const fs = require("fs");
+const pathToKeys = "/etc/letsencrypt/live/www.john2143.com/";
+exports.keys = {
+    key:  fs.readFileSync(pathToKeys + "privkey.pem"),
+    cert: fs.readFileSync(pathToKeys + "fullchain.pem"),
+    ca:   fs.readFileSync(pathToKeys + "chain.pem"),
+};
+
 //Database info (postgres)
 /* Here is what the database actually looks like internally
 john@pi ~/server/john2143.com $ psql
