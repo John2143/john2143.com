@@ -19,21 +19,24 @@ describe("const.js", function(){
     });
 });
 
-describe("server.js", function(){
-    const server = require("../server.js");
-    let serv = new server({
-        ip: "localhost",
-        port: 3000,
-        redirs: {
-            "testredir": "//localhost:3000/testfunc",
-            "testfunc": (server, reqx) => {
-                reqx.doHTML("xd");
-            },
-            _def: "testredir",
-        }
-    });
+const redirs = {
+    "testredir": "//localhost:3000/testfunc",
+    "testfunc": (server, reqx) => {
+        reqx.doHTML("xd");
+    },
+    _def: "testredir",
+};
 
-    it("should work without https", function(){
+const server = require("../server.js");
+describe("HTTP Server", function(){
+    let serv;
+
+    it("should work", function(){
+        serv = new server({
+            ip: "localhost",
+            port: 3000,
+            redirs,
+        });
         expect(serv).to.be.ok;
         expect(serv.ip).to.be.ok;
         expect(serv.port).to.eq(3000);
@@ -41,8 +44,8 @@ describe("server.js", function(){
         expect(serv.isHTTPS).to.not.be.true;
     });
 
-
     let testsLeft = 4;
+
     it("should have a working 404", function(done){
         chai.request("http://localhost:3000").get("/asdf").end(function(err, res){
             expect(res).to.have.status(404);
@@ -72,9 +75,14 @@ describe("server.js", function(){
             if(!--testsLeft) serv.stop();
         });
     });
+});
 
-    it("should work with https", function(){
-        let serv = new server({
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+describe("HTTPS Server", function(){
+    let serv;
+
+    it("should work", function(){
+        serv = new server({
             ip: "localhost",
             httpPort: 3000,
             port: 4000,
@@ -82,13 +90,32 @@ describe("server.js", function(){
                 key:  fs.readFileSync("./tests/testCerts/server.key"),
                 cert: fs.readFileSync("./tests/testCerts/server.crt"),
             },
+            redirs
         });
+
         expect(serv).to.be.ok;
         expect(serv.ip).to.be.ok;
         expect(serv.port).to.eq(4000);
         expect(serv.httpPort).to.eq(3000);
         expect(serv.isHTTPS).to.be.true;
         expect(serv.redirs).to.not.have.property("juush");
-        serv.stop();
+    });
+
+    let testsLeft = 2;
+
+    it("should allow connections to the https server", function(done){
+        chai.request("https://localhost:4000").get("/").end(function(err, res){
+            expect(err).to.be.not.null;
+            done();
+            if(!--testsLeft) serv.stop();
+        });
+    });
+
+    it("should redirect to https", function(done){
+        chai.request("http://localhost:3000").get("/").end(function(err, res){
+            expect(err).to.be.not.null;
+            done();
+            if(!--testsLeft) serv.stop();
+        });
     });
 });
