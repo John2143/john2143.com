@@ -38,7 +38,7 @@ if(serverConst.dbuser){
 
 const server = require("./server.js");
 const srv = new server({
-    redirs: redirs,
+    redirs,
     ip: serverConst.IP,
     port: serverConst.PORT,
     httpPort: serverConst.HTTPPORT,

@@ -5,7 +5,14 @@ const http = require("http");
 const fs = require("fs");
 const url = require("url");
 
-const favicon = fs.readFileSync("favicon.ico");
+
+let favicon = "";
+
+try{
+    favicon = fs.readFileSync("favicon.ico");
+}catch(e){
+    //NOOP
+}
 
 class request{
     constructor(req, res){
@@ -112,12 +119,18 @@ class server{
 
         try{
             this.server.listen(this.port, this.ip);
-            if(this.serverHTTPUpgrade) this.serverHTTPUpgrade.listen(dat.httpPort || 80, this.ip);
+            if(this.serverHTTPUpgrade) this.serverHTTPUpgrade.listen(dat.httpPort, this.ip);
         }catch(err){
             console.log("There was an error starting the server. Are you sure you can access that port?");
         }
 
         this.getExtIP(ip => console.log("EXTIP is " + String(ip)));
+    }
+
+    stop(){
+        this.server.close();
+        if(this.serverHTTPUpgrade) this.serverHTTPUpgrade.close();
+        console.log("Server stopping");
     }
 
     route(reqx){
@@ -142,7 +155,7 @@ class server{
                         reqx.doRedirect(redir);
                     }
                 }else{
-                    reqx.serveStatic(__dirname + "/pages/404.html");
+                    reqx.serveStatic(__dirname + "/pages/404.html", null, 404);
                 }
             }else{
                 //TODO transform into pipe
