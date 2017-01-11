@@ -58,9 +58,15 @@ angular.module("app", []).controller("controller", function($scope, $http){
         }).then(function(res){
             $scope.uploads = res.data;
             for(let ul of $scope.uploads){
-                ul.img = ul.mimetype[0] === "i" && ul.mimetype[5] === "/";
-                ul.video = ul.mimetype[0] === "v" && ul.mimetype[5] === "/";
-                ul.audio = ul.mimetype[0] === "a" && ul.mimetype[5] === "/";
+                if(ul.mimetype[0] === "i" && ul.mimetype[5] === "/"){
+                    ul.type = "image";
+                }else if(ul.mimetype[0] === "v" && ul.mimetype[5] === "/"){
+                    ul.type = "video";
+                }else if(ul.mimetype[0] === "a" && ul.mimetype[5] === "/"){
+                    ul.type = "audio";
+                }else{
+                    ul.type = null;
+                }
                 const dt = new Date(ul.uploaddate);
                 ul.dispDate =
                       abvr[dt.getMonth()] + " "
@@ -167,12 +173,11 @@ angular.module("app", []).controller("controller", function($scope, $http){
                     <div class="row">
                         <div ng-repeat="pic in uploads" class="col-md-3 col-sm-4 col-xs-6 col-lg-3" style="height: 40%; padding: 40px;">
                             <a href="/f/{{pic.id}}">
-                                <center>
-                                    <img ng-if="pic.img" ng-src="/f/{{pic.id}}/thumb" class="card-img-top img-fluid cons"/>
-                                    <img ng-if="pic.video" class="card-img-top consv" ng-src="https://john2143.com/f/gqKBv.png"/>
-                                    <audio ng-if="pic.audio" class="card-img-top" controls preload="none">
-                                        <source ng-src="/f/{{pic.id}}"/>
-                                    <audio>
+                                <center ng-switch="pic.type">
+                                    <img   ng-switch-when="image" class="card-img-top img-fluid cons" ng-src="/f/{{pic.id}}/thumb"/>
+                                    <img   ng-switch-when="video" class="card-img-top consv" ng-src="https://john2143.com/f/gqKBv.png"/>
+                                    <audio ng-switch-when="audio" class="card-img-top" controls preload="none"> <source ng-src="/f/{{pic.id}}"/> </audio>
+                                    <span  ng-switch-default      class="card-img-top">{{pic.filename}}<br></span>
                                 </center>
                             </a>
                             <div class="card-block">
