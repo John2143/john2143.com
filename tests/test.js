@@ -66,7 +66,7 @@ describe("server.js", function(){
         });
     });
     it("should have a working default", function(done){
-        chai.request("http://localhost:3000").get("/404").end(function(err, res){
+        chai.request("http://localhost:3000").get("/").end(function(err, res){
             expect(res).to.have.status(200);
             done();
             if(!--testsLeft) serv.stop();

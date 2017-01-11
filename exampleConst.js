@@ -9,9 +9,9 @@ exports.HTTPPORT = 80;
 const fs = require("fs");
 const pathToKeys = "/etc/letsencrypt/live/www.john2143.com/";
 exports.keys = {
-    key:  fs.readFileSync(pathToKeys + "privkey.pem"),
-    cert: fs.readFileSync(pathToKeys + "fullchain.pem"),
-    ca:   fs.readFileSync(pathToKeys + "chain.pem"),
+    //key:  fs.readFileSync(pathToKeys + "privkey.pem"),
+    //cert: fs.readFileSync(pathToKeys + "fullchain.pem"),
+    //ca:   fs.readFileSync(pathToKeys + "chain.pem"),
 };
 
 //Database info (postgres)
