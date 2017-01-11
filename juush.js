@@ -51,6 +51,16 @@ const randomStr = function(length = 32){
     return str;
 };
 
+const guessFileExtension = function(filename){
+    let fileExtension = filename.split(".");
+    //No extension
+    if(fileExtension.length === 1) return null;
+    fileExtension = fileExtension[fileExtension.length - 1];
+    //extension too long
+    if(fileExtension.length > 8) return null;
+    return fileExtension;
+};
+
 //You will get a referer and range if you are trying to stream an audio/video
 const isStreamRequest = req => req.headers.referer && req.headers.range;
 
@@ -107,7 +117,7 @@ const IPEqual = (a, b) => a.split("/")[0] === b.split("/")[0];
 const getFilename = id => __dirname + "/juushFiles/" + id;
 
 const setMimeType = function(client, id, newmime, cb){
-    fs.unlink(getFilename(id), function(){});
+    if(newmime === "deleted") fs.unlink(getFilename(id), function(){});
     client.query({
         text: "UPDATE index SET mimetype=$2 WHERE id=$1",
         name: "delete_file",
@@ -294,6 +304,49 @@ const juushDownload = function(server, reqx){
                 processInfoReq(reqx.res, result);
             });
             done();
+        }else if(disposition === "rename"){
+            client.query({
+                text: "SELECT ip, filename FROM index WHERE id=$1",
+                name: "rename_check_ip",
+                values: [uploadID],
+            }, function(err, result){
+                if(dbError(err, client, done)) return juushError(reqx.res);
+
+                if(result.rowCount === 0){
+                    reqx.doHTML("File does not exist", 404);
+                    return done();
+                }
+
+                const data = result.rows[0];
+
+                //TODO better user system
+                if(!IPEqual(data.ip, reqx.req.connection.remoteAddress)){
+                    reqx.doHTML("You do not have access to rename this file.", 401);
+                    return done();
+                }
+
+                const oldName = data.filename;
+                const newName = reqx.urldata.path[3];
+                const oldFileExt = guessFileExtension(oldName);
+                const newFileExt = guessFileExtension(newName);
+
+                let name = newName;
+
+                if(!newFileExt && oldFileExt){
+                    name += "." + oldFileExt;
+                }
+
+                client.query({
+                    text: "UPDATE index SET filename=$2 WHERE id=$1",
+                    name: "delete_file",
+                    values: [uploadID, name],
+                }, function(err, res){
+                    if(dbError(err, client, done)) return juushError(reqx.res);
+                    reqx.res.end(name);
+                });
+
+                done();
+            });
         }else{
             client.query({
                 text: "SELECT mimetype, filename FROM index WHERE id=$1",
@@ -377,7 +430,7 @@ const parseHeadersFromUpload = function(data, reqHeaders){
 //The exucution order could in theory be changed to connect to the database only
 //  after the connection is established by not waiting for the client and such
 
-var juushUpload = function(server, reqx){
+const juushUpload = function(server, reqx){
     getDatabaseConnectionAndURL(function(err, url, client, done){
         if(err) return true;
         console.log("File will appear at " + url);
@@ -438,14 +491,7 @@ var juushUpload = function(server, reqx){
             if(isError) return;
 
             //Try to guess a file extension (for posting to reddit and stuff)
-            let fileExtension = null;
-            try{
-                fileExtension = headers.filename.split(".");
-                fileExtension = fileExtension[fileExtension.length - 1];
-                if(fileExtension.length > 8) throw "";
-            }catch(e){
-                fileExtension = null;
-            }
+            let fileExtension = guessFileExtension(headers.filename);
 
             //Construct return link
             let path = server.isHTTPS ? "https" : "http";
@@ -605,6 +651,11 @@ const juushAPI = function(server, reqx){
                 if(dbError(err, client, done)) return juushError(res);
                 res.end(JSON.stringify(result.rows));
             };
+            const genericAPIListResult = field => (err, result) => {
+                if(dbError(err, client, done)) return juushError(res);
+                let data = result.rows.map(x => x[field]);
+                res.end(JSON.stringify(data));
+            };
             // /juush/db/uploads/<userid>/[page]/
             // lists some number of uploads from a user, with an optional offset
             if(urldata.path[2] === "uploads"){
@@ -623,6 +674,14 @@ const juushAPI = function(server, reqx){
                     text: "SELECT id, name FROM keys;",
                     name: "api_get_uers",
                 }, genericAPIResult);
+            // /juush/db/whoami/
+            // Return a list of user ids for current IP
+            }else if(urldata.path[2] === "whoami"){
+                client.query({
+                    text: "SELECT DISTINCT keyid FROM index WHERE ip=$1",
+                    name: "api_whoami",
+                    values: [req.connection.remoteAddress],
+                }, genericAPIListResult("keyid"));
             // /juush/db/userinfo/<userid>
             // Give info about a user.
             }else if(urldata.path[2] === "userinfo"){
