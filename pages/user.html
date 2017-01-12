@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
     <head>
         <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.1/angular.min.js"></script>
@@ -39,35 +40,45 @@ angular.module("app", []).controller("controller", function($scope, $http){
     $scope.users = {};
     $scope.whoami = undefined;
 
-    $http({
-        method: "GET",
-        url: "/juush/db/users",
-    }).then(function(res){
-        $scope.users = res.data;
-        for(let x of $scope.users){
-            if(x.id == localStorage.id){
-                $scope.selected = x;
-                console.log("Setting selected to ", $scope.selected);
-                break;
+    $scope.refreshUsers = () => {
+        $http({
+            method: "GET",
+            url: "/juush/db/users",
+        }).then(function(res){
+            $scope.users = res.data;
+            for(let x of $scope.users){
+                if(x.id == localStorage.id){
+                    $scope.selected = x;
+                    break;
+                }
             }
-        }
 
-        $scope.$watch("selected", () => {
-            if(!$scope.selected) return;
-            localStorage.id = $scope.selected.id;
+            $scope.$watch("selected", () => {
+                if(!$scope.selected) return;
+                localStorage.id = $scope.selected.id;
+            });
+        }, function(res){
+            document.innerHTML = "Error";
         });
-    }, function(res){
-        document.innerHTML = "Error";
-    });
+    };
 
     $http({
         method: "GET",
         url: "/juush/db/whoami",
     }).then(function(res){
-        //Todo handle unknown case
-        if(res.data[1]) $scope.whoami = false;
-        $scope.whoami = res.data[0] || false;
-        console.log($scope.whoami);
+        //undefined => retreiving
+        //false => guest user (no uploads)
+        //null => multiple identities (???)
+        //number => user
+        const idens = res.data.length;
+        if(idens === 1){
+            $scope.whoami = res.data[0];
+        }else if(idens === 0){
+            $scope.whoami = false;
+        }else{
+            $scope.whoamiList = res.data;
+            $scope.whoami = null;
+        }
     });
 
     $http({
@@ -179,9 +190,77 @@ angular.module("app", []).controller("controller", function($scope, $http){
         });
     };
 
+    $scope.deleteThisUser = () => {
+        const sel = $scope.selected;
+        if(!sel) return;
+        if(!confirm("Are you sure you want to delete " + sel.name)) return;
+
+        $http({
+            method: "GET",
+            url: "/juush/db/deluser/" + sel.id,
+        }).then(function(res){
+            alert("Deleted? " + res.data);
+            if(res.data == "false") return;
+            $scope.selected = $scope.users[0];
+            $scope.refreshUsers();
+        }, function(err){
+            alert("Failed to del" + err);
+        });
+    };
+
+    $scope.createNewUser = () => {
+        const uname = prompt("username");
+        if(!uname) return;
+
+        $http({
+            method: "GET",
+            url: "/nuser/" + uname,
+        }).then(function(res){
+            let importer = {
+                Name: "John2143",
+                RequestType: "POST",
+                RequestURL: "https://john2143.com/uf",
+                ResponseType: "Text",
+                RegexList: [
+                    "(.+)"
+                ],
+                URL: "$regex:1$",
+                DeletionURL: "$regex:1$/delete"
+            };
+
+            const key = res.data;
+            importer.FileFormName = key;
+            importer = JSON.stringify(importer);
+
+            $scope.userData = {
+                key,
+                importer,
+            };
+
+            $scope.refreshUsers();
+        }, function(err){
+            alert("Failed to make user");
+        });
+    };
+
+    $scope.getwhoamiTitle = id => {
+        let titles = {
+            undefined: "Loading...",
+            false: "Guest user (No uploads)",
+        };
+
+        const myid = $scope.whoami;
+        if(myid === null) return ($scope.whoamiList.includes(id) ? "This might be you: " : "This is not you, but: ") + "Multiple identities: " + $scope.whoamiList.join(", ");
+
+        let title = titles[myid];
+        if(title) return title;
+        return id == myid ? "This is you" : "This is not you";
+    };
+
     $scope.$watch("selected", $scope.updateUserpage);
     $scope.$watch("selected", $scope.updateInfo);
     $scope.$watch("page", $scope.updateUserpage);
+    $scope.refreshUsers();
 
     $scope.page = 0;
     window.scoop = $scope;
@@ -240,47 +319,94 @@ angular.module("app", []).controller("controller", function($scope, $http){
 .card-img-top{
     width: 100%;
     height: 200px;
-    height: 200px;
+}
+.full-width{
+    width:100%;
+    min-width:100%;
+    max-width:100%;
 }
 
 @-webkit-keyframes spin {
     0%  {-webkit-transform: rotate(0deg);}
     100% {-webkit-transform: rotate(360deg);}
 }
+
         </style>
     </head>
     <body>
-        <div ng-app="app" ng-controller="controller" class="container">
+        <div ng-app="app" ng-controller="controller" class="container-fluid">
+            <!--<div class="row">-->
+                <!--<div class="col-md-2" style="background-color:red;height:100px;"></div>-->
+                <!--<div class="col-md-2" style="background-color:blue;height:100px;"></div>-->
+                <!--<div class="col-md-2" style="background-color:red;height:100px;"></div>-->
+                <!--<div class="col-md-2" style="background-color:blue;height:100px;"></div>-->
+                <!--<div class="col-md-2" style="background-color:red;height:100px;"></div>-->
+                <!--<div class="col-md-2" style="background-color:blue;height:100px;"></div>-->
+            <!--</div>-->
             <div class="row">
-                <div class="col-md-2">
+                <div class="col-xs-2">
                     <div style="position:fixed">
-                        <select ng-class="{dank: memify}" ng-model="selected" ng-options="user.name for user in users"></select><br>
-                        Page {{page + 1}}
-                        <br><button type="btn btn-primary" ng-click="page = page + 1"                  ng-class="{dank: memify}">Next</button>
-                            <button type="btn btn-primary" ng-click="page = page >= 1 ? page-1 : page" ng-class="{dank: memify}">Previous</button>
-                        <br>
+                        <ul class="list-group full-width">
+                            <div class="list-group-item disabled list-group-item-info">User</div>
+                            <div class="list-group-item">
+                                <select ng-class="{dank: memify}" ng-model="selected" ng-options="user.name for user in users"></select><br>
+                            </div>
+                            <div class="list-group-item">
+                                <div class="btn-group">
+                                    <button class="btn btn-primary" ng-click="page = page - 1" ng-class="{dank: memify}" ng-disabled="page == 0">Previous</button>
+                                    <button class="btn btn-primary" ng-click="page = page + 1" ng-class="{dank: memify}">Next</button>
+                                </div>
+                            </div>
+                        </ul>
                         <span ng-show="uinfo" ng-class="{dank: memify}">
-
-                            <i class="fa fa-fw fa-hashtag"></i>
-                            <i ng-show="whoami" class="fa whoamicon" ng-class="{
-                                'fa-check-circle': whoami==selected.id,
-                                'fa-times-circle': whoami!=selected.id,
-                            }"></i>
-                            <i ng-show="!whoami" class="fa fa-fw whoamicon fa-cog fa-spin"></i>
-                            Userid {{selected.id}}
-                            <br>
-                            <i class="fa fa-fw fa-eye"      ng-class="{fameme: memify}"></i> {{uinfo.downloads}} Total Views <br>
-                            <i class="fa fa-fw fa-upload"   ng-class="{fameme: memify}"></i> {{uinfo.total}} Uploads <br>
-                            <i class="fa fa-fw fa-arrows-v" ng-class="{fameme: memify}"></i> {{round(uinfo.downloads/uinfo.total)}} Avg. Downloads/upload
+                            <ul class="list-group full-width">
+                                <div class="list-group-item disabled list-group-item-info">User Info</div>
+                                <div class="list-group-item" title="{{getwhoamiTitle(selected.id)}}">
+                                    <i class="fa fa-fw fa-hashtag"></i>
+                                    Userid {{selected.id}}
+                                    <i ng-show="whoami" class="fa whoamicon" ng-class="{
+                                        'fa-check-circle': whoami==selected.id,
+                                        'fa-times-circle': whoami!=selected.id,
+                                    }"></i>
+                                    <i ng-show="whoami === undefined" class="fa fa-fw whoamicon fa-cog fa-spin"></i>
+                                    <i ng-show="whoami === false"     class="fa fa-fw whoamicon fa-user-times"></i>
+                                    <i ng-show="whoami === null"      class="fa fa-fw whoamicon fa-users"></i>
+                                </div>
+                                <div class="list-group-item"><i class="fa fa-fw fa-eye"      ng-class="{fameme: memify}"></i> {{uinfo.downloads}} Total Views</div>
+                                <div class="list-group-item"><i class="fa fa-fw fa-upload"   ng-class="{fameme: memify}"></i> {{uinfo.total}} Uploads</div>
+                                <div class="list-group-item"><i class="fa fa-fw fa-arrows-v" ng-class="{fameme: memify}"></i> {{round(uinfo.downloads/uinfo.total)}} Avg. DL/UL</div>
+                            </ul>
                         </span>
-                        <br><input type="checkbox" ng-model="memify"> Memify
-                        <div ng-show="admin">
+                        <div ng-if="admin">
+                            <ul class="list-group">
+                                <div class="list-group-item disabled list-group-item-info">Admin Menu</div>
+                                <button class="list-group-item list-group-item-action list-group-item-success" ng-click="createNewUser()">Create New User</button>
+                                <button class="list-group-item list-group-item-action list-group-item-warning" ng-click="userData = {key: uinfo.key}">Show User Key</button>
+
+                                <div ng-show="userData" class="list-group-item">
+                                    <div class="input-group" ng-show="userData.key">
+                                        <input class="form-control" type="text" value="{{userData.key}}"      onfocus="this.select()" readonly></input>
+                                        <!--<span class="input-group-addon"><i class="fa fa-key"></i></span>-->
+                                    </div>
+                                    <div class="input-group" ng-show="userData.importer">
+                                        <input class="form-control" type="text" value="{{userData.importer}}" onfocus="this.select()" readonly></input>
+                                        <!--<span class="input-group-addon"><i class="fa fa-clipboard"></i></span>-->
+                                    </div>
+                                </div>
+                                <button class="list-group-item list-group-item-action" ng-click="userData = null" ng-show="userData">Done</button>
+                                <button class="list-group-item list-group-item-action list-group-item-danger" ng-click="deleteThisUser()">Delete this user</button>
+                            </ul>
                         </div>
                         <div ng-show="whoami==selected.id">
+                             <ul class="list-group">
+                                 <div class="list-group-item disabled list-group-item-info">User Menu</div>
+                                 <button class="list-group-item list-group-item-action" ng-click="memify = !memify"> Memify </button>
+                                 <button class="list-group-item list-group-item-action" ng-click="admin = true" ng-show="!admin"> Force Open Admin Menu </button>
+                             </ul>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-10">
+                <div class="col-xs-10">
                     <div class="row">
                         <div ng-repeat="pic in uploads" class="col-lg-3 col-sm-12" style="padding: 40px;">
                             <a href="/f/{{pic.id}}" title="{{pic.filename}}">
