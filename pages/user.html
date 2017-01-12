@@ -347,7 +347,7 @@ angular.module("app", []).controller("controller", function($scope, $http){
                 <div class="col-xs-2">
                     <div style="position:fixed">
                         <ul class="list-group full-width">
-                            <div class="list-group-item disabled list-group-item-info">User</div>
+                            <div class="list-group-item list-group-item-info">User</div>
                             <div class="list-group-item">
                                 <select ng-class="{dank: memify}" ng-model="selected" ng-options="user.name for user in users"></select><br>
                             </div>
@@ -360,7 +360,7 @@ angular.module("app", []).controller("controller", function($scope, $http){
                         </ul>
                         <span ng-show="uinfo" ng-class="{dank: memify}">
                             <ul class="list-group full-width">
-                                <div class="list-group-item disabled list-group-item-info">User Info</div>
+                                <div class="list-group-item list-group-item-info">User Info</div>
                                 <div class="list-group-item" title="{{getwhoamiTitle(selected.id)}}">
                                     <i class="fa fa-fw fa-hashtag"></i>
                                     Userid {{selected.id}}
@@ -374,12 +374,12 @@ angular.module("app", []).controller("controller", function($scope, $http){
                                 </div>
                                 <div class="list-group-item"><i class="fa fa-fw fa-eye"      ng-class="{fameme: memify}"></i> {{uinfo.downloads}} Total Views</div>
                                 <div class="list-group-item"><i class="fa fa-fw fa-upload"   ng-class="{fameme: memify}"></i> {{uinfo.total}} Uploads</div>
-                                <div class="list-group-item"><i class="fa fa-fw fa-arrows-v" ng-class="{fameme: memify}"></i> {{round(uinfo.downloads/uinfo.total)}} Avg. DL/UL</div>
+                                <div class="list-group-item" title="Average downloads per upload"><i class="fa fa-fw fa-arrows-v" ng-class="{fameme: memify}"></i> {{round(uinfo.downloads/uinfo.total)}} ADU</div>
                             </ul>
                         </span>
                         <div ng-if="admin">
                             <ul class="list-group">
-                                <div class="list-group-item disabled list-group-item-info">Admin Menu</div>
+                                <div class="list-group-item list-group-item-info">Admin Menu</div>
                                 <button class="list-group-item list-group-item-action list-group-item-success" ng-click="createNewUser()">Create New User</button>
                                 <button class="list-group-item list-group-item-action list-group-item-warning" ng-click="userData = {key: uinfo.key}">Show User Key</button>
 
@@ -399,7 +399,7 @@ angular.module("app", []).controller("controller", function($scope, $http){
                         </div>
                         <div ng-show="whoami==selected.id">
                              <ul class="list-group">
-                                 <div class="list-group-item disabled list-group-item-info">User Menu</div>
+                                 <div class="list-group-item list-group-item-info">User Menu</div>
                                  <button class="list-group-item list-group-item-action" ng-click="memify = !memify"> Memify </button>
                                  <button class="list-group-item list-group-item-action" ng-click="admin = true" ng-show="!admin"> Force Open Admin Menu </button>
                              </ul>
