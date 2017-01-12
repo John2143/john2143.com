@@ -61,6 +61,8 @@ const guessFileExtension = function(filename){
     return fileExtension;
 };
 
+const isAdmin = ip => ip.indexOf("192.168") >= 0 || ip === "127.0.0.1";
+
 //You will get a referer and range if you are trying to stream an audio/video
 const isStreamRequest = req => req.headers.referer && req.headers.range;
 
@@ -614,9 +616,7 @@ const juushUpload = function(server, reqx){
 const juushNewUser = function(server, reqx){
     const {res, urldata, req} = reqx;
     //Only people on the same network as the server can create users
-    if(req.connection.remoteAddress.indexOf("192.168") >= 0 ||
-       req.connection.remoteAddress === "127.0.0.1"
-    ){
+    if(isAdmin(req.connection.remoteAddress)){
         pool.connect(function(err, client, done){
             if(dbError(err, client, done)) return;
             var newKey = randomStr(32);
@@ -718,6 +718,12 @@ const juushAPI = function(server, reqx){
             }
             done();
         });
+    // /juush/isadmin/[ip]
+    // Returns if the ip (or connector) is an admin
+    }else if(urldata.path[1] === "isadmin"){
+        let ip = req.connection.remoteAddress;
+        if(urldata.path[2]) ip = urldata.path[2];
+        res.end(isAdmin(ip) ? "true" : "false");
     }else{
         res.end("Unknown method");
     }
