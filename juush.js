@@ -275,8 +275,8 @@ const juushDownload = function(server, reqx){
         if(dbError(err, client, done)) return juushError(reqx.res);
         if(disposition === "delete"){
             client.query({
-                text: "SELECT ip FROM index WHERE id=$1",
-                name: "delete_check_ip",
+                text: "SELECT ip FROM index WHERE keyid=(SELECT keyid FROM index WHERE id=$1) GROUP BY ip ORDER BY max(uploaddate)",
+                name: "delete_check",
                 values: [uploadID],
             }, function(err, result){
                 if(dbError(err, client, done)) return juushError(reqx.res);
@@ -286,10 +286,16 @@ const juushDownload = function(server, reqx){
                     return done();
                 }
 
-                const data = result.rows[0];
+                let canDo = false;
+                for(let x of result.rows){
+                    if(IPEqual(x.ip, reqx.req.connection.remoteAddress)){
+                        canDo = true;
+                        break;
+                    }
+                }
 
                 //TODO better user system
-                if(!IPEqual(data.ip, reqx.req.connection.remoteAddress)){
+                if(!canDo){
                     reqx.doHTML("You do not have access to delete this file.", 401);
                     return done();
                 }
@@ -298,8 +304,8 @@ const juushDownload = function(server, reqx){
                     if(dbError(err, client, done)) return juushError(reqx.res);
                     reqx.doHTML("File successfully deleted. It will still appear in your user page.");
                 });
-                done();
             });
+                done();
         }else if(disposition === "info"){
             juushUploadInfo(client, uploadID, function(err, result){
                 if(dbError(err, client, done)) return juushError(reqx.res);
