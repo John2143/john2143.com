@@ -328,7 +328,7 @@ const juushDownload = function(server, reqx){
                 }
 
                 const oldName = data.filename;
-                const newName = reqx.urldata.path[3];
+                const newName = decodeURI(reqx.urldata.path[3]);
                 const oldFileExt = guessFileExtension(oldName);
                 const newFileExt = guessFileExtension(newName);
 
@@ -340,7 +340,7 @@ const juushDownload = function(server, reqx){
 
                 client.query({
                     text: "UPDATE index SET filename=$2 WHERE id=$1",
-                    name: "delete_file",
+                    name: "rename_file",
                     values: [uploadID, name],
                 }, function(err, res){
                     if(dbError(err, client, done)) return juushError(reqx.res);
@@ -656,6 +656,10 @@ const juushAPI = function(server, reqx){
                 let data = result.rows.map(x => x[field]);
                 res.end(JSON.stringify(data));
             };
+            const genericAPIOperationResult = (err, result) => {
+                if(dbError(err, client, done)) return juushError(res);
+                res.end(result.rowCount >= 1 ? "true" : "false");
+            };
             // /juush/db/uploads/<userid>/[page]/
             // lists some number of uploads from a user, with an optional offset
             if(urldata.path[2] === "uploads"){
@@ -686,21 +690,34 @@ const juushAPI = function(server, reqx){
             // Give info about a user.
             }else if(urldata.path[2] === "userinfo"){
                 let ret = {};
-                let rtot = -2;
+                let rtot = 2;
 
                 const sendResult = () => res.end(JSON.stringify(ret));
                 const sendNone = () => res.end("{}");
 
-                client.query({
-                    text: "SELECT name FROM keys WHERE id = $1;",
-                    name: "api_get_info1",
-                    values: [urldata.path[3]],
-                }, function(err, result){
+
+                const info1 = function(err, result){
                     if(dbError(err, client, done)) return juushError(res);
                     if(!result.rows[0]) return sendNone();
                     ret.name = result.rows[0].name;
-                    if(!++rtot) sendResult();
-                });
+                    ret.key = result.rows[0].key;
+                    if(!--rtot) sendResult();
+                };
+
+                if(isAdmin(req.connection.remoteAddress)){
+                    client.query({
+                        text: "SELECT name,key FROM keys WHERE id = $1;",
+                        name: "api_get_info_admin1",
+                        values: [urldata.path[3]],
+                    }, info1);
+                }else{
+                    client.query({
+                        text: "SELECT name FROM keys WHERE id = $1;",
+                        name: "api_get_info1",
+                        values: [urldata.path[3]],
+                    }, info1);
+                }
+
                 client.query({
                     text: "SELECT SUM(downloads), COUNT(*) FROM index WHERE keyid = $1;",
                     name: "api_get_info2",
@@ -711,8 +728,20 @@ const juushAPI = function(server, reqx){
                     if(!r) return sendNone();
                     ret.downloads = r.sum;
                     ret.total = r.count;
-                    if(!++rtot) sendResult();
+                    if(!--rtot) sendResult();
                 });
+            }else if(urldata.path[2] === "deluser"){
+                if(!isAdmin(req.connection.remoteAddress)){
+                    res.writeHead(401, {})
+                    res.end("You cannot delete users");
+                    return;
+                }
+
+                client.query({
+                    text: "DELETE FROM keys WHERE id=$1;",
+                    name: "api_deluser",
+                    values: [urldata.path[3]],
+                }, genericAPIOperationResult);
             }else{
                 res.end("Unknown endpoint");
             }
