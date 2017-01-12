@@ -20,5 +20,5 @@ juush. Access /nuser/<name> to create users and obtain their upload key.
  3. Click import from clipboard (after copying settings)
  4. Test settings
 
-![](https://john2143.com/f/omzT.png)
-![](https://john2143.com/f/TOGM.png)
+![](https://john2143.com/f/1LXy.png)
+![](https://john2143.com/f/9rd6.png)
