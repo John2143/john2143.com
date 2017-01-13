@@ -305,7 +305,7 @@ const juushDownload = function(server, reqx){
                     reqx.doHTML("File successfully deleted. It will still appear in your user page.");
                 });
             });
-                done();
+            done();
         }else if(disposition === "info"){
             juushUploadInfo(client, uploadID, function(err, result){
                 if(dbError(err, client, done)) return juushError(reqx.res);
@@ -738,7 +738,7 @@ const juushAPI = function(server, reqx){
                 });
             }else if(urldata.path[2] === "deluser"){
                 if(!isAdmin(req.connection.remoteAddress)){
-                    res.writeHead(401, {})
+                    res.writeHead(401, {});
                     res.end("You cannot delete users");
                     return;
                 }
