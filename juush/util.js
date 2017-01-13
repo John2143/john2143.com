@@ -5,17 +5,6 @@ const Pool = pg.Pool;
 const serverConst = require("./../const.js");
 const fs = require("fs");
 
-//This function is run after every query to make sure the request was
-//successful. If it was not, it returns true and destroys the client
-exports.dbError = function(err, client, done){
-    if(err){
-        console.log("FATAL ERROR: DB failure.", err);
-        if(client) done(true);
-        return true;
-    }
-    return false;
-};
-
 //Setup postgres pool
 let pool = exports.pool = new Pool({
     user: serverConst.dbuser,
@@ -31,13 +20,17 @@ pool.on("error", function(err, client){
 });
 
 //This works with dbError to end a broken session
-exports.juushError = function(res){
-    res.writeHead(500, {
+exports.juushError = function(res, err, code){
+    res.writeHead(code, {
         "Content-Type": "text/html",
     });
     res.end("Internal server error.");
     console.log("JuushError!");
+    if(err) console.log(err);
 };
+
+//This is an error wrapper
+exports.juushErrorCatch = (res, code = 500) => err => exports.juushError(res, err, code);
 
 //This is used to create a random string as an ID
 exports.randomStr = function(length = 32){
