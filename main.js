@@ -3,6 +3,9 @@
 // pending full rewrite
 "use strict";
 
+global.async = require('asyncawait/async');
+global.await = require('asyncawait/await');
+
 //import
 let serverConst;
 try{
@@ -28,7 +31,7 @@ let redirs = {
 redirs.ts = redirs.teamspeak;
 
 if(serverConst.dbuser){
-    const juush = require("./juush.js");
+    const juush = require("./juush");
     redirs[""] = juush.download;
     redirs.f = juush.download;
     redirs.uf = juush.upload;

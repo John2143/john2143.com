@@ -4,6 +4,7 @@
   "description": "Server for john2143.com, including juush",
   "main": "main.js",
   "dependencies": {
+    "asyncawait": "^1.0.6",
     "pg": "^6.1.2"
   },
   "devDependencies": {
