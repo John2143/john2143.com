@@ -103,7 +103,7 @@ const processDownload = function(reqx, result, disposition){
     const filepath = U.getFilename(uploadID);
 
     if(data.mimetype === "deleted"){
-        reqx.doHTML("This file has been deleted.", 404);
+        reqx.doHTML("This file has been deleted.", 410);
         return;
     }else if(data.mimetype.split("/")[0] === "d"){
         reqx.doHTML("This file has been disabled by the uplaoder. It may be re-enabled in the future.");
@@ -171,6 +171,25 @@ const processDownload = function(reqx, result, disposition){
     stream.pipe(reqx.res);
 };
 
+const ipHasAccess = async ((ip, uploadID) => {
+    const result = await (U.pool.query({
+        text: "SELECT ip FROM index WHERE keyid=(SELECT keyid FROM index WHERE id=$1) GROUP BY ip ORDER BY max(uploaddate)",
+        name: "delete_check",
+        values: [uploadID],
+    }));
+
+    if(result.rowCount === 0){
+        return "NOFILE";
+    }
+
+    for(let x of result.rows){
+        if(U.IPEqual(x.ip, ip)){
+            return true;
+        }
+    }
+    return "NOACCESS";
+});
+
 const download = async (function(server, reqx){
     let uploadID = reqx.urldata.path[1];
     if(!uploadID || uploadID === "") return U.juushError(reqx.res);
@@ -185,26 +204,13 @@ const download = async (function(server, reqx){
     }
 
     if(disposition === "delete"){
-        const result = await (U.pool.query({
-            text: "SELECT ip FROM index WHERE keyid=(SELECT keyid FROM index WHERE id=$1) GROUP BY ip ORDER BY max(uploaddate)",
-            name: "delete_check",
-            values: [uploadID],
-        }));
-
-        if(result.rowCount === 0){
-            reqx.doHTML("File does not exist", 404);
-            return done();
+        const canDo = await (ipHasAccess(reqx.req.connection.remoteAddress, uploadID));
+        if(canDo === "NOFILE"){
+            reqx.doHTML("That file does not exist", 404);
+            return;
         }
 
-        let canDo = false;
-        for(let x of result.rows){
-            if(U.IPEqual(x.ip, reqx.req.connection.remoteAddress)){
-                canDo = true;
-                break;
-            }
-        }
-
-        if(!canDo){
+        if(canDo === "NOACCESS"){
             reqx.doHTML("You do not have access to delete this file.", 401);
             return;
         }
@@ -241,20 +247,13 @@ const download = async (function(server, reqx){
         res.write("<br>File Type: " + data.mimetype);
         res.end();
     }else if(disposition === "rename"){
-        const result = await (U.pool.query({
-            text: "SELECT ip, filename FROM index WHERE id=$1",
-            name: "rename_check_ip",
-            values: [uploadID],
-        }));
-        if(result.rowCount === 0){
-            reqx.doHTML("File does not exist", 404);
+        const canDo = await (ipHasAccess(reqx.req.connection.remoteAddress, uploadID));
+        if(canDo === "NOFILE"){
+            reqx.doHTML("That file does not exist", 404);
             return;
         }
 
-        const data = result.rows[0];
-
-        //TODO better user system
-        if(!U.IPEqual(data.ip, reqx.req.connection.remoteAddress)){
+        if(canDo === "NOACCESS"){
             reqx.doHTML("You do not have access to rename this file.", 401);
             return;
         }

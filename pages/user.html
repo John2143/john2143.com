@@ -200,7 +200,7 @@ angular.module("app", []).controller("controller", function($scope, $http){
             url: "/juush/deluser/" + sel.id,
         }).then(function(res){
             alert("Deleted? " + res.data);
-            if(res.data == "false") return;
+            if(!res.success) return;
             $scope.selected = $scope.users[0];
             $scope.refreshUsers();
         }, function(err){

@@ -16,7 +16,8 @@ const genericAPIListResult = field => res => result => {
 
 //Returns true on success, false if it failed
 const genericAPIOperationResult = res => result=> {
-    res.end(result.rowCount >= 1 ? "true" : "false");
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({success: result.rowCount >= 1 ? true : false}));
 };
 
 //
@@ -94,7 +95,7 @@ module.exports = async (function(server, reqx){
             return;
         }
 
-        client.query({
+        U.pool.query({
             text: "DELETE FROM keys WHERE id=$1;",
             name: "api_deluser",
             values: [urldata.path[2]],
