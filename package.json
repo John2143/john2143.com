@@ -11,13 +11,15 @@
   "devDependencies": {
     "chai": "^3.5.0",
     "chai-http": "^3.0.0",
+    "istanbul": "^0.4.5",
     "jshint": "^2.9.4",
     "mocha": "^3.2.0",
     "sinon": "^1.17.7"
   },
   "scripts": {
     "test": "jshint *.js && jshint juush/*.js && mocha test.js",
-    "start": "node main | tee \"logs/`date`.txt\""
+    "start": "node main | tee \"logs/`date`.txt\"",
+    "testc": "istanbul cover node_modules/mocha/bin/_mocha -- -R spec"
   },
   "repository": {
     "type": "git",

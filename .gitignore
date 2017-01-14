@@ -3,3 +3,4 @@ juushFiles/*
 node_modules/*
 letsencrypt/*
 logs/*
+coverage/*

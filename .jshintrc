@@ -3,7 +3,7 @@
     "node": true,
     "devel": true,
     "overrides": {
-        "tests/*.js": {
+        "tests/*": {
             "expr": true
         }
     },

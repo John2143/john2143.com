@@ -63,16 +63,23 @@ describe("API", function(){
 
 
 describe("Upload/Download", function(){
-    it("should be able to upload 3 files");
-    it("should be able to download a file");
-    it("should be able to check /info");
-    it("should be able to delete");
-    it("should get a 410 when viewied a deleted file");
-    it("should be able to rename");
-    it("should be able to rename with extensions");
-    it("should check the renamed file's name against the parameters");
-    it("should increment downloads when downloading a file");
-    it("should not incrent when accessing /thumb");
+    describe("should be able to upload 3 files", function(){
+        it("should upload the first as one");
+        it("should upload the first in parts");
+        it("should upload the an empty file");
+        it("should upload the one with missing headers and fail");
+    });
+    describe("download and api", function(){
+        it("should be able to download a file");
+        it("should be able to check /info");
+        it("should be able to delete");
+        it("should get a 410 when viewied a deleted file");
+        it("should be able to rename");
+        it("should be able to rename with extensions");
+        it("should check the renamed file's name against the parameters");
+        it("should increment downloads when downloading a file");
+        it("should not incrent when accessing /thumb");
+    });
 });
 
 describe("Account stuff", function(){
