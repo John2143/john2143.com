@@ -9,7 +9,10 @@ global.serverLog = () => {};
 describe("Server tests", function(){
     require("./tests/test.js");
 });
-describe("Database tests", function(){
-    require("./tests/initdbtest.js");
-    require("./tests/dbtest.js");
-});
+
+if(serverConst.dbuser){
+    describe("Database tests", function(){
+        require("./tests/initdbtest.js");
+        require("./tests/dbtest.js");
+    });
+}
