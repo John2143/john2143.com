@@ -7,8 +7,19 @@
             "expr": true
         }
     },
-    "globals": [
-        "fs", "Promise", "async", "await", "serverLog"
-    ];
+    "predef": {
+        "fs"         : true,
+        "Promise"    : true,
+        "async"      : true,
+        "await"      : true,
+        "serverLog"  : true,
+        "serverConst": true,
+        "describe"   : false,
+        "it"         : false,
+        "before"     : false,
+        "beforeEach" : false,
+        "after"      : false,
+        "afterEach"  : false
+    },
     "esversion": 6
 }

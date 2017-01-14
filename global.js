@@ -1,6 +1,6 @@
 global.async = require("asyncawait/async");
 global.await = require("asyncawait/await");
-global.Promise = require("Bluebird");
+global.Promise = require("bluebird");
 global.fs = require("fs");
 global.serverLog = console.log;
 
