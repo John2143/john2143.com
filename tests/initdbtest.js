@@ -32,7 +32,7 @@ describe("database", function(){
     });
 
     it("should be queryable", function(done){
-        pool.query("SELECT 1 FROM index")
+        pool.query("SELECT 1")
             .then(() => done())
             .catch(done);
     });
