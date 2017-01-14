@@ -55,7 +55,7 @@ exports.guessFileExtension = function(filename){
     return fileExtension;
 };
 
-exports.isAdmin = ip => ip.indexOf("192.168") >= 0 || ip === "127.0.0.1";
+exports.isAdmin = ip => ip.indexOf("192.168") >= 0 || ip === "127.0.0.1" || ip === "::1";
 
 exports.IPEqual = (a, b) => a.split("/")[0] === b.split("/")[0];
 exports.getFilename = id => "./juushFiles/" + id;
