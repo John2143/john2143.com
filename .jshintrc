@@ -2,6 +2,10 @@
     "browser": true,
     "node": true,
     "devel": true,
-
+    "overrides": {
+        "tests/*.js": {
+            "expr": true
+        }
+    },
     "esversion": 6
 }

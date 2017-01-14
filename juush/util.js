@@ -10,6 +10,7 @@ let pool = exports.pool = new Pool({
     user: serverConst.dbuser,
     password: serverConst.dbpass,
     host: serverConst.dbhost,
+    port: serverConst.dbport,
     database: "juush",
     max: 20,
     idleTimeoutMillis: 500,
