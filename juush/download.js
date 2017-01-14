@@ -54,23 +54,23 @@ const serveStreamRequest = function(reqx, filepath){
     filePipe.pipe(reqx.res);
 };
 
-const unlinkPromise = function(path){
+fs.unlinkAsync = function(path){
     return new Promise(function(resolve, reject){
         fs.unlink(path, function(err){
             if(err) reject();
             resolve();
         });
     });
-}
+};
 
 const setMimeType = async (function(id, newmime){
-    return await([
+    return await ([
         U.pool.query({
             text: "UPDATE index SET mimetype=$2 WHERE id=$1",
             name: "delete_file",
             values: [id, newmime],
         }),
-        newmime === "deleted" && unlinkPromise(U.getFilename(id)),
+        newmime === "deleted" && fs.unlinkAsync(U.getFilename(id)),
     ]);
 });
 
@@ -93,24 +93,25 @@ const shouldInline = function(filedata, mime){
     return true;
 };
 
-const processDownload = function(reqx, client, err, result, done, uploadID, disposition){
+const processDownload = function(reqx, result, disposition){
     if(result.rowCount === 0){
         reqx.doHTML("This upload does not exist", 404);
-        return done();
+        return;
     }
 
-    const filepath = U.getFilename(uploadID);
     const data = result.rows[0];
+    const uploadID = data.id;
+    const filepath = U.getFilename(uploadID);
 
     if(data.mimetype === "deleted"){
         reqx.doHTML("This file has been deleted.", 404);
-        return done();
+        return;
     }else if(data.mimetype.split("/")[0] === "d"){
         reqx.doHTML("This file has been disabled by the uplaoder. It may be re-enabled in the future.");
-        return done();
+        return;
     }else if(data.mimetype === "expired"){
         reqx.doHTML("this file has been automatically deleted.");
-        return done();
+        return;
     }
 
     //Try to get file details
@@ -119,7 +120,8 @@ const processDownload = function(reqx, client, err, result, done, uploadID, disp
         stat = fs.statSync(filepath);
     }catch(e){
         reqx.doHTML("Internal error: file may have been manually deleted.", 500);
-        return done();
+        console.log(e);
+        return;
     }
 
     //Do the database call to increment downloads
@@ -146,19 +148,16 @@ const processDownload = function(reqx, client, err, result, done, uploadID, disp
     //Send filename with content-disposition
     codisp += '; filename="' + data.filename + '"';
 
-    if(incDL){
-        client.query({
-            text: "UPDATE index SET " +
-                "downloads=downloads+1, " +
-                "lastdownload=now() " +
-                "WHERE id=$1",
-            name: "download_increment_downloads",
-            values: [uploadID],
-        }, function(err, result){
-            if(err) console.log("Error when incrementing download. " + uploadID, err);
-        });
-    }
-    done();
+    U.pool.query({
+        text: "UPDATE index SET " +
+            "downloads=downloads+1, " +
+            "lastdownload=now() " +
+            "WHERE id=$1",
+        name: "download_increment_downloads",
+        values: [uploadID],
+    }).catch(err => {
+        console.log("Error when incrementing download. " + uploadID, err);
+    });
 
     reqx.res.writeHead(200, {
         "Content-Type": data.mimetype,
@@ -173,39 +172,7 @@ const processDownload = function(reqx, client, err, result, done, uploadID, disp
     stream.pipe(reqx.res);
 };
 
-const juushUploadInfo = function(client, uploadID, cb){
-    client.query({
-        //TODO only check ip when trying to delete
-        text: "SELECT mimetype, filename, uploaddate, keyid, downloads, lastdownload, name " +
-        "FROM index INNER JOIN keys ON index.keyid=keys.id WHERE index.id=$1",
-        name: "upload_info",
-        values: [uploadID],
-    }, cb);
-};
-
-const processInfoReq = function(res, result){
-    if(result.rowCount === 0){
-        res.writeHead(404, {
-            "Content-Type": "text/html"
-        });
-        res.end("This upload does not exist");
-        return;
-    }
-
-    const data = result.rows[0];
-
-    res.writeHead(200, {
-        "Content-Type": "text/html",
-    });
-    res.write("Filename: " + data.filename);
-    res.write("<br>Upload date: " + data.uploaddate);
-    res.write("<br>Uploaded by: " + data.name);
-    res.write("<br>Downloads: " + data.downloads);
-    res.write("<br>File Type: " + data.mimetype);
-    res.end();
-};
-
-module.exports = function(server, reqx){
+const download = async (function(server, reqx){
     let uploadID = reqx.urldata.path[1];
     if(!uploadID || uploadID === "") return U.juushError(reqx.res);
     //ignore extension
@@ -218,99 +185,112 @@ module.exports = function(server, reqx){
         return serveStreamRequest(reqx, getFilename(uploadID));
     }
 
-    U.pool.connect(function(err, client, done){
-        if(U.dbError(err, client, done)) return U.juushError(reqx.res);
-        if(disposition === "delete"){
-            client.query({
-                text: "SELECT ip FROM index WHERE keyid=(SELECT keyid FROM index WHERE id=$1) GROUP BY ip ORDER BY max(uploaddate)",
-                name: "delete_check",
-                values: [uploadID],
-            }, function(err, result){
-                if(U.dbError(err, client, done)) return U.juushError(reqx.res);
+    if(disposition === "delete"){
+        const result = await (U.pool.query({
+            text: "SELECT ip FROM index WHERE keyid=(SELECT keyid FROM index WHERE id=$1) GROUP BY ip ORDER BY max(uploaddate)",
+            name: "delete_check",
+            values: [uploadID],
+        }));
 
-                if(result.rowCount === 0){
-                    reqx.doHTML("File does not exist", 404);
-                    return done();
-                }
-
-                let canDo = false;
-                for(let x of result.rows){
-                    if(U.IPEqual(x.ip, reqx.req.connection.remoteAddress)){
-                        canDo = true;
-                        break;
-                    }
-                }
-
-                //TODO better user system
-                if(!canDo){
-                    reqx.doHTML("You do not have access to delete this file.", 401);
-                    return done();
-                }
-
-                setMimeType(uploadID, "deleted").then(result => {
-                    reqx.doHTML("File successfully deleted. It will still appear in your user page.");
-                });
-            });
-            done();
-        }else if(disposition === "info"){
-            juushUploadInfo(client, uploadID, function(err, result){
-                if(U.dbError(err, client, done)) return U.juushError(reqx.res);
-                processInfoReq(reqx.res, result);
-            });
-            done();
-        }else if(disposition === "rename"){
-            client.query({
-                text: "SELECT ip, filename FROM index WHERE id=$1",
-                name: "rename_check_ip",
-                values: [uploadID],
-            }, function(err, result){
-                if(U.dbError(err, client, done)) return U.juushError(reqx.res);
-
-                if(result.rowCount === 0){
-                    reqx.doHTML("File does not exist", 404);
-                    return done();
-                }
-
-                const data = result.rows[0];
-
-                //TODO better user system
-                if(!U.IPEqual(data.ip, reqx.req.connection.remoteAddress)){
-                    reqx.doHTML("You do not have access to rename this file.", 401);
-                    return done();
-                }
-
-                const oldName = data.filename;
-                const newName = decodeURI(reqx.urldata.path[3]);
-                const oldFileExt = U.guessFileExtension(oldName);
-                const newFileExt = U.guessFileExtension(newName);
-
-                let name = newName;
-
-                if(!newFileExt && oldFileExt){
-                    name += "." + oldFileExt;
-                }
-
-                client.query({
-                    text: "UPDATE index SET filename=$2 WHERE id=$1",
-                    name: "rename_file",
-                    values: [uploadID, name],
-                }, function(err, res){
-                    if(U.dbError(err, client, done)) return U.juushError(reqx.res);
-                    reqx.res.end(name);
-                });
-
-                done();
-            });
-        }else{
-            client.query({
-                text: "SELECT mimetype, filename FROM index WHERE id=$1",
-                name: "download_check_dl",
-                values: [uploadID],
-            }, function(err, result){
-                if(U.dbError(err, client, done)) return U.juushError(reqx.res);
-                //very no bueno
-                processDownload(reqx, client, err, result, done, uploadID, disposition);
-            });
+        if(result.rowCount === 0){
+            reqx.doHTML("File does not exist", 404);
+            return done();
         }
-    });
-};
+
+        let canDo = false;
+        for(let x of result.rows){
+            if(U.IPEqual(x.ip, reqx.req.connection.remoteAddress)){
+                canDo = true;
+                break;
+            }
+        }
+
+        if(!canDo){
+            reqx.doHTML("You do not have access to delete this file.", 401);
+            return;
+        }
+
+        setMimeType(uploadID, "deleted").then(result => {
+            reqx.doHTML("File successfully deleted. It will still appear in your user page.");
+        });
+    }else if(disposition === "info"){
+        const result = await (U.pool.query({
+            text: "SELECT mimetype, filename, uploaddate, keyid, downloads, lastdownload, name, index.id " +
+            "FROM index INNER JOIN keys ON index.keyid=keys.id WHERE index.id=$1",
+            name: "upload_info",
+            values: [uploadID],
+        }));
+
+        const res = reqx.res;
+        if(result.rowCount === 0){
+            res.writeHead(404, {
+                "Content-Type": "text/html"
+            });
+            res.end("This upload does not exist");
+            return;
+        }
+
+        const data = result.rows[0];
+
+        res.writeHead(200, {
+            "Content-Type": "text/html",
+        });
+        res.write("Filename: " + data.filename);
+        res.write("<br>Uploa date: " + data.uploaddate);
+        res.write("<br>Uploaded by: " + data.name);
+        res.write("<br>Downloads: " + data.downloads);
+        res.write("<br>File Type: " + data.mimetype);
+        res.end();
+    }else if(disposition === "rename"){
+        const result = await (U.pool.query({
+            text: "SELECT ip, filename FROM index WHERE id=$1",
+            name: "rename_check_ip",
+            values: [uploadID],
+        }));
+        if(result.rowCount === 0){
+            reqx.doHTML("File does not exist", 404);
+            return;
+        }
+
+        const data = result.rows[0];
+
+        //TODO better user system
+        if(!U.IPEqual(data.ip, reqx.req.connection.remoteAddress)){
+            reqx.doHTML("You do not have access to rename this file.", 401);
+            return;
+        }
+
+        const oldName = data.filename;
+        const newName = decodeURI(reqx.urldata.path[3]);
+        const oldFileExt = U.guessFileExtension(oldName);
+        const newFileExt = U.guessFileExtension(newName);
+
+        let name = newName;
+
+        if(!newFileExt && oldFileExt){
+            name += "." + oldFileExt;
+        }
+
+        await (U.pool.query({
+            text: "UPDATE index SET filename=$2 WHERE id=$1",
+            name: "rename_file",
+            values: [uploadID, name],
+        }));
+        reqx.res.end(name);
+    }else{
+        let result = await (U.pool.query({
+            text: "SELECT mimetype, filename, id FROM index WHERE id=$1",
+            name: "download_check_dl",
+            values: [uploadID],
+        }));
+        processDownload(reqx, result, disposition);
+    }
+});
+
+module.exports = async (function(server, reqx){
+    try{
+        await (download(server, reqx));
+    }catch(e){
+        U.juushError(reqx.res, e, 500);
+    }
+});

@@ -43,7 +43,7 @@ angular.module("app", []).controller("controller", function($scope, $http){
     $scope.refreshUsers = () => {
         $http({
             method: "GET",
-            url: "/juush/db/users",
+            url: "/juush/users",
         }).then(function(res){
             $scope.users = res.data;
             for(let x of $scope.users){
@@ -64,7 +64,7 @@ angular.module("app", []).controller("controller", function($scope, $http){
 
     $http({
         method: "GET",
-        url: "/juush/db/whoami",
+        url: "/juush/whoami",
     }).then(function(res){
         //undefined => retreiving
         //false => guest user (no uploads)
@@ -96,7 +96,7 @@ angular.module("app", []).controller("controller", function($scope, $http){
         }
         $http({
             method: "GET",
-            url: "/juush/db/uploads/" + $scope.selected.id + "/" + $scope.page,
+            url: "/juush/uploads/" + $scope.selected.id + "/" + $scope.page,
         }).then(function(res){
             $scope.uploads = res.data;
             for(let ul of $scope.uploads){
@@ -146,7 +146,7 @@ angular.module("app", []).controller("controller", function($scope, $http){
         }
         $http({
             method: "GET",
-            url: "/juush/db/userinfo/" + $scope.selected.id,
+            url: "/juush/userinfo/" + $scope.selected.id,
         }).then(function(res){
             $scope.uinfo = res.data;
         });
@@ -197,7 +197,7 @@ angular.module("app", []).controller("controller", function($scope, $http){
 
         $http({
             method: "GET",
-            url: "/juush/db/deluser/" + sel.id,
+            url: "/juush/deluser/" + sel.id,
         }).then(function(res){
             alert("Deleted? " + res.data);
             if(res.data == "false") return;
