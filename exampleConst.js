@@ -6,7 +6,6 @@ exports.PORT = 443;
 exports.HTTPPORT = 80;
 
 //SSL info
-const fs = require("fs");
 const pathToKeys = "/etc/letsencrypt/live/www.john2143.com/";
 exports.keys = {
     //key:  fs.readFileSync(pathToKeys + "privkey.pem"),

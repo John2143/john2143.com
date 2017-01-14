@@ -1,6 +1,5 @@
 
 const U = require("./util.js");
-const fs = require("fs");
 //
 //Retreives a database client and randomized url that has not been used before
 const getURL = async (function(){
@@ -17,7 +16,7 @@ const getURL = async (function(){
             }));
 
             if(result.rowCount === 0){
-                if(x > 5) console.log(`took ${x} tries to get a url...`);
+                if(x > 5) serverLog(`took ${x} tries to get a url...`);
 
                 client.release();
                 return url;
@@ -25,7 +24,7 @@ const getURL = async (function(){
         }
     }catch(e){
         if(client) client.release();
-        console.log("Error when obtaining new url" + e);
+        serverLog("Error when obtaining new url" + e);
         return null;
     }
 });
@@ -49,19 +48,19 @@ const parseHeadersFromUpload = function(data, reqHeaders){
             headerSize: headers.length,
         };
     }catch(e){
-        //console.log("==============================================start");
-        //console.log("==============================================start");
-        //console.log("==============================================start");
-        //console.log("invalid headers received", e);
-        //console.log("==============================================DATA START");
-        //console.log(strData);
-        //console.log("==============================================DATA END;BOUNDARY START");
-        //console.log(boundary);
-        //console.log("==============================================BOUNDARY END;reqHeaders START");
-        //console.log(reqHeaders);
-        //console.log("==============================================finish");
-        //console.log("==============================================finish");
-        //console.log("==============================================finish");
+        //serverLog("==============================================start");
+        //serverLog("==============================================start");
+        //serverLog("==============================================start");
+        //serverLog("invalid headers received", e);
+        //serverLog("==============================================DATA START");
+        //serverLog(strData);
+        //serverLog("==============================================DATA END;BOUNDARY START");
+        //serverLog(boundary);
+        //serverLog("==============================================BOUNDARY END;reqHeaders START");
+        //serverLog(reqHeaders);
+        //serverLog("==============================================finish");
+        //serverLog("==============================================finish");
+        //serverLog("==============================================finish");
         return null;
     }
 
@@ -73,7 +72,7 @@ const parseHeadersFromUpload = function(data, reqHeaders){
 
 module.exports = async (function(server, reqx){
     const url = await (getURL());
-    console.log("File will appear at " + url);
+    serverLog("File will appear at " + url);
 
     //Any connection will timeout after 30 seconds of inactivity.
     let timeoutID = null;
@@ -82,7 +81,7 @@ module.exports = async (function(server, reqx){
     const fTimeout = () => {
         clearTimeout(timeoutID);
         timeoutID = setTimeout(() => error("Timeout error"), 20000);
-        //console.log("added timeout", timeoutID);
+        //serverLog("added timeout", timeoutID);
     };
 
     const filepath = U.getFilename(url);
@@ -94,7 +93,7 @@ module.exports = async (function(server, reqx){
     //Genertic error function to safely abort a broken connection
     let isError = false;
     const error = function(errt = "Generic error", errc = 500){
-        console.log("Upload error for " + url, ":", errt);
+        serverLog("Upload error for " + url, ":", errt);
 
         //Flag error to prevent some kind of data race
         isError = true;
@@ -114,7 +113,7 @@ module.exports = async (function(server, reqx){
             name: "upload_download_error_remove_entry",
             values: [url],
         }).catch((err) => {
-            console.log("Upload failure delete failure!", err);
+            serverLog("Upload failure delete failure!", err);
         });
     };
 
@@ -197,7 +196,7 @@ module.exports = async (function(server, reqx){
             for(let i = headers.headerSize; i < headerBuffer.length; i++){
                 write[i - headers.headerSize] = headerBuffer.charCodeAt(i);
             }
-            //console.log(headers, write);
+            //serverLog(headers, write);
 
             //Check the uploaders key (Sharex passes this as 'name="xxxx"')
             U.pool.query({

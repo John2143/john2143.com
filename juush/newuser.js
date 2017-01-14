@@ -12,9 +12,8 @@ module.exports = async (function(server, reqx){
             name: "new_user",
             values: [reqx.urldata.path[1], newKey],
         }).then(result => {
-            res.writeHead(200, {
-                "Content-Type": "text/html"
-            });
+            serverLog("A new user has been created", reqx.urldata.path[1], newKey);
+            res.setHeader("Content-Type", "text/plain");
             res.end(newKey);
         }).catch(U.juushErrorCatch(res));
     }else{

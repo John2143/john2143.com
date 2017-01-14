@@ -1,21 +1,9 @@
-const chai = require("chai");
-const expect = chai.expect;
-chai.use(require("chai-http"));
-const fs = require("fs");
-
-let serverConst;
-
 describe("const.js", function(){
-    try{
-        serverConst = require("../const.js");
-    }catch(e){
-        serverConst = require("../exampleConst.js");
-    }
     it("should define an IP", function(){
         expect(serverConst.IP).to.be.ok;
     });
     it("should define port(s)", function(){
-        expect(serverConst.PORT || serverConst.httpPort).to.be.ok;
+        expect(serverConst.PORT || serverConst.HTTPPORT).to.be.ok;
     });
 });
 
@@ -30,8 +18,7 @@ const redirs = {
 const server = require("../server.js");
 describe("HTTP Server", function(){
     let serv;
-
-    it("should work", function(){
+    before(function(){
         serv = new server({
             ip: "localhost",
             port: 3000,
@@ -44,36 +31,30 @@ describe("HTTP Server", function(){
         expect(serv.isHTTPS).to.not.be.true;
     });
 
-    let testsLeft = 4;
-
-    it("should have a working 404", function(done){
-        chai.request("http://localhost:3000").get("/asdf").end(function(err, res){
+    it("should have a working 404", function(){
+        return chai.request("http://localhost:3000").get("/asdf").catch(res => {
             expect(res).to.have.status(404);
-            done();
-            if(!--testsLeft) serv.stop();
         });
     });
-    it("should have a working funcredir", function(done){
-        chai.request("http://localhost:3000").get("/testfunc").end(function(err, res){
+    it("should have a working funcredir", function(){
+        return chai.request("http://localhost:3000").get("/testfunc").then(res => {
             expect(res).to.have.status(200);
-            done();
-            if(!--testsLeft) serv.stop();
         });
     });
-    it("should have a working redir", function(done){
-        chai.request("http://localhost:3000").get("/testredir").end(function(err, res){
+    it("should have a working redir", function(){
+        return chai.request("http://localhost:3000").get("/testredir").then(res => {
             expect(res).to.have.status(200);
             expect(res.text).to.eq("xd");
-            done();
-            if(!--testsLeft) serv.stop();
         });
     });
-    it("should have a working default", function(done){
-        chai.request("http://localhost:3000").get("/").end(function(err, res){
+    it("should have a working default", function(){
+        return chai.request("http://localhost:3000").get("/").then(res => {
             expect(res).to.have.status(200);
-            done();
-            if(!--testsLeft) serv.stop();
         });
+    });
+
+    after(function(){
+        serv.stop();
     });
 });
 
@@ -99,23 +80,6 @@ describe("HTTPS Server", function(){
         expect(serv.httpPort).to.eq(3000);
         expect(serv.isHTTPS).to.be.true;
         expect(serv.redirs).to.not.have.property("juush");
-    });
-
-    let testsLeft = 2;
-
-    it("should allow connections to the https server", function(done){
-        chai.request("https://localhost:4000").get("/").end(function(err, res){
-            expect(err).to.be.not.null;
-            done();
-            if(!--testsLeft) serv.stop();
-        });
-    });
-
-    it("should redirect to https", function(done){
-        chai.request("http://localhost:3000").get("/").end(function(err, res){
-            expect(err).to.be.not.null;
-            done();
-            if(!--testsLeft) serv.stop();
-        });
+        serv.stop();
     });
 });

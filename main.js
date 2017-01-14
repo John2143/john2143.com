@@ -3,21 +3,11 @@
 // pending full rewrite
 "use strict";
 
-global.async = require('asyncawait/async');
-global.await = require('asyncawait/await');
+require("./global.js");
 
-//import
-let serverConst;
-try{
-    serverConst = require("./const.js");
-}catch(e){
-    console.log("Error: " + e);
-    return console.log("You must have a const.js file in order to run this. See serverConst for an example.");
-}
-
-const showIP = function(server, reqx){
+const showIP = async (function(server, reqx){
     server.getExtIP(ip => reqx.doHTML(ip));
-};
+});
 
 let redirs = {
     git: "//github.com/John2143658709/",
@@ -25,6 +15,7 @@ let redirs = {
     steam: "//steamcommunity.com/profiles/76561198027378405",
     osu: "//osu.ppy.sh/u/2563776",
     ip: showIP,
+    blank: async ((server, reqx) => reqx.res.end("")),
     _def: "git",
 
 };
@@ -40,7 +31,7 @@ if(serverConst.dbuser){
 }
 
 const server = require("./server.js");
-const srv = new server({
+let srv = module.exports = new server({
     redirs,
     ip: serverConst.IP,
     port: serverConst.PORT,

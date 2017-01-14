@@ -3,12 +3,14 @@ const U = require("./util.js");
 
 //Returns rows as json
 const genericAPIResult = res => result => {
+    res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify(result.rows));
 };
 
 //If rows only have one field, then use this so that the json is a array instead
 const genericAPIListResult = field => res => result => {
     const data = result.rows.map(x => x[field]);
+    res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify(data));
 };
 
@@ -76,9 +78,11 @@ module.exports = async (function(server, reqx){
                 total: infos[1].rows[0].count,
             };
 
+            res.setHeader("Content-Type", "application/json");
             res.end(JSON.stringify(result));
         }catch(e){
-            console.log("Failed: ", e);
+            serverLog("Failed: ", e);
+            res.setHeader("Content-Type", "application/json");
             res.end(JSON.stringify({error: e}));
         }
     // /juush/deluser/userid

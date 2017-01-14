@@ -2,9 +2,7 @@
 
 const https = require("https");
 const http = require("http");
-const fs = require("fs");
 const url = require("url");
-
 
 let favicon = "";
 
@@ -18,7 +16,7 @@ class request{
     constructor(req, res){
         this.req = req;
         this.res = res;
-        this.shouldLog = true;
+        this.shouldLog = !global.it;
     }
 
     denyFavicon(){
@@ -55,7 +53,7 @@ class request{
 
     logConnection(){
         if(!this.shouldLog) return;
-        console.log(
+        serverLog(
             Date() + " | " +
             this.req.connection.remoteAddress + " | " +
             this.urldata.path.join("/")
@@ -97,7 +95,7 @@ class server{
         this.extip = null;
 
         if(this.isHTTPS){
-            console.log("Starting http upgrade server: port " + this.httpPort + " -> " + this.port);
+            serverLog("Starting http upgrade server: port " + this.httpPort + " -> " + this.port);
             this.serverHTTPUpgrade = http.createServer((req, res) => {
                 res.writeHead(301, {"Location": "https://" + req.headers.host + ":" + this.port + req.url});
                 res.end();
@@ -106,14 +104,14 @@ class server{
         try{
             const sfunc = (req, res) => this.route(new request(req, res));
             if(this.isHTTPS){
-                console.log("Starting https server on " + this.port);
+                serverLog("Starting https server on " + this.port);
                 this.server = https.createServer(dat.keys, sfunc);
             }else{
-                console.log("Starting http server on " + this.port);
+                serverLog("Starting http server on " + this.port);
                 this.server = http.createServer(sfunc);
             }
         }catch(err){
-            console.log("Err starting: " + err);
+            serverLog("Err starting: " + err);
             return;
         }
 
@@ -121,16 +119,16 @@ class server{
             this.server.listen(this.port, this.ip);
             if(this.serverHTTPUpgrade) this.serverHTTPUpgrade.listen(dat.httpPort, this.ip);
         }catch(err){
-            console.log("There was an error starting the server. Are you sure you can access that port?");
+            serverLog("There was an error starting the server. Are you sure you can access that port?");
         }
 
-        this.getExtIP(ip => console.log("EXTIP is " + String(ip)));
+        if(!global.it) this.getExtIP(ip => serverLog("EXTIP is " + String(ip)));
     }
 
     stop(){
         this.server.close();
         if(this.serverHTTPUpgrade) this.serverHTTPUpgrade.close();
-        console.log("Server stopping");
+        serverLog("Server stopping");
     }
 
     route(reqx){

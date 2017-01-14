@@ -1,10 +1,11 @@
 {
   "name": "john2143.com",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "Server for john2143.com, including juush",
   "main": "main.js",
   "dependencies": {
     "asyncawait": "^1.0.6",
+    "bluebird": "^3.4.7",
     "pg": "^6.1.2"
   },
   "devDependencies": {
@@ -15,7 +16,7 @@
     "sinon": "^1.17.7"
   },
   "scripts": {
-    "test": "jshint *.js && jshint juush/*.js && mocha tests",
+    "test": "jshint *.js && jshint juush/*.js && mocha test.js",
     "start": "node main | tee \"logs/`date`.txt\""
   },
   "repository": {

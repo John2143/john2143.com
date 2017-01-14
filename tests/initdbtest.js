@@ -1,25 +1,15 @@
 const pg = require("pg");
 const Pool = pg.Pool;
-const chai = require("chai");
-const expect = chai.expect;
 
-describe("database", function(){
+describe("database init", function(){
+    let pool;
     before(function(){
-        let con;
-        if(process.env.TRAVIS){
-            con = {
-                dbuser: "postgres",
-                dbhost: "localhost",
-                dbpass: undefined,
-            };
-        } else con = require("../const.js");
-
         pool = new Pool({
-            user: con.dbuser,
-            host: con.dbhost,
+            user: serverConst.dbuser,
+            host: serverConst.dbhost,
             database: "juush",
-            port: con.dbport,
-            password: con.dbpass,
+            port: serverConst.dbport,
+            password: serverConst.dbpass,
             max: 10,
             idleTimeoutMillis: 100,
         });
@@ -31,14 +21,23 @@ describe("database", function(){
         expect(pool).to.be.ok;
     });
 
-    it("should be queryable", function(done){
-        pool.query("SELECT 1")
-            .then(() => done())
-            .catch(done);
+    it("should be queryable", function(){
+        return pool.query("SELECT 1");
     });
 
-    if(process.env.TRAVIS) it("should create some tables", function(done){
-        pool.query(`
+    if(process.env.SETUPDB){
+        it("!should never drop production databases!", function(){
+            return pool.query(`
+
+DROP TABLE IF EXISTS index, keys;
+DROP SEQUENCE IF EXISTS keys_id_seq;
+
+                `);
+        });
+
+        it("should create some tables", function(){
+            return pool.query(`
+
 CREATE SEQUENCE keys_id_seq
     INCREMENT 1
     MINVALUE 1
@@ -66,8 +65,9 @@ CREATE TABLE keys
   name character varying(32),
   CONSTRAINT keys_pkey PRIMARY KEY (id)
 );
-        `)
-            .then(() => done())
-            .catch(done);
-    });
+
+            `);
+
+        });
+    }
 });

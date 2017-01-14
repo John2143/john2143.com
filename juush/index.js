@@ -1,4 +1,4 @@
-console.log("Creating juush");
+serverLog("Creating juush");
 module.exports = {
     API:      require("./API.js"),
     download: require("./download.js"),

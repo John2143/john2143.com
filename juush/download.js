@@ -1,6 +1,5 @@
 
 const U = require("./util.js");
-const fs = require("fs");
 
 //You will get a referer and range if you are trying to stream an audio/video
 const isStreamRequest = req => req.headers.referer && req.headers.range;
@@ -120,7 +119,7 @@ const processDownload = function(reqx, result, disposition){
         stat = fs.statSync(filepath);
     }catch(e){
         reqx.doHTML("Internal error: file may have been manually deleted.", 500);
-        console.log(e);
+        serverLog(e);
         return;
     }
 
@@ -156,7 +155,7 @@ const processDownload = function(reqx, result, disposition){
         name: "download_increment_downloads",
         values: [uploadID],
     }).catch(err => {
-        console.log("Error when incrementing download. " + uploadID, err);
+        serverLog("Error when incrementing download. " + uploadID, err);
     });
 
     reqx.res.writeHead(200, {

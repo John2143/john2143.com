@@ -2,8 +2,6 @@
 
 const pg = require("pg");
 const Pool = pg.Pool;
-const serverConst = require("./../const.js");
-const fs = require("fs");
 
 //Setup postgres pool
 let pool = exports.pool = new Pool({
@@ -16,8 +14,10 @@ let pool = exports.pool = new Pool({
     idleTimeoutMillis: 500,
 });
 
+if(global.it) global.pool = pool;
+
 pool.on("error", function(err, client){
-    console.log("Error in client", err);
+    serverLog("Error in client", err);
 });
 
 //This works with dbError to end a broken session
@@ -26,8 +26,8 @@ exports.juushError = function(res, err, code){
         "Content-Type": "text/html",
     });
     res.end("Internal server error.");
-    console.log("JuushError!");
-    if(err) console.log(err);
+    serverLog("JuushError!");
+    if(err) serverLog(err);
 };
 
 //This is an error wrapper
