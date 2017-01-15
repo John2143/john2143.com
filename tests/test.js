@@ -41,6 +41,11 @@ describe("HTTP Server", function(){
             expect(res).to.have.status(200);
         });
     });
+    it("should have a working static", function(){
+        return chai.request("http://localhost:3000").get("/user").then(res => {
+            expect(res).to.have.status(200);
+        });
+    });
     it("should have a working redir", function(){
         return chai.request("http://localhost:3000").get("/testredir").then(res => {
             expect(res).to.have.status(200);

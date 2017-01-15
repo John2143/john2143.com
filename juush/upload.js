@@ -90,6 +90,9 @@ module.exports = async (function(server, reqx){
         encoding: "binary",
     });
 
+    //This is used to store the headers sent by the client
+    let headers = null;
+
     //Genertic error function to safely abort a broken connection
     let isError = false;
     const error = function(errt = "Generic error", errc = 500){
@@ -123,12 +126,10 @@ module.exports = async (function(server, reqx){
         error("Writestream failed (server error): " + err, 500);
     });
 
-    //This is used to store the headers sent by the client
-    let headers = null;
-
     //File is ready to be downloaded
     wstream.on("finish", function(){
         if(isError) return;
+        if(!headers) return error("Bad headers", 400);
 
         //Try to guess a file extension (for posting to reddit and stuff)
         let fileExtension = U.guessFileExtension(headers.filename);
@@ -148,7 +149,7 @@ module.exports = async (function(server, reqx){
 
     //Arbirary
     const maxHeaderBufferSize = 32000;
-    let headerBuffer = "";
+    let headerBuffer = null;
 
     reqx.req.on("error", function(){
         error("Upload error.");
@@ -172,7 +173,12 @@ module.exports = async (function(server, reqx){
 
         //Try to construct headers if not completed
         if(!headers){
-            headerBuffer += data;
+            if(headerBuffer){
+                headerBuffer = Buffer.concat([headerBuffer, data]);
+            }else{
+                headerBuffer = data;
+            }
+
             headers = parseHeadersFromUpload(headerBuffer, reqx.req.headers);
 
             //If the headers could not be constructed append them to the
@@ -184,6 +190,11 @@ module.exports = async (function(server, reqx){
                 }
                 return;
             }
+            //if(!headers.filename) return error("Header: No filename"         , 400);
+            if(!headers.key) return error("Header: No key (form 'name')"     , 400);
+            //if(!headers.mimetype) return error("Header: No mime"             , 400);
+            if(!headers.boundary) return error("Header: No boundary"         , 400);
+            if(!headers.headerSize) return error("Header: No headersize (?)" , 400);
 
             //At this point the headers will be complete and in the headers
             //object
@@ -192,11 +203,7 @@ module.exports = async (function(server, reqx){
             //
             //We dont want to write the header to file, so copy everything
             //after header to file
-            write = Buffer.allocUnsafe(headerBuffer.length - headers.headerSize);
-            for(let i = headers.headerSize; i < headerBuffer.length; i++){
-                write[i - headers.headerSize] = headerBuffer.charCodeAt(i);
-            }
-            //serverLog(headers, write);
+            write = headerBuffer.slice(headers.headerSize);
 
             //Check the uploaders key (Sharex passes this as 'name="xxxx"')
             U.pool.query({

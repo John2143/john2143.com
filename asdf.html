@@ -1,0 +1,248 @@
+
+> john2143.com@2.0.0 test C:\Dev\js\server
+> jshint *.js && jshint juush/*.js && mocha test.js "--reporter" "doc"
+
+    <section class="suite">
+      <h1>Server tests</h1>
+      <dl>
+        <section class="suite">
+          <h1>const.js</h1>
+          <dl>
+            <dt>should define an IP</dt>
+            <dd><pre><code>expect(serverConst.IP).to.be.ok;</code></pre></dd>
+            <dt>should define port(s)</dt>
+            <dd><pre><code>expect(serverConst.PORT || serverConst.HTTPPORT).to.be.ok;</code></pre></dd>
+          </dl>
+        </section>
+        <section class="suite">
+          <h1>HTTP Server</h1>
+          <dl>
+            <dt>should have a working 404</dt>
+            <dd><pre><code>return chai.request(&quot;http://localhost:3000&quot;).get(&quot;/asdf&quot;).catch(res =&gt; {
+    expect(res).to.have.status(404);
+});</code></pre></dd>
+            <dt>should have a working funcredir</dt>
+            <dd><pre><code>return chai.request(&quot;http://localhost:3000&quot;).get(&quot;/testfunc&quot;).then(res =&gt; {
+    expect(res).to.have.status(200);
+});</code></pre></dd>
+            <dt>should have a working redir</dt>
+            <dd><pre><code>return chai.request(&quot;http://localhost:3000&quot;).get(&quot;/testredir&quot;).then(res =&gt; {
+    expect(res).to.have.status(200);
+    expect(res.text).to.eq(&quot;xd&quot;);
+});</code></pre></dd>
+            <dt>should have a working default</dt>
+            <dd><pre><code>return chai.request(&quot;http://localhost:3000&quot;).get(&quot;/&quot;).then(res =&gt; {
+    expect(res).to.have.status(200);
+});</code></pre></dd>
+          </dl>
+        </section>
+        <section class="suite">
+          <h1>HTTPS Server</h1>
+          <dl>
+            <dt>should work</dt>
+            <dd><pre><code>serv = new server({
+    ip: &quot;localhost&quot;,
+    httpPort: 3000,
+    port: 4000,
+    keys: {
+        key:  fs.readFileSync(&quot;./tests/testCerts/server.key&quot;),
+        cert: fs.readFileSync(&quot;./tests/testCerts/server.crt&quot;),
+    },
+    redirs
+});
+expect(serv).to.be.ok;
+expect(serv.ip).to.be.ok;
+expect(serv.port).to.eq(4000);
+expect(serv.httpPort).to.eq(3000);
+expect(serv.isHTTPS).to.be.true;
+expect(serv.redirs).to.not.have.property(&quot;juush&quot;);
+serv.stop();</code></pre></dd>
+          </dl>
+        </section>
+      </dl>
+    </section>
+    <section class="suite">
+      <h1>Database tests</h1>
+      <dl>
+        <section class="suite">
+          <h1>database init</h1>
+          <dl>
+            <dt>should be queryable</dt>
+            <dd><pre><code>return pool.query(&quot;SELECT 1&quot;);</code></pre></dd>
+            <dt>!should never drop production databases!</dt>
+            <dd><pre><code>return pool.query(`
+
+DROP TABLE IF EXISTS index, keys;
+DROP SEQUENCE IF EXISTS keys_id_seq;
+    `);</code></pre></dd>
+            <dt>should create some tables</dt>
+            <dd><pre><code>return pool.query(`
+
+CREATE SEQUENCE keys_id_seq
+    INCREMENT 1
+    MINVALUE 1
+    MAXVALUE 9223372036854775807
+    START 1
+    CACHE 1;
+
+CREATE TABLE index
+(
+  id character varying(8) NOT NULL,
+  uploaddate timestamp without time zone,
+  ip cidr,
+  filename character varying(256),
+  mimetype character varying(127),
+  keyid integer NOT NULL,
+  downloads integer NOT NULL DEFAULT 0,
+  lastdownload timestamp without time zone,
+  CONSTRAINT index_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE keys
+(
+  id integer NOT NULL DEFAULT nextval('keys_id_seq'::regclass),
+  key character(32),
+  name character varying(32),
+  CONSTRAINT keys_pkey PRIMARY KEY (id)
+);
+`);</code></pre></dd>
+          </dl>
+        </section>
+        <section class="suite">
+          <h1>Database + server</h1>
+          <dl>
+            <dt>should have created a server</dt>
+            <dd><pre><code>return req().get(&quot;/blank&quot;);</code></pre></dd>
+            <dt>should be able to make new users</dt>
+            <dd><pre><code>var i, l = arguments.length, r = new Array(l); for (i = 0; i &lt; l; ++i)
+           r[i] = arguments[i]; return fn.apply(this, r);</code></pre></dd>
+            <section class="suite">
+              <h1>API</h1>
+              <dl>
+                <dt>should not be anyone</dt>
+                <dd><pre><code>return req().get(&quot;/juush/whoami&quot;).then(res =&gt; {
+    expect(res).to.be.json;
+    expect(res.body[0]).to.be.undefined;
+});</code></pre></dd>
+                <dt>should be able to see the users</dt>
+                <dd><pre><code>return req().get(&quot;/juush/users/&quot;).then(res =&gt; {
+    expect(res).to.be.json;
+    const json = res.body;
+    expect(json).to.have.property(&quot;length&quot;, 2);
+    expect(json).to.have.deep.property(&quot;[0].id&quot;);
+    expect(json).to.have.deep.property(&quot;[0].name&quot;);
+    expect(json).to.have.deep.property(&quot;[0]&quot;);
+});</code></pre></dd>
+                <dt>should be able to see userinfo</dt>
+                <dd><pre><code>return req().get(&quot;/juush/userinfo/1&quot;).then(res =&gt; {
+    expect(res).to.be.json;
+    const json = res.body;
+    expect(json).to.have.property(&quot;name&quot;);
+    expect(json).to.have.property(&quot;downloads&quot;);
+    expect(json).to.have.property(&quot;total&quot;);
+});</code></pre></dd>
+                <dt>should be able to delete users</dt>
+                <dd><pre><code>return req().get(&quot;/juush/deluser/2&quot;).then(res =&gt; {
+    expect(res).to.be.json;
+    const json = res.body;
+    expect(json.success).to.be.true;
+});</code></pre></dd>
+                <dt>should be an admin</dt>
+                <dd><pre><code>global.testIsAdmin = true;
+return req().get(&quot;/juush/isadmin&quot;).then(res =&gt; {
+    expect(res.text).to.be.eq(&quot;true&quot;);
+});</code></pre></dd>
+                <dt>should not be an admin</dt>
+                <dd><pre><code>global.testIsAdmin = false;
+return req().get(&quot;/juush/isadmin&quot;).then(res =&gt; {
+    expect(res.text).to.be.eq(&quot;false&quot;);
+});</code></pre></dd>
+                <dt>should get 'unknown method' for bad calls</dt>
+                <dd><pre><code>return req().get(&quot;/juush/zzzzzzzzz&quot;).catch(res =&gt; {
+    expect(res).to.have.status(405);
+});</code></pre></dd>
+              </dl>
+            </section>
+            <section class="suite">
+              <h1>Upload/Download</h1>
+              <dl>
+                <section class="suite">
+                  <h1>should be able to upload some files</h1>
+                  <dl>
+                    <dt>should upload the first as one</dt>
+                    <dd><pre><code>return req().post(&quot;/uf&quot;)
+    .attach(uploadKey, file, &quot;upload.txt&quot;)
+    .then(res =&gt; keys.push(res.text));</code></pre></dd>
+                    <dt>should upload a large one in parts</dt>
+                    <dd><pre><code>return req().post(&quot;/uf&quot;)
+    .attach(uploadKey, fileBig, &quot;big.txt&quot;)
+    .then(res =&gt; keys.push(res.text));</code></pre></dd>
+                    <dt>should upload a weird one</dt>
+                    <dd><pre><code>return req().post(&quot;/uf&quot;)
+    .attach(uploadKey, fileEdge, &quot;uploadEdge.txt&quot;)
+    .then(res =&gt; keys.push(res.text));</code></pre></dd>
+                    <dt>should upload an empty one</dt>
+                    <dd><pre><code>return req().post(&quot;/uf&quot;)
+    .attach(uploadKey, Buffer.from(&quot;&quot;), &quot;big.txt&quot;)
+    .then(res =&gt; keys.push(res.text));</code></pre></dd>
+                    <dt>should upload a pic</dt>
+                    <dd><pre><code>return req().post(&quot;/uf&quot;)
+    .attach(uploadKey, filePic, &quot;pic.png&quot;)
+    .then(res =&gt; keys.push(res.text));</code></pre></dd>
+                    <dt>should not upload a bad one</dt>
+                    <dd><pre><code>return req().post(&quot;/uf&quot;)
+    .field(&quot;name&quot;, &quot;asef&quot;).catch(res =&gt; {
+        expect(res).to.have.status(400);
+    });</code></pre></dd>
+                  </dl>
+                </section>
+                <section class="suite">
+                  <h1>download and api</h1>
+                  <dl>
+                    <dt>download should equal upload</dt>
+                    <dd><pre><code>var i, l = arguments.length, r = new Array(l); for (i = 0; i &lt; l; ++i)
+           r[i] = arguments[i]; return fn.apply(this, r);</code></pre></dd>
+                    <dt>should be able to check /info</dt>
+                    <dd><pre><code>return req().get(`/f/${keys[0]}/info`).then(res =&gt; {
+    expect(res).to.have.status(200);
+});</code></pre></dd>
+                    <dt>should be able to delete</dt>
+                    <dd><pre><code>return req().get(`/f/${keys[0]}/delete`).then(res =&gt; {
+    expect(res).to.have.status(200);
+});</code></pre></dd>
+                    <dt>should get a 410 when viewing a deleted file</dt>
+                    <dd><pre><code>return req().get(`/f/${keys[0]}`).catch(res =&gt; {
+    expect(res).to.have.status(410);
+});</code></pre></dd>
+                    <dt>should be able to rename</dt>
+                    <dd><pre><code>return req().get(`/f/${keys[1]}/rename/newname`).then(res =&gt; {
+    expect(res.text).to.equal(&quot;newname.txt&quot;);
+});</code></pre></dd>
+                    <dt>should be able to rename with extensions</dt>
+                    <dd><pre><code>return req().get(`/f/${keys[1]}/rename/newname.asdf`).then(res =&gt; {
+    expect(res.text).to.equal(&quot;newname.asdf&quot;);
+});</code></pre></dd>
+                    <dt>should increment downloads when downloading a file</dt>
+                    <dd><pre><code>var i, l = arguments.length, r = new Array(l); for (i = 0; i &lt; l; ++i)
+           r[i] = arguments[i]; return fn.apply(this, r);</code></pre></dd>
+                    <dt>should not incrent when accessing /thumb</dt>
+                    <dd><pre><code>var i, l = arguments.length, r = new Array(l); for (i = 0; i &lt; l; ++i)
+           r[i] = arguments[i]; return fn.apply(this, r);</code></pre></dd>
+                  </dl>
+                </section>
+              </dl>
+            </section>
+            <section class="suite">
+              <h1>Account stuff</h1>
+              <dl>
+                <dt>should be able to view a users uploads</dt>
+                <dd><pre><code>return req().get(&quot;/juush/uploads/1&quot;).then(res =&gt; {
+    expect(res).to.be.json;
+    const json = res.body;
+});</code></pre></dd>
+              </dl>
+            </section>
+          </dl>
+        </section>
+      </dl>
+    </section>

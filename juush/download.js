@@ -147,16 +147,18 @@ const processDownload = function(reqx, result, disposition){
     //Send filename with content-disposition
     codisp += '; filename="' + data.filename + '"';
 
-    U.pool.query({
-        text: "UPDATE index SET " +
-            "downloads=downloads+1, " +
-            "lastdownload=now() " +
-            "WHERE id=$1",
-        name: "download_increment_downloads",
-        values: [uploadID],
-    }).catch(err => {
-        serverLog("Error when incrementing download. " + uploadID, err);
-    });
+    if(incDL){
+        U.pool.query({
+            text: "UPDATE index SET " +
+                "downloads=downloads+1, " +
+                "lastdownload=now() " +
+                "WHERE id=$1",
+            name: "download_increment_downloads",
+            values: [uploadID],
+        }).catch(err => {
+            serverLog("Error when incrementing download. " + uploadID, err);
+        });
+    }
 
     reqx.res.writeHead(200, {
         "Content-Type": data.mimetype,
@@ -192,7 +194,12 @@ const ipHasAccess = async ((ip, uploadID) => {
 
 const download = async (function(server, reqx){
     let uploadID = reqx.urldata.path[1];
-    if(!uploadID || uploadID === "") return U.juushError(reqx.res);
+    if(!uploadID || uploadID === ""){
+        reqx.res.statusCode = 404;
+        reqx.res.end("No file supplied");
+        return;
+    }
+
     //ignore extension
     uploadID = uploadID.split(".")[0];
 
@@ -247,7 +254,15 @@ const download = async (function(server, reqx){
         res.write("<br>File Type: " + data.mimetype);
         res.end();
     }else if(disposition === "rename"){
-        const canDo = await (ipHasAccess(reqx.req.connection.remoteAddress, uploadID));
+        const [canDo, result] = await ([
+            ipHasAccess(reqx.req.connection.remoteAddress, uploadID),
+            U.pool.query({
+                text: "SELECT filename FROM index WHERE id=$1 ",
+                name: "upload_info",
+                values: [uploadID],
+            }),
+        ]);
+
         if(canDo === "NOFILE"){
             reqx.doHTML("That file does not exist", 404);
             return;
@@ -257,6 +272,8 @@ const download = async (function(server, reqx){
             reqx.doHTML("You do not have access to rename this file.", 401);
             return;
         }
+
+        const data = result.rows[0];
 
         const oldName = data.filename;
         const newName = decodeURI(reqx.urldata.path[3]);

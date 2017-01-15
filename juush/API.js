@@ -107,8 +107,10 @@ module.exports = async (function(server, reqx){
     }else if(urldata.path[1] === "isadmin"){
         let ip = req.connection.remoteAddress;
         if(urldata.path[2]) ip = urldata.path[2];
+        res.setHeader("Content-Type", "text/plain");
         res.end(U.isAdmin(ip) ? "true" : "false");
     }else{
+        res.statusCode = 405;
         res.end("Unknown method");
     }
 });
