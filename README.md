@@ -1,4 +1,5 @@
-[![Travis](https://img.shields.io/travis/John2143658709/john2143.com.svg)]()
+[![Build Status](https://travis-ci.org/John2143658709/john2143.com.svg?branch=master)](https://travis-ci.org/John2143658709/john2143.com)
+[![Coverage Status](https://coveralls.io/repos/github/John2143658709/john2143.com/badge.svg?branch=master)](https://coveralls.io/github/John2143658709/john2143.com?branch=master)
 
 This is the code currently being used to run john2143.com and jschmidt.co (443 + 80)
 
