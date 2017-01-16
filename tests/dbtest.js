@@ -10,6 +10,13 @@ describe("Database + server", function(){
         return req().get("/blank");
     });
 
+    it("should have a working ip", function(){
+        return req().get("/ip").then(res => {
+            expect(res).to.have.status(200);
+            expect(res.text).to.be.an.ip;
+        });
+    });
+
     it("should be able to make new users", async (function(){
         let users = await ([
             req().get("/nuser/use"),
@@ -237,7 +244,6 @@ describe("Account stuff", function(){
 });
 
 describe("error", function(){
-    it("when file deleted when trying to download");
     it("410 when viewing a deleted file", function(){
         return req().get(`/f/${keys[0]}`).catch(res => {
             expect(res).to.have.status(410);
