@@ -221,29 +221,29 @@ describe("Upload/Download", function(){
         it("should accept and work with stream requests", function(){
             const resource = `/f/${keys[1]}`;
             let contentLen;
-            const start = 7, end = 9;
+            const start = 7, end = 15;
             return req().get(resource).then(res => {
                 expect(res).to.have.header("Content-Length");
                 contentLen = res.header["content-length"];
                 expect(res).to.have.header("Accept-Ranges", "bytes");
                 return req().get(resource)
                     .set("Referer", url + resource)
-                    .set("Range", "bytes=7-");
+                    .set("Range", `bytes=${start}-`);
 
             }).then(res => {
                 expect(res).to.have.status(206);
                 expect(res).to.have.header("Content-Length");
                 expect(res).to.have.header("Content-Range",
-                    `bytes 7-${contentLen-1}/${contentLen}`
+                    `bytes ${start}-${contentLen-1}/${contentLen}`
                 );
                 return req().get(resource)
                     .set("Referer", url + resource)
-                    .set("Range", "bytes=7-9");
+                    .set("Range", `bytes=${start}-${end}`);
             }).then(res => {
                 expect(res).to.have.header("Content-Range",
-                    `bytes 7-9/${contentLen}`
+                    `bytes ${start}-${end}/${contentLen}`
                 );
-                const expected = fileBig.slice(7, 9 - 1);
+                const expected = fileBig.slice(start, end + 1);
                 expect(Buffer.from(res.text)).to.deep.equal(expected);
             }).catch(res => {
                 throw res;
