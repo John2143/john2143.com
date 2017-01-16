@@ -27,7 +27,7 @@ exports.juushError = function(res, err, code){
     });
     res.end("Internal server error.");
     serverLog("JuushError!");
-    if(err) serverLog(err);
+    if(err) console.log(err);
 };
 
 //This is an error wrapper

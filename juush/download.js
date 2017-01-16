@@ -6,7 +6,7 @@ const isStreamRequest = req => req.headers.referer && req.headers.range;
 
 //This will serve a stream request. It does no kind of validation to see
 //if the user can actually access that content.
-const serveStreamRequest = function(reqx, filepath){
+const serveStreamRequest = async (function(reqx, filepath){
     const rangeRequestRegex = /bytes=(\d*)-(\d*)/;
     let stat;
 
@@ -51,7 +51,7 @@ const serveStreamRequest = function(reqx, filepath){
     const filePipe = fs.createReadStream(filepath, {start: rangeStart, end: rangeEnd});
     reqx.res.on("error", () => filePipe.end());
     filePipe.pipe(reqx.res);
-};
+});
 
 fs.unlinkAsync = function(path){
     return new Promise(function(resolve, reject){
@@ -207,7 +207,7 @@ const download = async (function(server, reqx){
     const disposition = reqx.urldata.path[2];
 
     if(isStreamRequest(reqx.req)){
-        return serveStreamRequest(reqx, getFilename(uploadID));
+        return serveStreamRequest(reqx, U.getFilename(uploadID));
     }
 
     if(disposition === "delete"){
