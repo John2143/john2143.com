@@ -246,7 +246,13 @@ describe("Upload/Download", function(){
 
                 const expected = files[index].slice(start, end + 1);
                 Buffer.from(res.text).should.deep.equal(expected);
-            });
+
+                return req().get(resource)
+                    .set("Referer", url + resource)
+                    .set("Range", `bytes=1-999999999999`);
+            })
+                .should.eventually.be.rejected
+                .and.have.status(416);
         });
         it("should accept and work with download dispotision");
     });
