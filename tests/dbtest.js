@@ -126,6 +126,13 @@ describe("Upload/Download", function(){
             });
         });
 
+        it("should not upload a bad one", function(){
+            return req().post("/uf")
+                .field("name", "asef")
+                .should.eventually.be.rejected
+                .and.to.have.status(400);
+        });
+
         after(function(){
             keys = keys.map(x => x.split("/").pop().split(".")[0]);
         });
