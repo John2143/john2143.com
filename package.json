@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "chai": "^3.5.0",
+    "chai-as-promised": "^6.0.0",
     "chai-http": "^3.0.0",
     "coveralls": "^2.11.15",
     "istanbul": "^0.4.5",
@@ -27,7 +28,7 @@
     "url": "git+https://github.com/John2143658709/john2143.com.git"
   },
   "author": "John2143",
-  "license": "MIT",
+  "license": "GPL-3.0+",
   "bugs": {
     "url": "https://github.com/John2143658709/john2143.com/issues"
   },

@@ -165,17 +165,16 @@ class server{
 
     getExtIP(callback, doreset){
         if(doreset || !this.extip){
-            https.get({
-                host: "myexternalip.com",
-                port: 443,
-                path: "/raw"
+            (this.isHTTPS ? https : http).get({
+                host: "api.ipify.org",
+                port: this.isHTTPS ? 443 : 80,
             }, r => {
                 r.setEncoding("utf8");
                 r.on("data", d => {
                     this.extip = d;
                     callback(this.extip);
                 });
-            }).setTimeout(2000, () => {
+            }).setTimeout(1000, () => {
                 callback(false);
             });
         }else{
