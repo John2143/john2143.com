@@ -4,7 +4,7 @@
   "description": "Server for john2143.com, including juush",
   "main": "main.js",
   "dependencies": {
-    "babel-preset-2017": "0.0.0",
+    "babel-cli": "^6.22.2",
     "babel-preset-latest": "^6.22.0",
     "bluebird": "^3.4.7",
     "pg": "^6.1.2"
