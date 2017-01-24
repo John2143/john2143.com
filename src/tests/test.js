@@ -73,8 +73,8 @@ describe("HTTPS Server", function(){
             httpPort: 3000,
             port: 4000,
             keys: {
-                key:  fs.readFileSync("./tests/testCerts/server.key"),
-                cert: fs.readFileSync("./tests/testCerts/server.crt"),
+                key:  fs.readFileSync("./src/tests/testCerts/server.key"),
+                cert: fs.readFileSync("./src/tests/testCerts/server.crt"),
             },
             redirs
         });

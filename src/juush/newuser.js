@@ -2,7 +2,7 @@
 const U = require("./util.js");
 
 //Create new user
-module.exports = async (function(server, reqx){
+module.exports = async function(server, reqx){
     const {res, urldata, req} = reqx;
     //Only people on the same network as the server can create users
     if(U.isAdmin(req.connection.remoteAddress)){
@@ -22,4 +22,4 @@ module.exports = async (function(server, reqx){
         });
         res.end("You cannot make users");
     }
-});
+};

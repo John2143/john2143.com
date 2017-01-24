@@ -5,7 +5,8 @@ services:
  - postgresql
 before_script:
  - psql -c 'create database juush;' -U postgres
- - mv travis.const.js const.js
+ - mv src/travis.const.js src/const.js
+ - npm build
 script:
  - npm run testc
 after_success:

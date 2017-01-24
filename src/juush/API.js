@@ -21,7 +21,7 @@ const genericAPIOperationResult = res => result=> {
 };
 
 //
-module.exports = async (function(server, reqx){
+module.exports = async function(server, reqx){
     const {res, urldata, req} = reqx;
     // /juush/uploads/<userid>/[page]/
     // lists some number of uploads from a user, with an optional offset
@@ -59,7 +59,7 @@ module.exports = async (function(server, reqx){
     // Give info about a user.
     }else if(urldata.path[1] === "userinfo"){
         try{
-            let infos = await ([
+            let infos = await Promise.all([
                 U.pool.query({
                     text: "SELECT name FROM keys WHERE id = $1;",
                     name: "api_get_info1",
@@ -113,4 +113,4 @@ module.exports = async (function(server, reqx){
         res.statusCode = 405;
         res.end("Unknown method");
     }
-});
+};

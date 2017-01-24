@@ -6,7 +6,7 @@ const isStreamRequest = req => req.headers.referer && req.headers.range;
 
 //This will serve a stream request. It does no kind of validation to see
 //if the user can actually access that content.
-const serveStreamRequest = async (function(reqx, filepath){
+const serveStreamRequest = async function(reqx, filepath){
     const rangeRequestRegex = /bytes=(\d*)-(\d*)/;
     let stat;
 
@@ -51,7 +51,7 @@ const serveStreamRequest = async (function(reqx, filepath){
     const filePipe = fs.createReadStream(filepath, {start: rangeStart, end: rangeEnd});
     reqx.res.on("error", () => filePipe.end());
     filePipe.pipe(reqx.res);
-});
+};
 
 fs.unlinkAsync = function(path){
     return new Promise(function(resolve, reject){
@@ -62,8 +62,8 @@ fs.unlinkAsync = function(path){
     });
 };
 
-const setMimeType = async (function(id, newmime){
-    return await ([
+const setMimeType = async function(id, newmime){
+    return await Promise.all([
         U.pool.query({
             text: "UPDATE index SET mimetype=$2 WHERE id=$1",
             name: "delete_file",
@@ -71,7 +71,7 @@ const setMimeType = async (function(id, newmime){
         }),
         newmime === "deleted" && fs.unlinkAsync(U.getFilename(id)),
     ]);
-});
+};
 
 const shouldInline = function(filedata, mime){
     //const inlineTypes = [
@@ -173,12 +173,12 @@ const processDownload = function(reqx, result, disposition){
     stream.pipe(reqx.res);
 };
 
-const ipHasAccess = async ((ip, uploadID) => {
-    const result = await (U.pool.query({
+const ipHasAccess = async (ip, uploadID) => {
+    const result = await U.pool.query({
         text: "SELECT ip FROM index WHERE keyid=(SELECT keyid FROM index WHERE id=$1) GROUP BY ip ORDER BY max(uploaddate)",
         name: "delete_check",
         values: [uploadID],
-    }));
+    });
 
     if(result.rowCount === 0){
         return "NOFILE";
@@ -190,9 +190,9 @@ const ipHasAccess = async ((ip, uploadID) => {
         }
     }
     return "NOACCESS";
-});
+};
 
-const download = async (function(server, reqx){
+const download = async function(server, reqx){
     let uploadID = reqx.urldata.path[1];
     if(!uploadID || uploadID === ""){
         reqx.res.statusCode = 404;
@@ -211,7 +211,7 @@ const download = async (function(server, reqx){
     }
 
     if(disposition === "delete"){
-        const canDo = await (ipHasAccess(reqx.req.connection.remoteAddress, uploadID));
+        const canDo = await ipHasAccess(reqx.req.connection.remoteAddress, uploadID);
         if(canDo === "NOFILE"){
             reqx.doHTML("That file does not exist", 404);
             return;
@@ -226,12 +226,12 @@ const download = async (function(server, reqx){
             reqx.doHTML("File successfully deleted. It will still appear in your user page.");
         });
     }else if(disposition === "info"){
-        const result = await (U.pool.query({
+        const result = await U.pool.query({
             text: "SELECT mimetype, filename, uploaddate, keyid, downloads, lastdownload, name, index.id " +
             "FROM index INNER JOIN keys ON index.keyid=keys.id WHERE index.id=$1",
             name: "upload_info",
             values: [uploadID],
-        }));
+        });
 
         const res = reqx.res;
         if(result.rowCount === 0){
@@ -254,7 +254,7 @@ const download = async (function(server, reqx){
         res.write("<br>File Type: " + data.mimetype);
         res.end();
     }else if(disposition === "rename"){
-        const [canDo, result] = await ([
+        const [canDo, result] = await Promise.all([
             ipHasAccess(reqx.req.connection.remoteAddress, uploadID),
             U.pool.query({
                 text: "SELECT filename FROM index WHERE id=$1 ",
@@ -286,26 +286,27 @@ const download = async (function(server, reqx){
             name += "." + oldFileExt;
         }
 
-        await (U.pool.query({
+        await U.pool.query({
             text: "UPDATE index SET filename=$2 WHERE id=$1",
             name: "rename_file",
             values: [uploadID, name],
-        }));
+        });
+
         reqx.res.end(name);
     }else{
-        let result = await (U.pool.query({
+        let result = await U.pool.query({
             text: "SELECT mimetype, filename, id FROM index WHERE id=$1",
             name: "download_check_dl",
             values: [uploadID],
-        }));
+        });
         processDownload(reqx, result, disposition);
     }
-});
+};
 
-module.exports = async (function(server, reqx){
+module.exports = async function(server, reqx){
     try{
         await (download(server, reqx));
     }catch(e){
         U.juushError(reqx.res, e, 500);
     }
-});
+};

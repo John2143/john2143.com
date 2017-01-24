@@ -4,7 +4,8 @@
   "description": "Server for john2143.com, including juush",
   "main": "main.js",
   "dependencies": {
-    "asyncawait": "^1.0.6",
+    "babel-preset-2017": "0.0.0",
+    "babel-preset-latest": "^6.22.0",
     "bluebird": "^3.4.7",
     "pg": "^6.1.2"
   },
@@ -19,10 +20,11 @@
     "sinon": "^1.17.7"
   },
   "scripts": {
-    "test": "jshint *.js && jshint juush/*.js && mocha test.js",
-    "start": "node main | tee \"logs/`date`.txt\"",
-    "testc": "istanbul cover node_modules/mocha/bin/_mocha test.js",
-	"build": "babel serv --out-dir c"
+    "test": "mocha c/test.js",
+    "start": "node c/main | tee \"logs/`date`.txt\"",
+    "testc": "istanbul cover node_modules/mocha/bin/_mocha c/test.js",
+    "build": "babel src --out-dir c -s",
+    "buildw": "babel src --out-dir c --watch -s"
   },
   "repository": {
     "type": "git",
