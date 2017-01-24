@@ -21,7 +21,8 @@
   "scripts": {
     "test": "jshint *.js && jshint juush/*.js && mocha test.js",
     "start": "node main | tee \"logs/`date`.txt\"",
-    "testc": "istanbul cover node_modules/mocha/bin/_mocha test.js"
+    "testc": "istanbul cover node_modules/mocha/bin/_mocha test.js",
+	"build": "babel serv --out-dir c"
   },
   "repository": {
     "type": "git",
