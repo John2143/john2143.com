@@ -46,6 +46,8 @@ exports.randomStr = function(length = 32){
 };
 
 exports.guessFileExtension = function(filename){
+    if(!filename) return null;
+
     let fileExtension = filename.split(".");
     //No extension
     if(fileExtension.length === 1) return null;
@@ -62,5 +64,5 @@ if(global.it){
     exports.isAdmin = ip => ip.indexOf("192.168") >= 0 || ip === "127.0.0.1" || ip === "::1";
 }
 
-exports.IPEqual = (a, b) => a.split("/")[0] === b.split("/")[0];
+exports.IPEqual = (a, b) => a && b && a.split("/")[0] === b.split("/")[0];
 exports.getFilename = id => "./juushFiles/" + id;

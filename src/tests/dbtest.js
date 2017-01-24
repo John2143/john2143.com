@@ -11,6 +11,8 @@ describe("Database + server", function(){
     });
 
     it("should have a working ip", function(){
+        this.timeout(5000);
+        this.slow(200);
         return req().get("/ip").then(res => {
             res.should.have.status(200);
             res.text.should.be.an.ip;
@@ -120,6 +122,7 @@ describe("Upload/Download", function(){
 
         tests.forEach((data, index) => {
             it(data, function(){
+                this.slow(200);
                 return req().post("/uf")
                     .attach(uploadKey, files[index], filenames[index])
                     .then(res => keys[index] = res.text);
@@ -140,6 +143,7 @@ describe("Upload/Download", function(){
 
     describe("download and api", function(){
         it("download should equal upload", async function(){
+            this.slow(1000);
             let downloads = [];
 
             for(let x = 0; x < 4; x++){
@@ -187,11 +191,12 @@ describe("Upload/Download", function(){
         before(function(){
             ulid = keys[1];
             getDLs = async id => pool
-                    .query("SELECT downloads FROM index WHERE id=$1", [id])
-                    .then(res => res.rows[0].downloads);
+                .query("SELECT downloads FROM index WHERE id=$1", [id])
+                .then(res => res.rows[0].downloads);
         });
 
         it("should increment downloads when downloading a file", async function(){
+            this.slow(1000);
             let numDownloads = await getDLs(ulid);
             let awaits = [];
             const inc = 2;
@@ -207,6 +212,7 @@ describe("Upload/Download", function(){
         });
 
         it("should not incrent when accessing /thumb", async function(){
+            this.slow(1000);
             let numDownloads = await getDLs(ulid);
             let awaits = [];
             const inc = 2;
@@ -216,7 +222,7 @@ describe("Upload/Download", function(){
                 );
             }
 
-            await awaits;
+            await Promise.all(awaits);
 
             expect(numDownloads).to.equal(await getDLs(ulid));
         });

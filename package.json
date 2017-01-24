@@ -22,9 +22,10 @@
   "scripts": {
     "test": "mocha c/test.js",
     "start": "node c/main | tee \"logs/`date`.txt\"",
-    "testc": "istanbul cover node_modules/mocha/bin/_mocha c/test.js",
+    "testc": "babel-node ./node_modules/istanbul/lib/cli cover node_modules/mocha/bin/_mocha src/test.js",
     "build": "babel src --out-dir c -s && echo Done",
-    "buildw": "babel src --out-dir c --watch -s"
+    "buildw": "babel src --out-dir c --watch -s",
+    "clean": "rm -r c coverage"
   },
   "repository": {
     "type": "git",
