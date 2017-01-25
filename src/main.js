@@ -31,8 +31,9 @@ if(serverConst.dbuser){
     redirs.juush = juush.API;
 }
 
-const server = require("./server.js");
-let srv = module.exports = new server({
+import server from "./server.js";
+
+export default new server({
     redirs,
     ip: serverConst.IP,
     port: serverConst.PORT,

@@ -1,8 +1,6 @@
-"use strict";
-
-const https = require("https");
-const http = require("http");
-const url = require("url");
+import https from "https";
+import http  from "http";
+import url   from "url";
 
 let favicon = "";
 
@@ -85,7 +83,7 @@ class request{
     }
 }
 
-class server{
+export default class server{
     constructor(dat){
         this.ip = dat.ip || "0.0.0.0";
         this.isHTTPS = dat.port && dat.httpPort && dat.port != dat.httpPort;
@@ -182,5 +180,3 @@ class server{
         }
     }
 }
-
-module.exports = server;

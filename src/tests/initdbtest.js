@@ -1,10 +1,9 @@
-const pg = require("pg");
-const Pool = pg.Pool;
+import pg from "pg";
 
 describe("database init", function(){
     let pool;
     before(function(){
-        pool = new Pool({
+        pool = new pg.Pool({
             user: serverConst.dbuser,
             host: serverConst.dbhost,
             database: "juush",

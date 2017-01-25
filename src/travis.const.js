@@ -1,6 +1,6 @@
-exports.IP = "localhost";
-exports.PORT = 4000;
+export const IP = "localhost";
+export const PORT = 4000;
 
-exports.dbuser = "postgres";
-exports.dbhost = "localhost";
-exports.dbport = 5432;
+export const dbuser = "postgres";
+export const dbhost = "localhost";
+export const dbport = 5432;

@@ -1,3 +1,4 @@
+
 import server from "../main.js";
 
 const url = `http://${serverConst.IP}:${serverConst.PORT}`;
@@ -20,15 +21,13 @@ describe("Database + server", function(){
     });
 
     it("should be able to make new users", async function(){
-        let users = await Promise.all([
-            req().get("/nuser/use"),
-            req().get("/nuser/user2"),
-        ]);
+        let user;
+        user = await req().get("/nuser/use");
+        user.body.should.be.ok;
+        user = await req().get("/nuser/user2");
+        user.body.should.be.ok;
 
-        users[0].body.should.be.ok;
-        users[1].body.should.be.ok;
-
-        return pool.query("UPDATE keys SET key=$1", [uploadKey]);
+        return await pool.query("UPDATE keys SET key=$1", [uploadKey]);
     });
 
 describe("API", function(){

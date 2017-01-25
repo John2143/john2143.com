@@ -1,8 +1,7 @@
 serverLog("Creating juush");
 
-module.exports = {
-    API:      require("./API.js"),
-    download: require("./download.js"),
-    upload:   require("./upload.js"),
-    newUser:  require("./newuser.js"),
-};
+import API from "./API.js";
+import download from "./download.js";
+import upload from "./upload.js";
+import newUser from "./newuser.js";
+export {API, download, upload, newUser};

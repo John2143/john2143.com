@@ -1,10 +1,9 @@
 "use strict";
 
-const pg = require("pg");
-const Pool = pg.Pool;
+import pg from "pg";
 
 //Setup postgres pool
-let pool = exports.pool = new Pool({
+export const pool = new pg.Pool({
     user: serverConst.dbuser,
     password: serverConst.dbpass,
     host: serverConst.dbhost,
@@ -21,7 +20,7 @@ pool.on("error", function(err, client){
 });
 
 //This works with dbError to end a broken session
-exports.juushError = function(res, err, code){
+export const juushError = function(res, err, code){
     res.writeHead(code, {
         "Content-Type": "text/html",
     });
@@ -31,10 +30,11 @@ exports.juushError = function(res, err, code){
 };
 
 //This is an error wrapper
-exports.juushErrorCatch = (res, code = 500) => err => exports.juushError(res, err, code);
+export const juushErrorCatch = (res, code = 500) =>
+    err => juushError(res, err, code);
 
 //This is used to create a random string as an ID
-exports.randomStr = function(length = 32){
+export const randomStr = function(length = 32){
     const charSet = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     //Random index from charset
     const ran = () => Math.floor(Math.random() * charSet.length);
@@ -45,7 +45,7 @@ exports.randomStr = function(length = 32){
     return str;
 };
 
-exports.guessFileExtension = function(filename){
+export const guessFileExtension = filename => {
     if(!filename) return null;
 
     let fileExtension = filename.split(".");
@@ -57,12 +57,13 @@ exports.guessFileExtension = function(filename){
     return fileExtension;
 };
 
+export let isAdmin;
 if(global.it){
     global.testIsAdmin = true;
-    exports.isAdmin = ip => global.testIsAdmin;
+    isAdmin = ip => global.testIsAdmin;
 }else{
-    exports.isAdmin = ip => ip.indexOf("192.168") >= 0 || ip === "127.0.0.1" || ip === "::1";
+    isAdmin = ip => ip.indexOf("192.168") >= 0 || ip === "127.0.0.1" || ip === "::1";
 }
 
-exports.IPEqual = (a, b) => a && b && a.split("/")[0] === b.split("/")[0];
-exports.getFilename = id => "./juushFiles/" + id;
+export const IPEqual = (a, b) => a && b && a.split("/")[0] === b.split("/")[0];
+export const getFilename = id => "./juushFiles/" + id;

@@ -1,4 +1,4 @@
-require("./global.js");
+import "./global.js";
 
 let chai = global.chai = require("chai");
 let expect = global.expect = chai.expect;

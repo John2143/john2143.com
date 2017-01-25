@@ -1,6 +1,6 @@
 
-const U = require("./util.js");
-//
+import * as U from "./util.js";
+
 //Retreives a database client and randomized url that has not been used before
 const getURL = async function(){
     let client;
@@ -70,7 +70,7 @@ const parseHeadersFromUpload = function(data, reqHeaders){
 //The exucution order could in theory be changed to connect to the database only
 //  after the connection is established by not waiting for the client and such
 
-module.exports = async function(server, reqx){
+export default async function(server, reqx){
     const url = await getURL();
     serverLog("File will appear at " + url);
 

@@ -15,7 +15,8 @@ const redirs = {
     _def: "testredir",
 };
 
-const server = require("../server.js");
+import server from "../server.js";
+
 describe("HTTP Server", function(){
     let serv;
     before(function(){

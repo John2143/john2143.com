@@ -1,5 +1,5 @@
 
-const U = require("./util.js");
+import * as U from "./util.js";
 
 //You will get a referer and range if you are trying to stream an audio/video
 const isStreamRequest = req => req.headers.referer && req.headers.range;
@@ -303,7 +303,7 @@ const download = async function(server, reqx){
     }
 };
 
-module.exports = async function(server, reqx){
+export default async function(server, reqx){
     try{
         await (download(server, reqx));
     }catch(e){
