@@ -10,6 +10,7 @@
     "pg": "^6.1.2"
   },
   "devDependencies": {
+    "babel-register": "^6.22.0",
     "chai": "^3.5.0",
     "chai-as-promised": "^6.0.0",
     "chai-http": "^3.0.0",
@@ -17,14 +18,16 @@
     "istanbul": "^0.4.5",
     "jshint": "^2.9.4",
     "mocha": "^3.2.0",
+    "nyc": "^10.1.2",
     "sinon": "^1.17.7"
   },
   "scripts": {
     "test": "mocha c/test.js",
     "start": "node c/main | tee \"logs/`date`.txt\"",
-    "testc": "babel-node ./node_modules/istanbul/lib/cli cover node_modules/mocha/bin/_mocha src/test.js",
-    "build": "babel src --out-dir c -s && echo Done",
-    "buildw": "babel src --out-dir c --watch -s",
+    "testc": "mocha src/test.js --compilers js:babel-register",
+    "cover": "nyc --reporter lcov npm run testc",
+    "build": "babel src --out-dir c -s",
+    "buildw": "npm run build -- --watch",
     "clean": "rm -r c coverage"
   },
   "repository": {

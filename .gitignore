@@ -5,3 +5,5 @@ logs/*
 coverage/*
 c/*
 src/const.js
+.nyc_output/*
+npm-debug.log
