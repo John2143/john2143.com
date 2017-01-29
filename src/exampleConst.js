@@ -1,13 +1,13 @@
 //Server ip to listen on, ipv6 should work fine as well
-exports.IP = "192.168.1.5";
+export const IP = "192.168.1.5";
 //HTTPS port, if null then no https
-exports.PORT = 443;
+export const PORT = 443;
 //HTTP port
-exports.HTTPPORT = 80;
+export const HTTPPORT = 80;
 
 //SSL info
 const pathToKeys = "/etc/letsencrypt/live/www.john2143.com/";
-exports.keys = {
+export const keys = {
     //key:  fs.readFileSync(pathToKeys + "privkey.pem"),
     //cert: fs.readFileSync(pathToKeys + "fullchain.pem"),
     //ca:   fs.readFileSync(pathToKeys + "chain.pem"),
@@ -54,6 +54,6 @@ Foreign-key constraints:
 
 juush=>
 */
-exports.dbpass = "databasePass";
-exports.dbuser = "databaseUser";
-exports.dbhost = "databaseIP";
+export const dbpass = "databasePass";
+export const dbuser = "databaseUser";
+export const dbhost = "databaseIP";

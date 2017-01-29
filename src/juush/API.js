@@ -1,5 +1,5 @@
 
-const U = require("./util.js");
+import {juushErrorCatch, isAdmin, pool} from "./util.js";
 
 //Returns rows as json
 const genericAPIResult = res => result => {
@@ -20,14 +20,13 @@ const genericAPIOperationResult = res => result=> {
     res.end(JSON.stringify({success: result.rowCount >= 1 ? true : false}));
 };
 
-//
-module.exports = async (function(server, reqx){
+export default async function(server, reqx){
     const {res, urldata, req} = reqx;
     // /juush/uploads/<userid>/[page]/
     // lists some number of uploads from a user, with an optional offset
     if(urldata.path[1] === "uploads"){
         const perPage = 25;
-        U.pool.query({
+        pool.query({
             text: "SELECT id, filename, mimetype, downloads, uploaddate " +
                   "FROM index WHERE keyid = $1 ORDER BY uploaddate " +
                   "DESC LIMIT $3 OFFSET $2",
@@ -35,37 +34,37 @@ module.exports = async (function(server, reqx){
             values: [urldata.path[2], (urldata.path[3] || 0) * perPage, perPage],
         })
             .then(genericAPIResult(res))
-            .catch(U.juushErrorCatch(res));
+            .catch(juushErrorCatch(res));
     // /juush/users/
     // Return all juush users
     }else if(urldata.path[1] === "users"){
-        U.pool.query({
+        pool.query({
             text: "SELECT id, name FROM keys;",
             name: "api_get_uers",
         })
             .then(genericAPIResult(res))
-            .catch(U.juushErrorCatch(res));
+            .catch(juushErrorCatch(res));
     // /juush/whoami/
     // Return a list of user ids for current IP
     }else if(urldata.path[1] === "whoami"){
-        U.pool.query({
+        pool.query({
             text: "SELECT DISTINCT keyid FROM index WHERE ip=$1",
             name: "api_whoami",
             values: [req.connection.remoteAddress],
         })
             .then(genericAPIListResult("keyid")(res))
-            .catch(U.juushErrorCatch(res));
+            .catch(juushErrorCatch(res));
     // /juush/userinfo/<userid>
     // Give info about a user.
     }else if(urldata.path[1] === "userinfo"){
         try{
-            let infos = await ([
-                U.pool.query({
+            let infos = await Promise.all([
+                pool.query({
                     text: "SELECT name FROM keys WHERE id = $1;",
                     name: "api_get_info1",
                     values: [urldata.path[2]],
                 }),
-                U.pool.query({
+                pool.query({
                     text: "SELECT SUM(downloads), COUNT(*) FROM index WHERE keyid = $1;",
                     name: "api_get_info2",
                     values: [urldata.path[2]],
@@ -89,28 +88,28 @@ module.exports = async (function(server, reqx){
     // /juush/deluser/userid
     // Delete a user
     }else if(urldata.path[1] === "deluser"){
-        if(!U.isAdmin(req.connection.remoteAddress)){
+        if(!isAdmin(req.connection.remoteAddress)){
             res.writeHead(401, {});
             res.end("You cannot delete users");
             return;
         }
 
-        U.pool.query({
+        pool.query({
             text: "DELETE FROM keys WHERE id=$1;",
             name: "api_deluser",
             values: [urldata.path[2]],
         })
             .then(genericAPIOperationResult(res))
-            .catch(U.juushErrorCatch(res));
+            .catch(juushErrorCatch(res));
     // /juush/isadmin/[ip]
     // Returns if the ip (or connector) is an admin
     }else if(urldata.path[1] === "isadmin"){
         let ip = req.connection.remoteAddress;
         if(urldata.path[2]) ip = urldata.path[2];
         res.setHeader("Content-Type", "text/plain");
-        res.end(U.isAdmin(ip) ? "true" : "false");
+        res.end(isAdmin(ip) ? "true" : "false");
     }else{
         res.statusCode = 405;
         res.end("Unknown method");
     }
-});
+};

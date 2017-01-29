@@ -1,19 +1,19 @@
 
-const U = require("./util.js");
-//
+import * as U from "./util.js";
+
 //Retreives a database client and randomized url that has not been used before
-const getURL = async (function(){
+const getURL = async function(){
     let client;
     try{
-        client = await (U.pool.connect());
+        client = await U.pool.connect();
 
         for(let x = 1; ; x++){
             let url = U.randomStr(4);
-            const result = await (client.query({
+            const result = await client.query({
                 text: "SELECT 1 FROM index WHERE id=$1",
                 name: "check_dl",
                 values: [url],
-            }));
+            });
 
             if(result.rowCount === 0){
                 if(x > 5) serverLog(`took ${x} tries to get a url...`);
@@ -27,7 +27,7 @@ const getURL = async (function(){
         serverLog("Error when obtaining new url" + e);
         return null;
     }
-});
+};
 
 const parseHeadersFromUpload = function(data, reqHeaders){
     const strData = data.toString("utf8");
@@ -70,8 +70,8 @@ const parseHeadersFromUpload = function(data, reqHeaders){
 //The exucution order could in theory be changed to connect to the database only
 //  after the connection is established by not waiting for the client and such
 
-module.exports = async (function(server, reqx){
-    const url = await (getURL());
+export default async function(server, reqx){
+    const url = await getURL();
     serverLog("File will appear at " + url);
 
     //Any connection will timeout after 30 seconds of inactivity.
@@ -253,4 +253,4 @@ module.exports = async (function(server, reqx){
             wstream.write(write);
         }
     });
-});
+};
