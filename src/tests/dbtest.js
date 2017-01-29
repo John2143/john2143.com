@@ -1,4 +1,5 @@
-const server = require("../main.js");
+
+import server from "../main.js";
 
 const url = `http://${serverConst.IP}:${serverConst.PORT}`;
 const req = () => chai.request(url);
@@ -11,23 +12,23 @@ describe("Database + server", function(){
     });
 
     it("should have a working ip", function(){
+        this.timeout(5000);
+        this.slow(200);
         return req().get("/ip").then(res => {
             res.should.have.status(200);
             res.text.should.be.an.ip;
         });
     });
 
-    it("should be able to make new users", async (function(){
-        let users = await ([
-            req().get("/nuser/use"),
-            req().get("/nuser/user2"),
-        ]);
+    it("should be able to make new users", async function(){
+        let user;
+        user = await req().get("/nuser/use");
+        user.body.should.be.ok;
+        user = await req().get("/nuser/user2");
+        user.body.should.be.ok;
 
-        users[0].body.should.be.ok;
-        users[1].body.should.be.ok;
-
-        return pool.query("UPDATE keys SET key=$1", [uploadKey]);
-    }));
+        return await pool.query("UPDATE keys SET key=$1", [uploadKey]);
+    });
 
 describe("API", function(){
     it("should not be anyone", function(){
@@ -103,11 +104,11 @@ describe("Upload/Download", function(){
         ];
         before(function(){
             files = [
-                fs.readFileSync("./tests/uploads/upload.txt"),
-                fs.readFileSync("./tests/uploads/big.txt"),
-                fs.readFileSync("./tests/uploads/uploadEdge.txt"),
+                fs.readFileSync("./src/tests/uploads/upload.txt"),
+                fs.readFileSync("./src/tests/uploads/big.txt"),
+                fs.readFileSync("./src/tests/uploads/uploadEdge.txt"),
                 Buffer.from(""),
-                fs.readFileSync("./tests/uploads/pic.png"),
+                fs.readFileSync("./src/tests/uploads/pic.png"),
             ];
             filenames = [
                 "upload.txt",
@@ -120,6 +121,7 @@ describe("Upload/Download", function(){
 
         tests.forEach((data, index) => {
             it(data, function(){
+                this.slow(200);
                 return req().post("/uf")
                     .attach(uploadKey, files[index], filenames[index])
                     .then(res => keys[index] = res.text);
@@ -139,7 +141,8 @@ describe("Upload/Download", function(){
     });
 
     describe("download and api", function(){
-        it("download should equal upload", async (function(){
+        it("download should equal upload", async function(){
+            this.slow(1000);
             let downloads = [];
 
             for(let x = 0; x < 4; x++){
@@ -162,8 +165,8 @@ describe("Upload/Download", function(){
                     .and.have.status(404)
             );
 
-            return await (downloads);
-        }));
+            return await Promise.all(downloads);
+        });
         it("should be able to check /info", function(){
             return req().get(`/f/${keys[0]}/info`)
                 .should.eventually.have.status(200);
@@ -186,15 +189,14 @@ describe("Upload/Download", function(){
         let getDLs, ulid;
         before(function(){
             ulid = keys[1];
-            getDLs = async (
-                id => pool
-                    .query("SELECT downloads FROM index WHERE id=$1", [id])
-                    .then(res => res.rows[0].downloads)
-            );
+            getDLs = async id => pool
+                .query("SELECT downloads FROM index WHERE id=$1", [id])
+                .then(res => res.rows[0].downloads);
         });
 
-        it("should increment downloads when downloading a file", async (function(){
-            let numDownloads = await (getDLs(ulid));
+        it("should increment downloads when downloading a file", async function(){
+            this.slow(1000);
+            let numDownloads = await getDLs(ulid);
             let awaits = [];
             const inc = 2;
             for(let x = 0; x < inc; x++){
@@ -203,13 +205,14 @@ describe("Upload/Download", function(){
                 );
             }
 
-            await (awaits);
+            await Promise.all(awaits);
 
-            expect(numDownloads + inc).to.equal(await (getDLs(ulid)));
-        }));
+            expect(numDownloads + inc).to.equal(await getDLs(ulid));
+        });
 
-        it("should not incrent when accessing /thumb", async (function(){
-            let numDownloads = await (getDLs(ulid));
+        it("should not incrent when accessing /thumb", async function(){
+            this.slow(1000);
+            let numDownloads = await getDLs(ulid);
             let awaits = [];
             const inc = 2;
             for(let x = 0; x < inc; x++){
@@ -218,10 +221,10 @@ describe("Upload/Download", function(){
                 );
             }
 
-            await (awaits);
+            await Promise.all(awaits);
 
-            expect(numDownloads).to.equal(await (getDLs(ulid)));
-        }));
+            expect(numDownloads).to.equal(await getDLs(ulid));
+        });
 
         it("should accept and work with stream requests", function(){
             const index = 2;
@@ -298,11 +301,11 @@ describe("error", function(){
         });
     });
     it("generic db failure stuff");
-    it("should not be able to make new users", async (function(){
+    it("should not be able to make new users", async function(){
         global.testIsAdmin = false;
         return req().get("/nuser/user2")
             .should.eventually.be.rejected;
-    }));
+    });
 });
 
 });

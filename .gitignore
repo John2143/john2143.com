@@ -1,6 +1,9 @@
-const.js
 juushFiles/*
 node_modules/*
 letsencrypt/*
 logs/*
 coverage/*
+c/*
+src/const.js
+.nyc_output/*
+npm-debug.log
