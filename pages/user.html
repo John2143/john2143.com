@@ -152,6 +152,23 @@ angular.module("app", []).controller("controller", function($scope, $http){
         });
     };
 
+    $scope.juushHide = ul => {
+        ul.hideprocessing = true;
+        ul.hiding = false;
+
+        $http({
+            method: "GET",
+            url: "/f/" + ul.id + "/hide",
+        }).then(function(res){
+            ul.hideprocessing  = false;
+        }, function(err){
+            console.log("Failed to hide...");
+            ul.err = err.data || err.statusText;
+
+            ul.hideprocessing = false;
+        });
+    };
+
     $scope.juushDelete = ul => {
         ul.deleteprocessing = true;
         ul.deleting = false;
@@ -448,6 +465,20 @@ angular.module("app", []).controller("controller", function($scope, $http){
                                                 <i class="fa"></i> Confirm
                                             </a>
                                             <a class="btn btn-sm btn-warning" ng-click="pic.renaming = false; pic.newName = ''">
+                                                <i class="fa"></i> Cancel
+                                            </a>
+                                        </div>
+                                    </span>
+
+                                    <a class="btn btn-sm btn-warning" ng-click="pic.hiding=true" ng-show="!pic.hiding">
+                                        <i class="fa"></i> Hide
+                                    </a>
+                                    <span ng-show="pic.hiding">
+                                        <div class="input-group">
+                                            <a class="btn btn-sm btn-success" ng-click="juushHide(pic)">
+                                                <i class="fa"></i> Confirm
+                                            </a>
+                                            <a class="btn btn-sm btn-warning" ng-click="pic.hiding=false">
                                                 <i class="fa"></i> Cancel
                                             </a>
                                         </div>
