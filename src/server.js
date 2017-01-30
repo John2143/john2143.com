@@ -173,6 +173,11 @@ export default class server{
                     callback(this.extip);
                 });
             }).setTimeout(1000, () => {
+                this.extip = "0.0.0.0";
+                callback(false);
+            }).on("error", err => {
+                serverLog("Failed to get ip");
+                this.extip = "0.0.0.0";
                 callback(false);
             });
         }else{
