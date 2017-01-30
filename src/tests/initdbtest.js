@@ -28,8 +28,8 @@ describe("database init", function(){
         it("!should never drop production databases!", function(){
             return pool.query(`
 
-DROP TABLE IF EXISTS index, keys;
-DROP SEQUENCE IF EXISTS keys_id_seq;
+DROP TABLE IF EXISTS index, keys, modifiers;
+DROP SEQUENCE IF EXISTS keys_id_seq, modifiers_id_seq;
 
                 `);
         });
@@ -38,6 +38,13 @@ DROP SEQUENCE IF EXISTS keys_id_seq;
             return pool.query(`
 
 CREATE SEQUENCE keys_id_seq
+    INCREMENT 1
+    MINVALUE 1
+    MAXVALUE 9223372036854775807
+    START 1
+    CACHE 1;
+
+CREATE SEQUENCE modifiers_id_seq
     INCREMENT 1
     MINVALUE 1
     MAXVALUE 9223372036854775807
@@ -63,6 +70,14 @@ CREATE TABLE keys
   key character(32),
   name character varying(32),
   CONSTRAINT keys_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE modifiers
+(
+  id integer NOT NULL DEFAULT nextval('modifiers_id_seq'::regclass),
+  uploadid character varying(8) NOT NULL,
+  modifier integer NOT NULL,
+  CONSTRAINT modifiers_pkey PRIMARY KEY (id)
 );
 
             `);

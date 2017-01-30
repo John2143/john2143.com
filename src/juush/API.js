@@ -27,9 +27,12 @@ export default async function(server, reqx){
     if(urldata.path[1] === "uploads"){
         const perPage = 25;
         pool.query({
-            text: "SELECT id, filename, mimetype, downloads, uploaddate " +
-                  "FROM index WHERE keyid = $1 ORDER BY uploaddate " +
-                  "DESC LIMIT $3 OFFSET $2",
+            text: `SELECT id, filename, mimetype, downloads, uploaddate
+                   FROM index
+                   WHERE keyid = $1 AND
+                   (SELECT COUNT(*) FROM modifiers WHERE uploadid=index.id AND modifier = 1) = 0
+                   ORDER BY uploaddate
+                   DESC LIMIT $3 OFFSET $2`,
             name: "api_get_uploads",
             values: [urldata.path[2], (urldata.path[3] || 0) * perPage, perPage],
         })

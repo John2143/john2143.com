@@ -222,9 +222,8 @@ const download = async function(server, reqx){
             return;
         }
 
-        setMimeType(uploadID, "deleted").then(result => {
-            reqx.doHTML("File successfully deleted. It will still appear in your user page.");
-        });
+        const result = await setMimeType(uploadID, "deleted")
+        reqx.doHTML("File successfully deleted. It will still appear in your user page.");
     }else if(disposition === "info"){
         const result = await U.pool.query({
             text: "SELECT mimetype, filename, uploaddate, keyid, downloads, lastdownload, name, index.id " +
@@ -293,6 +292,46 @@ const download = async function(server, reqx){
         });
 
         reqx.res.end(name);
+    }else if(disposition === "hide"){
+        const canDo = await ipHasAccess(reqx.req.connection.remoteAddress, uploadID);
+        if(canDo === "NOFILE"){
+            reqx.doHTML("That file does not exist", 404);
+            return;
+        }
+
+        if(canDo === "NOACCESS"){
+            reqx.doHTML("You do not have access to hide this file.", 401);
+            return;
+        }
+
+        await U.pool.query({
+            text: `INSERT INTO modifiers(uploadid, modifier)
+                   VALUES ($1, $2)`,
+            name: "add_modifier",
+            values: [uploadID, U.modifiers.hidden]
+        });
+
+        reqx.res.end("hidden");
+    }else if(disposition === "unhide"){
+        const canDo = await ipHasAccess(reqx.req.connection.remoteAddress, uploadID);
+        if(canDo === "NOFILE"){
+            reqx.doHTML("That file does not exist", 404);
+            return;
+        }
+
+        if(canDo === "NOACCESS"){
+            reqx.doHTML("You do not have access to unhide this file.", 401);
+            return;
+        }
+
+        await U.pool.query({
+            text: `DELETE FROM modifiers
+                   WHERE uploadid=$1 AND modifier=$2`,
+            name: "remove_modifier",
+            values: [uploadID, U.modifiers.hidden]
+        });
+
+        reqx.res.end("unhidden");
     }else{
         let result = await U.pool.query({
             text: "SELECT mimetype, filename, id FROM index WHERE id=$1",
@@ -305,7 +344,7 @@ const download = async function(server, reqx){
 
 export default async function(server, reqx){
     try{
-        await (download(server, reqx));
+        await download(server, reqx);
     }catch(e){
         U.juushError(reqx.res, e, 500);
     }

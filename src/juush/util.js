@@ -67,3 +67,7 @@ if(global.it){
 
 export const IPEqual = (a, b) => a && b && a.split("/")[0] === b.split("/")[0];
 export const getFilename = id => "./juushFiles/" + id;
+
+export const modifiers = {
+    hidden: 0x1,
+};

@@ -186,6 +186,29 @@ describe("Upload/Download", function(){
                 .and.to.equal("newname.asdf");
         });
 
+        it("should be able to hide", function(){
+            return req().get(`/f/${keys[1]}/hide`)
+                .should.eventually.have.status(200);
+        });
+
+        it("should not find it in the uploads", async function(){
+            const res = await req().get(`/juush/uploads/1`);
+            for(let x of res.body) x.id.should.not.equal(keys[1]);
+        });
+
+        it("should be able to unhide", function(){
+            return req().get(`/f/${keys[1]}/unhide`)
+                .should.eventually.have.status(200);
+        });
+
+        it("should find it in the uploads again", async function(){
+            const res = await req().get(`/juush/uploads/1`);
+            for(let x of res.body){
+                if(x.id === keys[1]) return;
+            }
+            throw new Error("key not found in uploads")
+        });
+
         let getDLs, ulid;
         before(function(){
             ulid = keys[1];
