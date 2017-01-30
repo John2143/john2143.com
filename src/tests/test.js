@@ -12,6 +12,10 @@ const redirs = {
     "testfunc": (server, reqx) => {
         reqx.doHTML("xd");
     },
+    "qstest": (server, reqx) => {
+        reqx.res.setHeader("Content-Type", "application/json");
+        reqx.res.end(JSON.stringify(reqx.urldata.query));
+    },
     _def: "testredir",
 };
 
@@ -56,6 +60,12 @@ describe("HTTP Server", function(){
     it("should have a working default", function(){
         return chai.request("http://localhost:3000").get("/").then(res => {
             expect(res).to.have.status(200);
+        });
+    });
+    it("should have a working querystring", function(){
+        return chai.request("http://localhost:3000").get("/qstest?a=3&b=cat").then(res => {
+            const json = res.body;
+            json.should.deep.equal({a: "3", b: "cat"});
         });
     });
 

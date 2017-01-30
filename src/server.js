@@ -41,6 +41,9 @@ class request{
             if(!path[0]){
                 path.shift();
             }
+
+            //Ignore query string
+            if(path[0]) path[path.length - 1] = path[path.length - 1].split("?")[0];
         }
         return this._urldata;
     }
@@ -132,7 +135,7 @@ export default class server{
     route(reqx){
         if(reqx.denyFavicon()) return;
 
-        const filepath = "./pages" + reqx.req.url + ".html";
+        const filepath = "./pages/" + reqx.urldata.path.join("/") + ".html";
         fs.stat(filepath, function(err, stats){
             if(err){
                 const dat = reqx.urldata.path[0];
@@ -174,11 +177,11 @@ export default class server{
                 });
             }).setTimeout(1000, () => {
                 this.extip = "0.0.0.0";
-                callback(false);
+                callback(this.extip);
             }).on("error", err => {
-                serverLog("Failed to get ip");
+                serverLog("Failed to get external IP");
                 this.extip = "0.0.0.0";
-                callback(false);
+                callback(this.extip);
             });
         }else{
             callback(this.extip);
