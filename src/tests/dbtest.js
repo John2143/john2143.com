@@ -26,6 +26,8 @@ describe("Database + server", function(){
         user.body.should.be.ok;
         user = await req().get("/nuser/user2");
         user.body.should.be.ok;
+        user = await req().get("/nuser/user3");
+        user.body.should.be.ok;
 
         return await pool.query("UPDATE keys SET key=$1", [uploadKey]);
     });
@@ -42,7 +44,7 @@ describe("API", function(){
         return req().get("/juush/users/").then(res => {
             res.should.be.json;
             const json = res.body;
-            json.should.have.property("length", 2);
+            json.should.have.property("length", 3);
             json.should.have.deep.property("[0].id");
             json.should.have.deep.property("[0].name");
             json.should.have.deep.property("[0]");
@@ -196,6 +198,12 @@ describe("Upload/Download", function(){
             for(let x of res.body) x.id.should.not.equal(keys[1]);
         });
 
+        it("should find it in the uploads if hidden is specified", async function(){
+            const res = await req().get(`/juush/uploads/1?hidden=true`);
+            for(let x of res.body) if(x.id === keys[1]) return;
+            throw new Error("key not found in uploads")
+        });
+
         it("should be able to unhide", function(){
             return req().get(`/f/${keys[1]}/unhide`)
                 .should.eventually.have.status(200);
@@ -203,16 +211,26 @@ describe("Upload/Download", function(){
 
         it("should find it in the uploads again", async function(){
             const res = await req().get(`/juush/uploads/1`);
-            for(let x of res.body){
-                if(x.id === keys[1]) return;
-            }
+            for(let x of res.body) if(x.id === keys[1]) return;
             throw new Error("key not found in uploads")
+        });
+
+        it("should not be able to see other's hiddens", function(){
+            global.testIsAdmin = false;
+            return req().get(`/juush/uploads/3?hidden=true`)
+                .should.eventually.be.rejected.with.status(403);
+        });
+
+        it("should be able to see other's hiddens if admin", function(){
+            global.testIsAdmin = true;
+            return req().get(`/juush/uploads/3?hidden=true`)
+                .should.eventually.have.status(200);
         });
 
         let getDLs, ulid;
         before(function(){
             ulid = keys[1];
-            getDLs = async id => pool
+            getDLs = id => pool
                 .query("SELECT downloads FROM index WHERE id=$1", [id])
                 .then(res => res.rows[0].downloads);
         });

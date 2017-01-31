@@ -1,5 +1,6 @@
 
-import {juushErrorCatch, isAdmin, pool} from "./util.js";
+import {juushErrorCatch, isAdmin, pool, whoami} from "./util.js";
+
 
 //Returns rows as json
 const genericAPIResult = res => result => {
@@ -20,21 +21,42 @@ const genericAPIOperationResult = res => result=> {
     res.end(JSON.stringify({success: result.rowCount >= 1 ? true : false}));
 };
 
+const genericJSON = res => obj => {
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify(obj));
+}
+
 export default async function(server, reqx){
     const {res, urldata, req} = reqx;
     // /juush/uploads/<userid>/[page]/
     // lists some number of uploads from a user, with an optional offset
     if(urldata.path[1] === "uploads"){
+        const [, , userid_, page = 0] = urldata.path;
+        const userid = Number(userid_);
+
+        let showHidden = false;
+        if(urldata.query["hidden"]){
+            const ip = req.connection.remoteAddress;
+            if((await whoami(ip)).includes(userid) || await isAdmin(ip)){
+                showHidden = true;
+            }else{
+                res.statusCode = 403;
+                res.end("You cannot see hidden uploads for this user");
+                return;
+            }
+        }
         const perPage = 25;
         pool.query({
             text: `SELECT id, filename, mimetype, downloads, uploaddate
                    FROM index
-                   WHERE keyid = $1 AND
-                   (SELECT COUNT(*) FROM modifiers WHERE uploadid=index.id AND modifier = 1) = 0
+                   WHERE keyid = $1 AND (
+                       $4 OR
+                       (SELECT COUNT(*) FROM modifiers WHERE uploadid=index.id AND modifier = 1) = 0
+                   )
                    ORDER BY uploaddate
                    DESC LIMIT $3 OFFSET $2`,
             name: "api_get_uploads",
-            values: [urldata.path[2], (urldata.path[3] || 0) * perPage, perPage],
+            values: [userid, page * perPage, perPage, showHidden],
         })
             .then(genericAPIResult(res))
             .catch(juushErrorCatch(res));
@@ -50,12 +72,8 @@ export default async function(server, reqx){
     // /juush/whoami/
     // Return a list of user ids for current IP
     }else if(urldata.path[1] === "whoami"){
-        pool.query({
-            text: "SELECT DISTINCT keyid FROM index WHERE ip=$1",
-            name: "api_whoami",
-            values: [req.connection.remoteAddress],
-        })
-            .then(genericAPIListResult("keyid")(res))
+        whoami(req.connection.remoteAddress)
+            .then(genericJSON(res))
             .catch(juushErrorCatch(res));
     // /juush/userinfo/<userid>
     // Give info about a user.

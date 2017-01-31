@@ -71,3 +71,28 @@ export const getFilename = id => "./juushFiles/" + id;
 export const modifiers = {
     hidden: 0x1,
 };
+
+export const ipHasAccess = async (ip, uploadID) => {
+    const result = await pool.query({
+        text: "SELECT ip FROM index WHERE keyid=(SELECT keyid FROM index WHERE id=$1) GROUP BY ip ORDER BY max(uploaddate)",
+        name: "ip_has_access",
+        values: [uploadID],
+    });
+
+    if(result.rowCount === 0){
+        return "NOFILE";
+    }
+
+    for(let x of result.rows){
+        if(IPEqual(x.ip, ip)){
+            return true;
+        }
+    }
+    return "NOACCESS";
+};
+
+export const whoami = async ip => (await pool.query({
+    text: "SELECT DISTINCT keyid FROM index WHERE ip=$1",
+    name: "whoami",
+    values: [ip],
+})).rows.map(x => x.keyid);

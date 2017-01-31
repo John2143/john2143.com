@@ -173,25 +173,6 @@ const processDownload = function(reqx, result, disposition){
     stream.pipe(reqx.res);
 };
 
-const ipHasAccess = async (ip, uploadID) => {
-    const result = await U.pool.query({
-        text: "SELECT ip FROM index WHERE keyid=(SELECT keyid FROM index WHERE id=$1) GROUP BY ip ORDER BY max(uploaddate)",
-        name: "delete_check",
-        values: [uploadID],
-    });
-
-    if(result.rowCount === 0){
-        return "NOFILE";
-    }
-
-    for(let x of result.rows){
-        if(U.IPEqual(x.ip, ip)){
-            return true;
-        }
-    }
-    return "NOACCESS";
-};
-
 const download = async function(server, reqx){
     let uploadID = reqx.urldata.path[1];
     if(!uploadID || uploadID === ""){
@@ -211,7 +192,7 @@ const download = async function(server, reqx){
     }
 
     if(disposition === "delete"){
-        const canDo = await ipHasAccess(reqx.req.connection.remoteAddress, uploadID);
+        const canDo = await U.ipHasAccess(reqx.req.connection.remoteAddress, uploadID);
         if(canDo === "NOFILE"){
             reqx.doHTML("That file does not exist", 404);
             return;
@@ -254,7 +235,7 @@ const download = async function(server, reqx){
         res.end();
     }else if(disposition === "rename"){
         const [canDo, result] = await Promise.all([
-            ipHasAccess(reqx.req.connection.remoteAddress, uploadID),
+            U.ipHasAccess(reqx.req.connection.remoteAddress, uploadID),
             U.pool.query({
                 text: "SELECT filename FROM index WHERE id=$1 ",
                 name: "upload_info",
@@ -293,7 +274,7 @@ const download = async function(server, reqx){
 
         reqx.res.end(name);
     }else if(disposition === "hide"){
-        const canDo = await ipHasAccess(reqx.req.connection.remoteAddress, uploadID);
+        const canDo = await U.ipHasAccess(reqx.req.connection.remoteAddress, uploadID);
         if(canDo === "NOFILE"){
             reqx.doHTML("That file does not exist", 404);
             return;
@@ -313,7 +294,7 @@ const download = async function(server, reqx){
 
         reqx.res.end("hidden");
     }else if(disposition === "unhide"){
-        const canDo = await ipHasAccess(reqx.req.connection.remoteAddress, uploadID);
+        const canDo = await U.ipHasAccess(reqx.req.connection.remoteAddress, uploadID);
         if(canDo === "NOFILE"){
             reqx.doHTML("That file does not exist", 404);
             return;
