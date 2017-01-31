@@ -1,5 +1,7 @@
 import "./global.js";
 
+require('source-map-support').install();
+
 let chai = global.chai = require("chai");
 let expect = global.expect = chai.expect;
 
