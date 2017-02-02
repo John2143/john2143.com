@@ -38,9 +38,9 @@ if(serverConst.dbstring){
 
 import server from "./server.js";
 
-export default let serverInst;
+export let serverInst;
 initPromise.then(() => {
-    serverinst = new server({
+    serverInst = new server({
         redirs,
         ip: serverConst.IP,
         port: serverConst.PORT,

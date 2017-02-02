@@ -2,15 +2,9 @@
 import {juushErrorCatch, isAdmin, query, whoami} from "./util.js";
 
 
-//Returns rows as json
-const genericAPIResult = res => result => {
-    res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify(result.rows));
-};
-
 //If rows only have one field, then use this so that the json is a array instead
 const genericAPIListResult = field => res => result => {
-    const data = result.rows.map(x => x[field]);
+    const data = result.map(x => x[field]);
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify(data));
 };
@@ -18,7 +12,7 @@ const genericAPIListResult = field => res => result => {
 //Returns true on success, false if it failed
 const genericAPIOperationResult = res => result => {
     res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify({success: result.rowCount >= 1 ? true : false}));
+    res.end(JSON.stringify({success: result.result.n >= 1 ? true : false}));
 };
 
 const genericJSON = res => obj => {
@@ -34,40 +28,43 @@ export default async function(server, reqx){
         const [, , userid_, page = 0] = urldata.path;
         const userid = Number(userid_);
 
-        let includeHidden = false;
+        let queryObj = {
+            keyid: userid,
+        };
+
         if(urldata.query["hidden"]){
             const ip = req.connection.remoteAddress;
             if((await whoami(ip)).includes(userid) || await isAdmin(ip)){
-                includeHidden = true;
+                //noop
             }else{
                 res.statusCode = 403;
                 res.end("You cannot see hidden uploads for this user");
                 return;
             }
+        }else{
+            queryObj["modifiers.hidden"] = {$exists: false};
         }
+            //text: `SELECT id, filename, mimetype, downloads, uploaddate
+                   //FROM index
+                   //WHERE keyid = $1 AND (
+                       //$4 OR
+                       //(SELECT COUNT(*) FROM modifiers WHERE uploadid=index.id AND modifier = 1) = 0
+                   //)
+                   //ORDER BY uploaddate
+                   //DESC LIMIT $3 OFFSET $2`,
         const perPage = 25;
-        query.keys({
-            text: `SELECT id, filename, mimetype, downloads, uploaddate
-                   FROM index
-                   WHERE keyid = $1 AND (
-                       $4 OR
-                       (SELECT COUNT(*) FROM modifiers WHERE uploadid=index.id AND modifier = 1) = 0
-                   )
-                   ORDER BY uploaddate
-                   DESC LIMIT $3 OFFSET $2`,
-            name: "api_get_uploads",
-            values: [userid, page * perPage, perPage, includeHidden],
-        })
-            .then(genericAPIResult(res))
+        query.index.find(queryObj, {
+            filename: 1, mimetype: 1, downloads: 1, uploaddate: 1,
+        }).sort({
+            uploaddate: -1
+        }).skip(page * perPage).limit(perPage).toArray()
+            .then(genericJSON(res))
             .catch(juushErrorCatch(res));
     // /juush/users/
     // Return all juush users
     }else if(urldata.path[1] === "users"){
-        pool.query({
-            text: "SELECT id, name FROM keys;",
-            name: "api_get_uers",
-        })
-            .then(genericAPIResult(res))
+        query.keys.find({}, {id: 1, name: 1}).toArray()
+            .then(genericJSON(res))
             .catch(juushErrorCatch(res));
     // /juush/whoami/
     // Return a list of user ids for current IP
@@ -79,34 +76,48 @@ export default async function(server, reqx){
     // Give info about a user.
     }else if(urldata.path[1] === "userinfo"){
         try{
-            let infos = await Promise.all([
-                pool.query({
-                    text: "SELECT name FROM keys WHERE id = $1;",
-                    name: "api_get_info1",
-                    values: [urldata.path[2]],
-                }),
-                pool.query({
-                    text: "SELECT SUM(downloads), COUNT(*) FROM index WHERE keyid = $1;",
-                    name: "api_get_info2",
-                    values: [urldata.path[2]],
-                })
-            ]);
-
-            let result = {
-                name: infos[0].rows[0].name,
-                key: infos[0].rows[0].key,
-                downloads: infos[1].rows[0].sum,
-                total: infos[1].rows[0].count,
-            };
+            let projection = {name: 1};
+            if(urldata.query["key"]){
+                projection.key = 1;
+            }
 
             res.setHeader("Content-Type", "application/json");
+
+            const _id = Number(urldata.path[2]);
+
+            const user = await query.keys.findOne({_id}, projection);
+
+            if(!user){
+                res.end(JSON.stringify({error: new Error("User not fround")}));
+                return;
+            }
+
+            let stats = await query.index.aggregate([{
+                $match: {
+                    keyid: _id,
+                }
+            }, {
+                $group: {
+                    _id: null,
+                    total: {$sum: "$downloads"},
+                    count: {$sum: 1}
+                },
+            }]).toArray();
+
+            let result = {
+                name: user.name,
+                key: user.key,
+                downloads: stats.total || 0,
+                total: stats.count || 0,
+            };
+
             res.end(JSON.stringify(result));
         }catch(e){
             serverLog("Failed: ", e);
             res.setHeader("Content-Type", "application/json");
             res.end(JSON.stringify({error: e}));
         }
-    // /juush/deluser/userid
+    // /juush/deluser/<userid>
     // Delete a user
     }else if(urldata.path[1] === "deluser"){
         if(!isAdmin(req.connection.remoteAddress)){
@@ -115,11 +126,7 @@ export default async function(server, reqx){
             return;
         }
 
-        pool.query({
-            text: "DELETE FROM keys WHERE id=$1;",
-            name: "api_deluser",
-            values: [urldata.path[2]],
-        })
+        query.keys.deleteOne({_id: Number(urldata.path[2])})
             .then(genericAPIOperationResult(res))
             .catch(juushErrorCatch(res));
     // /juush/isadmin/[ip]

@@ -205,6 +205,7 @@ export default async function(server, reqx){
                     filename: headers.filename || "upload.bin",
                     mimetype: headers.mimetype || "application/octet-stream",
                     keyid: item._id,
+                    modifiers: {},
                     downloads: 0,
                 });
             }).catch(errorCatch);

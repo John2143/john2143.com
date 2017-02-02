@@ -64,7 +64,7 @@ fs.unlinkAsync = function(path){
 
 const setMimeType = async function(id, newmime){
     return await Promise.all([
-        U.query.index.update({id}, {$set: {mimetype: newmime}}),
+        U.query.index.updateOne({_id: id}, {$set: {mimetype: newmime}}),
         newmime === "deleted" && fs.unlinkAsync(U.getFilename(id)),
     ]);
 };
@@ -187,7 +187,6 @@ const download = async function(server, reqx){
             reqx.doHTML("You do not have access to rename this file.", 401);
             return;
         }else if(canDo){
-            console.log(canDo);
             reqx.doHTML("AccessError: E" + canDo, 407);
             return;
         }
@@ -275,7 +274,7 @@ const download = async function(server, reqx){
             return;
         }
 
-        await U.setModifier(uploadID, "hidden", false);
+        await U.setModifier(uploadID, "hidden", undefined);
         reqx.res.end("unhidden");
     }else{
         const result = await U.query.index.findOne({_id: uploadID}, {mimetype: 1, filename: 1, id: 1});

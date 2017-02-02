@@ -32,7 +32,7 @@ describe("Database + server", function(){
         await query.keys.updateMany({}, {$set:{"key": uploadKey}});
     });
 
-describe.skip("API", function(){
+describe("API", function(){
     it("should not be anyone", function(){
         return req().get("/juush/whoami").then(res => {
             res.should.be.json;
@@ -45,7 +45,7 @@ describe.skip("API", function(){
             res.should.be.json;
             const json = res.body;
             json.should.have.property("length", 3);
-            json.should.have.deep.property("[0].id");
+            json.should.have.deep.property("[0]._id");
             json.should.have.deep.property("[0].name");
             json.should.have.deep.property("[0]");
         });
@@ -193,14 +193,16 @@ describe("Upload/Download", function(){
                 .should.eventually.have.status(200);
         });
 
-        it.skip("should not find it in the uploads", async function(){
+        it("should not find it in the uploads", async function(){
             const res = await req().get(`/juush/uploads/1`);
-            for(let x of res.body) x.id.should.not.equal(keys[1]);
+            res.body.should.have.length(4);
+            for(let x of res.body) x._id.should.not.equal(keys[1]);
         });
 
-        it.skip("should find it in the uploads if hidden is specified", async function(){
+        it("should find it in the uploads if hidden is specified", async function(){
             const res = await req().get(`/juush/uploads/1?hidden=true`);
-            for(let x of res.body) if(x.id === keys[1]) return;
+            res.body.should.have.length(5);
+            for(let x of res.body) if(x._id === keys[1]) return;
             throw new Error("key not found in uploads")
         });
 
@@ -209,19 +211,20 @@ describe("Upload/Download", function(){
                 .should.eventually.have.status(200);
         });
 
-        it.skip("should find it in the uploads again", async function(){
+        it("should find it in the uploads again", async function(){
             const res = await req().get(`/juush/uploads/1`);
-            for(let x of res.body) if(x.id === keys[1]) return;
+            res.body.should.have.length(5);
+            for(let x of res.body) if(x._id === keys[1]) return;
             throw new Error("key not found in uploads")
         });
 
-        it.skip("should not be able to see other's hiddens", function(){
+        it("should not be able to see other's hiddens", function(){
             global.testIsAdmin = false;
             return req().get(`/juush/uploads/3?hidden=true`)
                 .should.eventually.be.rejected.with.status(403);
         });
 
-        it.skip("should be able to see other's hiddens if admin", function(){
+        it("should be able to see other's hiddens if admin", function(){
             global.testIsAdmin = true;
             return req().get(`/juush/uploads/3?hidden=true`)
                 .should.eventually.have.status(200);
@@ -230,7 +233,7 @@ describe("Upload/Download", function(){
         let getDLs, ulid;
         before(function(){
             ulid = keys[1];
-            getDLs = async id => (await query.index.findOne({_id: id}, {downloads: 1})).downloads
+            getDLs = async _id => (await query.index.findOne({_id}, {downloads: 1})).downloads
         });
 
         it("should increment downloads when downloading a file", async function(){
@@ -307,12 +310,12 @@ describe("Upload/Download", function(){
     });
 });
 
-describe.skip("Account stuff", function(){
+describe("Account stuff", function(){
     it("should be able to view a users uploads", function(){
         return req().get("/juush/uploads/1").then(res => {
             res.should.be.json;
             const json = res.body;
-            json[0].should.have.property("id");
+            json[0].should.have.property("_id");
             json[0].should.have.property("filename");
             json[0].should.have.property("mimetype");
             json[0].should.have.property("downloads");
@@ -327,7 +330,7 @@ describe.skip("Account stuff", function(){
     });
 });
 
-describe.skip("error", function(){
+describe("error", function(){
     it("410 when viewing a deleted file", function(){
         return req().get(`/f/${keys[0]}`).catch(res => {
             res.should.have.status(410);

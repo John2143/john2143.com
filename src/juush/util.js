@@ -16,7 +16,6 @@ export default new Promise(resolve =>
             index: db.collection("index"),
             async counter(name){
                 if(!countersSeen[name]){
-                    console.log("New CounteR!");
                     let counter = await counters.findOneAndUpdate(
                         {_id: name},
                         {$setOnInsert: {value: 1}},
@@ -26,13 +25,12 @@ export default new Promise(resolve =>
                     countersSeen[name] = true;
                     return 1;
                 }else{
-                    console.log("oold CounteR!");
                     const counter = await counters.findOneAndUpdate(
                         {_id: name},
                         {$inc: {value: 1}},
                         {returnOriginal: false}
                     );
-                    console.log(counter);
+
                     return counter.value.value;
                 }
             }
@@ -116,6 +114,12 @@ export const ipHasAccess = async (ip, uploadID) => {
 };
 
 export const setModifier = async (uploadID, modifier, value) => {
+    const isUnset = value === undefined;
+    await query.index.updateOne({_id: uploadID}, {
+        [isUnset ? "$unset" : "$set"]: {
+            ["modifiers." + modifier]: isUnset ? 1 : value,
+        }
+    });
 };
 
 export const whoami = async ip => (await query.index.distinct("keyid", {ip}));
