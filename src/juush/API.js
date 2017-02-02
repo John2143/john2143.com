@@ -16,7 +16,7 @@ const genericAPIListResult = field => res => result => {
 };
 
 //Returns true on success, false if it failed
-const genericAPIOperationResult = res => result=> {
+const genericAPIOperationResult = res => result => {
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify({success: result.rowCount >= 1 ? true : false}));
 };
@@ -34,11 +34,11 @@ export default async function(server, reqx){
         const [, , userid_, page = 0] = urldata.path;
         const userid = Number(userid_);
 
-        let showHidden = false;
+        let includeHidden = false;
         if(urldata.query["hidden"]){
             const ip = req.connection.remoteAddress;
             if((await whoami(ip)).includes(userid) || await isAdmin(ip)){
-                showHidden = true;
+                includeHidden = true;
             }else{
                 res.statusCode = 403;
                 res.end("You cannot see hidden uploads for this user");
@@ -56,7 +56,7 @@ export default async function(server, reqx){
                    ORDER BY uploaddate
                    DESC LIMIT $3 OFFSET $2`,
             name: "api_get_uploads",
-            values: [userid, page * perPage, perPage, showHidden],
+            values: [userid, page * perPage, perPage, includeHidden],
         })
             .then(genericAPIResult(res))
             .catch(juushErrorCatch(res));
