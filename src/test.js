@@ -16,7 +16,7 @@ describe("Server tests", function(){
     require("./tests/test.js");
 });
 
-if(serverConst.dbuser){
+if(serverConst.dbstring){
     describe("Database tests", function(){
         require("./tests/initdbtest.js");
         require("./tests/dbtest.js");

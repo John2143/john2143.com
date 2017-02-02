@@ -1,5 +1,5 @@
 
-import {juushErrorCatch, isAdmin, pool, whoami} from "./util.js";
+import {juushErrorCatch, isAdmin, query, whoami} from "./util.js";
 
 
 //Returns rows as json
@@ -46,7 +46,7 @@ export default async function(server, reqx){
             }
         }
         const perPage = 25;
-        pool.query({
+        query.keys({
             text: `SELECT id, filename, mimetype, downloads, uploaddate
                    FROM index
                    WHERE keyid = $1 AND (

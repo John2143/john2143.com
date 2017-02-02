@@ -64,11 +64,7 @@ fs.unlinkAsync = function(path){
 
 const setMimeType = async function(id, newmime){
     return await Promise.all([
-        U.pool.query({
-            text: "UPDATE index SET mimetype=$2 WHERE id=$1",
-            name: "delete_file",
-            values: [id, newmime],
-        }),
+        U.query.index.update({id}, {$set: {mimetype: newmime}}),
         newmime === "deleted" && fs.unlinkAsync(U.getFilename(id)),
     ]);
 };
@@ -92,14 +88,8 @@ const shouldInline = function(filedata, mime){
     return true;
 };
 
-const processDownload = function(reqx, result, disposition){
-    if(result.rowCount === 0){
-        reqx.doHTML("This upload does not exist", 404);
-        return;
-    }
-
-    const data = result.rows[0];
-    const uploadID = data.id;
+const processDownload = function(reqx, data, disposition){
+    const uploadID = data._id;
     const filepath = U.getFilename(uploadID);
 
     if(data.mimetype === "deleted"){
@@ -148,13 +138,9 @@ const processDownload = function(reqx, result, disposition){
     codisp += '; filename="' + data.filename + '"';
 
     if(incDL){
-        U.pool.query({
-            text: "UPDATE index SET " +
-                "downloads=downloads+1, " +
-                "lastdownload=now() " +
-                "WHERE id=$1",
-            name: "download_increment_downloads",
-            values: [uploadID],
+        U.query.index.updateOne({_id: uploadID}, {
+            $inc: {downloads: 1},
+            $set: {lastdownload: new Date()},
         }).catch(err => {
             serverLog("Error when incrementing download. " + uploadID, err);
         });
@@ -193,28 +179,24 @@ const download = async function(server, reqx){
 
     if(disposition === "delete"){
         const canDo = await U.ipHasAccess(reqx.req.connection.remoteAddress, uploadID);
+
         if(canDo === "NOFILE"){
             reqx.doHTML("That file does not exist", 404);
             return;
-        }
-
-        if(canDo === "NOACCESS"){
-            reqx.doHTML("You do not have access to delete this file.", 401);
+        }else if(canDo === "NOACCESS"){
+            reqx.doHTML("You do not have access to rename this file.", 401);
+            return;
+        }else if(canDo){
+            console.log(canDo);
+            reqx.doHTML("AccessError: E" + canDo, 407);
             return;
         }
 
         const result = await setMimeType(uploadID, "deleted")
         reqx.doHTML("File successfully deleted. It will still appear in your user page.");
     }else if(disposition === "info"){
-        const result = await U.pool.query({
-            text: "SELECT mimetype, filename, uploaddate, keyid, downloads, lastdownload, name, index.id " +
-            "FROM index INNER JOIN keys ON index.keyid=keys.id WHERE index.id=$1",
-            name: "upload_info",
-            values: [uploadID],
-        });
-
-        const res = reqx.res;
-        if(result.rowCount === 0){
+        const data = await U.query.index.findOne({_id: uploadID});
+        if(!data){
             res.writeHead(404, {
                 "Content-Type": "text/html"
             });
@@ -222,40 +204,34 @@ const download = async function(server, reqx){
             return;
         }
 
-        const data = result.rows[0];
+        const user = await U.query.keys.findOne({_id: data.keyid});
+
+        const res = reqx.res;
 
         res.writeHead(200, {
             "Content-Type": "text/html",
         });
         res.write("Filename: " + data.filename);
-        res.write("<br>Uploa date: " + data.uploaddate);
-        res.write("<br>Uploaded by: " + data.name);
+        res.write("<br>Upload date: " + data.uploaddate);
+        res.write("<br>Uploaded by: " + user.name);
         res.write("<br>Downloads: " + data.downloads);
         res.write("<br>File Type: " + data.mimetype);
         res.end();
     }else if(disposition === "rename"){
-        const [canDo, result] = await Promise.all([
-            U.ipHasAccess(reqx.req.connection.remoteAddress, uploadID),
-            U.pool.query({
-                text: "SELECT filename FROM index WHERE id=$1 ",
-                name: "upload_info",
-                values: [uploadID],
-            }),
-        ]);
+        const canDo = await U.ipHasAccess(reqx.req.connection.remoteAddress, uploadID);
 
         if(canDo === "NOFILE"){
             reqx.doHTML("That file does not exist", 404);
             return;
-        }
-
-        if(canDo === "NOACCESS"){
+        }else if(canDo === "NOACCESS"){
             reqx.doHTML("You do not have access to rename this file.", 401);
+            return;
+        }else if(canDo){
+            reqx.doHTML("AccessError: E" + canDo, 401);
             return;
         }
 
-        const data = result.rows[0];
-
-        const oldName = data.filename;
+        const oldName = (await U.query.index.findOne({_id: uploadID}, {filename: 1})).filename;
         const newName = decodeURI(reqx.urldata.path[3]);
         const oldFileExt = U.guessFileExtension(oldName);
         const newFileExt = U.guessFileExtension(newName);
@@ -266,59 +242,47 @@ const download = async function(server, reqx){
             name += "." + oldFileExt;
         }
 
-        await U.pool.query({
-            text: "UPDATE index SET filename=$2 WHERE id=$1",
-            name: "rename_file",
-            values: [uploadID, name],
-        });
+        await U.query.index.updateOne({_id: uploadID}, {$set: {name}});
 
         reqx.res.end(name);
     }else if(disposition === "hide"){
         const canDo = await U.ipHasAccess(reqx.req.connection.remoteAddress, uploadID);
+
         if(canDo === "NOFILE"){
             reqx.doHTML("That file does not exist", 404);
             return;
-        }
-
-        if(canDo === "NOACCESS"){
-            reqx.doHTML("You do not have access to hide this file.", 401);
+        }else if(canDo === "NOACCESS"){
+            reqx.doHTML("You do not have access to XXX file.", 401);
+            return;
+        }else if(canDo){
+            reqx.doHTML("AccessError: E" + canDo, 401);
             return;
         }
 
-        await U.pool.query({
-            text: `INSERT INTO modifiers(uploadid, modifier)
-                   VALUES ($1, $2)`,
-            name: "add_modifier",
-            values: [uploadID, U.modifiers.hidden]
-        });
-
+        await U.setModifier(uploadID, "hidden", true);
         reqx.res.end("hidden");
     }else if(disposition === "unhide"){
         const canDo = await U.ipHasAccess(reqx.req.connection.remoteAddress, uploadID);
+
         if(canDo === "NOFILE"){
             reqx.doHTML("That file does not exist", 404);
             return;
-        }
-
-        if(canDo === "NOACCESS"){
-            reqx.doHTML("You do not have access to unhide this file.", 401);
+        }else if(canDo === "NOACCESS"){
+            reqx.doHTML("You do not have access to XXX file.", 401);
+            return;
+        }else if(canDo){
+            reqx.doHTML("AccessError: E" + canDo, 401);
             return;
         }
 
-        await U.pool.query({
-            text: `DELETE FROM modifiers
-                   WHERE uploadid=$1 AND modifier=$2`,
-            name: "remove_modifier",
-            values: [uploadID, U.modifiers.hidden]
-        });
-
+        await U.setModifier(uploadID, "hidden", false);
         reqx.res.end("unhidden");
     }else{
-        let result = await U.pool.query({
-            text: "SELECT mimetype, filename, id FROM index WHERE id=$1",
-            name: "download_check_dl",
-            values: [uploadID],
-        });
+        const result = await U.query.index.findOne({_id: uploadID}, {mimetype: 1, filename: 1, id: 1});
+        if(!result){
+            reqx.doHTML("This upload does not exist", 404);
+            return;
+        }
         processDownload(reqx, result, disposition);
     }
 };

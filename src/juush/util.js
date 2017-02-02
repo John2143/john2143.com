@@ -1,23 +1,47 @@
 "use strict";
 
-import pg from "pg";
+import mongodb from "mongodb";
 
-//Setup postgres pool
-export const pool = new pg.Pool({
-    user: serverConst.dbuser,
-    password: serverConst.dbpass,
-    host: serverConst.dbhost,
-    port: serverConst.dbport,
-    database: "juush",
-    max: 20,
-    idleTimeoutMillis: 500,
-});
+export const mongoclient = new mongodb.MongoClient();
+export let query;
 
-if(global.it) global.pool = pool;
+export default new Promise(resolve =>
+    mongoclient.connect(serverConst.dbstring).then(db => {
+        const countersSeen = [];
 
-pool.on("error", function(err, client){
-    serverLog("Error in client", err);
-});
+        const counters = db.collection("counters");
+
+        query = {
+            keys: db.collection("keys"),
+            index: db.collection("index"),
+            async counter(name){
+                if(!countersSeen[name]){
+                    console.log("New CounteR!");
+                    let counter = await counters.findOneAndUpdate(
+                        {_id: name},
+                        {$setOnInsert: {value: 1}},
+                        {new: true, upsert: true}
+                    );
+
+                    countersSeen[name] = true;
+                    return 1;
+                }else{
+                    console.log("oold CounteR!");
+                    const counter = await counters.findOneAndUpdate(
+                        {_id: name},
+                        {$inc: {value: 1}},
+                        {returnOriginal: false}
+                    );
+                    console.log(counter);
+                    return counter.value.value;
+                }
+            }
+        };
+        if(global.it) global.query = query;
+
+        resolve();
+    })
+);
 
 //This works with dbError to end a broken session
 export const juushError = function(res, err, code){
@@ -68,31 +92,30 @@ if(global.it){
 export const IPEqual = (a, b) => a && b && a.split("/")[0] === b.split("/")[0];
 export const getFilename = id => "./juushFiles/" + id;
 
-export const modifiers = {
-    hidden: 0x1,
-};
-
 export const ipHasAccess = async (ip, uploadID) => {
-    const result = await pool.query({
-        text: "SELECT ip FROM index WHERE keyid=(SELECT keyid FROM index WHERE id=$1) GROUP BY ip ORDER BY max(uploaddate)",
-        name: "ip_has_access",
-        values: [uploadID],
-    });
+    //"SELECT ip FROM index WHERE keyid=(SELECT keyid FROM index WHERE id=$1) GROUP BY ip ORDER BY max(uploaddate)",
+    const keyid = (await query.index.findOne({_id: uploadID}, {keyid: 1})).keyid;
+    if(!keyid) return "NOFILE";
 
-    if(result.rowCount === 0){
-        return "NOFILE";
+    const result = await query.index
+        .find({keyid}, {uploaddate: 1, ip: 1})
+        //.sort({uploaddate: 1})
+        .toArray();
+
+    if(result.length === 0){
+        return "NOUPLOADS";
     }
 
-    for(let x of result.rows){
+    for(let x of result){
         if(IPEqual(x.ip, ip)){
-            return true;
+            return false;
         }
     }
+
     return "NOACCESS";
 };
 
-export const whoami = async ip => (await pool.query({
-    text: "SELECT DISTINCT keyid FROM index WHERE ip=$1",
-    name: "whoami",
-    values: [ip],
-})).rows.map(x => x.keyid);
+export const setModifier = async (uploadID, modifier, value) => {
+};
+
+export const whoami = async ip => (await query.index.distinct("keyid", {ip}));

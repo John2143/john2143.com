@@ -1,87 +1,26 @@
-import pg from "pg";
+import mongo from "mongodb";
 
 describe("database init", function(){
-    let pool;
-    before(function(){
-        pool = new pg.Pool({
-            user: serverConst.dbuser,
-            host: serverConst.dbhost,
-            database: "juush",
-            port: serverConst.dbport,
-            password: serverConst.dbpass,
-            max: 10,
-            idleTimeoutMillis: 100,
-        });
-
-        pool.on("error", function(err, client){
-            //console.log("Error in client", err);
-        });
-
-        expect(pool).to.be.ok;
+    let query, db;
+    before(async function(){
+        let client = new mongo.MongoClient();
+        db = await client.connect(serverConst.dbstring);
+        query = db.collection("test");
     });
 
+    const obj = {hello: "world"};
+
     it("should be queryable", function(){
-        return pool.query("SELECT 1");
+        query.insert(obj);
+        query.remove(obj);
+        query.remove();
     });
 
     if(process.env.SETUPDB){
-        it("!should never drop production databases!", function(){
-            return pool.query(`
-
-DROP TABLE IF EXISTS index, keys, modifiers;
-DROP SEQUENCE IF EXISTS keys_id_seq, modifiers_id_seq;
-
-                `);
-        });
-
-        it("should create some tables", function(){
-            return pool.query(`
-
-CREATE SEQUENCE keys_id_seq
-    INCREMENT 1
-    MINVALUE 1
-    MAXVALUE 9223372036854775807
-    START 1
-    CACHE 1;
-
-CREATE SEQUENCE modifiers_id_seq
-    INCREMENT 1
-    MINVALUE 1
-    MAXVALUE 9223372036854775807
-    START 1
-    CACHE 1;
-
-CREATE TABLE index
-(
-  id character varying(8) NOT NULL,
-  uploaddate timestamp without time zone,
-  ip cidr,
-  filename character varying(256),
-  mimetype character varying(127),
-  keyid integer NOT NULL,
-  downloads integer NOT NULL DEFAULT 0,
-  lastdownload timestamp without time zone,
-  CONSTRAINT index_pkey PRIMARY KEY (id)
-);
-
-CREATE TABLE keys
-(
-  id integer NOT NULL DEFAULT nextval('keys_id_seq'::regclass),
-  key character(32),
-  name character varying(32),
-  CONSTRAINT keys_pkey PRIMARY KEY (id)
-);
-
-CREATE TABLE modifiers
-(
-  id integer NOT NULL DEFAULT nextval('modifiers_id_seq'::regclass),
-  uploadid character varying(8) NOT NULL,
-  modifier integer NOT NULL,
-  CONSTRAINT modifiers_pkey PRIMARY KEY (id)
-);
-
-            `);
-
+        it("should reset some databases", function(){
+            db.collection("keys")    .remove({});
+            db.collection("index")   .remove({});
+            db.collection("counters").remove({});
         });
     }
 });

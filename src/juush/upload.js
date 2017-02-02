@@ -5,25 +5,16 @@ import * as U from "./util.js";
 const getURL = async function(){
     let client;
     try{
-        client = await U.pool.connect();
-
         for(let x = 1; ; x++){
             let url = U.randomStr(4);
-            const result = await client.query({
-                text: "SELECT 1 FROM index WHERE id=$1",
-                name: "check_dl",
-                values: [url],
-            });
+            const result = await U.query.index.findOne({_id: url});
 
-            if(result.rowCount === 0){
+            if(!result){
                 if(x > 5) serverLog(`took ${x} tries to get a url...`);
-
-                client.release();
                 return url;
             }
         }
     }catch(e){
-        if(client) client.release();
         serverLog("Error when obtaining new url" + e);
         return null;
     }
@@ -111,11 +102,7 @@ export default async function(server, reqx){
         //Delete file
         fs.unlink(filepath, function(){});
         //Delete entry (May or may not exist)
-        U.pool.query({
-            text: "DELETE FROM index WHERE id=$1",
-            name: "upload_download_error_remove_entry",
-            values: [url],
-        }).catch((err) => {
+        U.query.index.removeOne({_id: url}).catch(err => {
             serverLog("Upload failure delete failure!", err);
         });
     };
@@ -206,22 +193,19 @@ export default async function(server, reqx){
             write = headerBuffer.slice(headers.headerSize);
 
             //Check the uploaders key (Sharex passes this as 'name="xxxx"')
-            U.pool.query({
-                text: "SELECT id FROM keys WHERE key=$1",
-                name: "upload_check_key",
-                values: [headers.key],
-            }).then(result => {
-                if(result.rowCount === 0) {
+            const ip = reqx.req.connection.remoteAddress;
+            U.query.keys.findOne({key: headers.key}).then(item => {
+                if(!item) {
                     error("You must supply a valid key in order to upload.");
                     return;
                 }
 
-                //Add info to database now, no reason to wait
-                return U.pool.query({
-                    text: "INSERT INTO index(id, uploaddate, ip, filename, mimetype, keyid)" +
-                          "VALUES($1, now(), $2, $3, $4, $5)",
-                    name: "upload_insert_download",
-                    values: [url, reqx.req.connection.remoteAddress, headers.filename, headers.mimetype, result.rows[0].id],
+                return U.query.index.insert({
+                    _id: url, uploaddate: new Date(), ip,
+                    filename: headers.filename || "upload.bin",
+                    mimetype: headers.mimetype || "application/octet-stream",
+                    keyid: item._id,
+                    downloads: 0,
                 });
             }).catch(errorCatch);
         }
