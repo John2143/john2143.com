@@ -1,6 +1,4 @@
 export const IP = "localhost";
 export const PORT = 4000;
 
-export const dbuser = "postgres";
-export const dbhost = "localhost";
-export const dbport = 5432;
+export const dbstring = "mongodb://127.0.0.1:27017/juush";
