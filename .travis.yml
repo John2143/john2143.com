@@ -1,6 +1,5 @@
 language: node_js
 node_js:
- - "6.0.0"
  - "7.4.0"
 services:
  - mongodb
@@ -8,7 +7,8 @@ before_script:
  - mv src/travis.const.js src/const.js
 script:
  - npm run cover
+cache:
+  directories:
+  - node_modules
 after_success:
  - cat coverage/lcov.info | node ./node_modules/coveralls/bin/coveralls.js
-env:
- - SETUPDB=true

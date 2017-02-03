@@ -13,7 +13,6 @@ describe("database init", function(){
     it("should be queryable", function(){
         query.insert(obj);
         query.remove(obj);
-        query.remove();
     });
 
     if(process.env.SETUPDB){
