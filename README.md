@@ -16,6 +16,8 @@ If (postgres) database info is provided, it will also start a image server,
 juush. Access /nuser/<name> to create users and obtain their upload key.
 
 ## Sharex Settings
+
+[![Greenkeeper badge](https://badges.greenkeeper.io/John2143658709/john2143.com.svg)](https://greenkeeper.io/)
  1. Go to destination settings
  2. Scroll to custom uploader
  3. Click import from clipboard (after copying settings)
