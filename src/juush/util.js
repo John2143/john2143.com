@@ -16,23 +16,21 @@ export default new Promise(resolve =>
             index: db.collection("index"),
             async counter(name){
                 if(!countersSeen[name]){
-                    let counter = await counters.findOneAndUpdate(
-                        {_id: name},
-                        {$setOnInsert: {value: 1}},
-                        {new: true, upsert: true}
-                    );
-
-                    countersSeen[name] = true;
-                    return 1;
-                }else{
+                    //Make sure the counter has been initialized
                     const counter = await counters.findOneAndUpdate(
                         {_id: name},
-                        {$inc: {value: 1}},
-                        {returnOriginal: false}
+                        {$setOnInsert: {value: 1}},
+                        {upsert: true}
                     );
-
-                    return counter.value.value;
+                    countersSeen[name] = true;
                 }
+
+                const counter = await counters.findOneAndUpdate(
+                    {_id: name},
+                    {$inc: {value: 1}}
+                );
+
+                return counter.value.value;
             }
         };
         if(global.it) global.query = query;
