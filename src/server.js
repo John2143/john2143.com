@@ -53,12 +53,34 @@ class request{
     }
 
     logConnection(){
+        const dateString = (dt = new Date()) => {
+            const abvr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const lead0 = num => num < 10 ? "0" + num : num;
+
+            return abvr[dt.getMonth()] + " "
+                + lead0(dt.getDate()) + " "
+                + dt.getFullYear() + " "
+                + lead0(dt.getHours()) + ":"
+                + lead0(dt.getMinutes()) + ":"
+                + lead0(dt.getSeconds());
+        };
+
+        const padLeft = (str, size = 15) => {
+            let pad = size - str.length;
+            if(pad < 0) return str;
+            return Array(pad + 1).join(" ") + str;
+        };
+
         if(!this.shouldLog) return;
-        serverLog(
-            Date() + " | " +
-            this.req.connection.remoteAddress + " | " +
-            this.urldata.path.join("/")
-        );
+        let line = dateString() + " | " +
+            padLeft(this.req.connection.remoteAddress) + " | " +
+            this.urldata.path.join("/");
+
+        if(Object.keys(this.urldata.query).length !== 0){
+            line += " ~" + JSON.stringify(this.urldata.query);
+        }
+
+        serverLog(line);
     }
 
     doRedirect(redir){
@@ -149,7 +171,15 @@ export default class server{
 
                 if(redir){
                     if(typeof redir === "function"){
-                        redir(this, reqx);
+                        const ret = redir(this, reqx);
+                        if(ret && "then" in ret){
+                            ret
+                                .then(() => {})
+                                .catch(err => {
+                                    reqx.res.statusCode = 500;
+                                    reqx.res.end();
+                                });
+                        }
                     }else{
                         reqx.doRedirect(redir);
                     }
