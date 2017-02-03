@@ -44,17 +44,10 @@ export default async function(server, reqx){
         }else{
             queryObj["modifiers.hidden"] = {$exists: false};
         }
-            //text: `SELECT id, filename, mimetype, downloads, uploaddate
-                   //FROM index
-                   //WHERE keyid = $1 AND (
-                       //$4 OR
-                       //(SELECT COUNT(*) FROM modifiers WHERE uploadid=index.id AND modifier = 1) = 0
-                   //)
-                   //ORDER BY uploaddate
-                   //DESC LIMIT $3 OFFSET $2`,
+
         const perPage = 25;
         query.index.find(queryObj, {
-            filename: 1, mimetype: 1, downloads: 1, uploaddate: 1,
+            filename: 1, mimetype: 1, downloads: 1, uploaddate: 1, modifiers: 1
         }).sort({
             uploaddate: -1
         }).skip(page * perPage).limit(perPage).toArray()
@@ -88,21 +81,21 @@ export default async function(server, reqx){
             const user = await query.keys.findOne({_id}, projection);
 
             if(!user){
-                res.end(JSON.stringify({error: new Error("User not fround")}));
+                res.end(JSON.stringify({error:
+                    `User ${_id} not found`
+                }));
                 return;
             }
 
-            let stats = await query.index.aggregate([{
-                $match: {
-                    keyid: _id,
-                }
-            }, {
-                $group: {
-                    _id: null,
+            //Try to get stats, or return an empty object if no stats found
+            const stats = await query.index.aggregate([])
+                .match({keyid: _id})
+                .group({
+                    _id: "mem",
                     total: {$sum: "$downloads"},
-                    count: {$sum: 1}
-                },
-            }]).toArray();
+                    count: {$sum: 1},
+                })
+                .next() || {};
 
             let result = {
                 name: user.name,
@@ -115,7 +108,7 @@ export default async function(server, reqx){
         }catch(e){
             serverLog("Failed: ", e);
             res.setHeader("Content-Type", "application/json");
-            res.end(JSON.stringify({error: e}));
+            res.end(JSON.stringify({error: e.message}));
         }
     // /juush/deluser/<userid>
     // Delete a user

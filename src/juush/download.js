@@ -241,7 +241,7 @@ const download = async function(server, reqx){
             name += "." + oldFileExt;
         }
 
-        await U.query.index.updateOne({_id: uploadID}, {$set: {name}});
+        await U.query.index.updateOne({_id: uploadID}, {$set: {filename: name}});
 
         reqx.res.end(name);
     }else if(disposition === "hide"){
