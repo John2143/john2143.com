@@ -1,5 +1,5 @@
 
-import {juushErrorCatch, isAdmin, pool, randomStr} from "./util.js";
+import {juushErrorCatch, isAdmin, query, randomStr} from "./util.js";
 
 //Create new user
 export default async function(server, reqx){
@@ -7,10 +7,10 @@ export default async function(server, reqx){
     //Only people on the same network as the server can create users
     if(isAdmin(req.connection.remoteAddress)){
         var newKey = randomStr(32);
-        pool.query({
-            text: "INSERT INTO keys(name, key) VALUES ($1, $2)",
-            name: "new_user",
-            values: [reqx.urldata.path[1], newKey],
+        query.keys.insert({
+            name: reqx.urldata.path[1],
+            key: newKey,
+            _id: await query.counter("keyid"),
         }).then(result => {
             serverLog("A new user has been created", reqx.urldata.path[1], newKey);
             res.setHeader("Content-Type", "text/plain");

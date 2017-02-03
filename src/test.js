@@ -1,5 +1,7 @@
 import "./global.js";
 
+require('source-map-support').install();
+
 let chai = global.chai = require("chai");
 let expect = global.expect = chai.expect;
 
@@ -14,7 +16,7 @@ describe("Server tests", function(){
     require("./tests/test.js");
 });
 
-if(serverConst.dbuser){
+if(serverConst.dbstring){
     describe("Database tests", function(){
         require("./tests/initdbtest.js");
         require("./tests/dbtest.js");

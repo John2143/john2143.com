@@ -21,7 +21,9 @@ let redirs = {
 };
 redirs.ts = redirs.teamspeak;
 
-if(serverConst.dbuser){
+let initPromise;
+
+if(serverConst.dbstring){
     //have to use commonjs here
     const juush = require("./juush");
     redirs[""] = juush.download;
@@ -29,14 +31,20 @@ if(serverConst.dbuser){
     redirs.uf = juush.upload;
     redirs.nuser = juush.newUser;
     redirs.juush = juush.API;
+    initPromise = juush.u;
+}else{
+    initPromise = new Promise.resolve(true);
 }
 
 import server from "./server.js";
 
-export default new server({
-    redirs,
-    ip: serverConst.IP,
-    port: serverConst.PORT,
-    httpPort: serverConst.HTTPPORT,
-    keys: serverConst.keys,
+export let serverInst;
+initPromise.then(() => {
+    serverInst = new server({
+        redirs,
+        ip: serverConst.IP,
+        port: serverConst.PORT,
+        httpPort: serverConst.HTTPPORT,
+        keys: serverConst.keys,
+    });
 });
