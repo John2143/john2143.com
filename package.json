@@ -15,6 +15,7 @@
     "chai-as-promised": "^6.0.0",
     "chai-http": "^3.0.0",
     "coveralls": "^2.11.15",
+    "eslint": "^3.15.0",
     "istanbul": "^0.4.5",
     "jshint": "^2.9.4",
     "mocha": "^3.2.0",

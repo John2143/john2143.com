@@ -69,7 +69,7 @@ const setMimeType = async function(id, newmime){
     ]);
 };
 
-const shouldInline = function(filedata, mime){
+const shouldInline = function(__filedata, __mime){
     //const inlineTypes = [
         //"txt", "text", "png", "jpg", "jpeg", "html",
         //"webm", "mp4", "mp3", "wav", "vorbis"
@@ -191,7 +191,7 @@ const download = async function(server, reqx){
     if(disposition === "delete"){
         if(await accessCheck(uploadID, reqx)) return;
 
-        const result = await setMimeType(uploadID, "deleted")
+        const __result = await setMimeType(uploadID, "deleted");
         reqx.doHTML("File successfully deleted. It will still appear in your user page.");
     }else if(disposition === "info"){
         const data = await U.query.index.findOne({_id: uploadID});
@@ -261,4 +261,4 @@ export default async function(server, reqx){
     }catch(e){
         U.juushError(reqx.res, e, 500);
     }
-};
+}

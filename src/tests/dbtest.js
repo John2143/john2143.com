@@ -1,6 +1,4 @@
-
-import server from "../index.js";
-
+/* eslint-disable indent, quotes */
 const url = `http://${serverConst.IP}:${serverConst.PORT}`;
 const req = () => chai.request(url);
 
@@ -206,7 +204,7 @@ describe("Upload/Download", function(){
             const res = await req().get(`/juush/uploads/1?hidden=true`);
             res.body.should.have.length(5);
             for(let x of res.body) if(x._id === keys[1]) return;
-            throw new Error("key not found in uploads")
+            throw new Error("key not found in uploads");
         });
 
         it("should be able to unhide", function(){
@@ -218,7 +216,7 @@ describe("Upload/Download", function(){
             const res = await req().get(`/juush/uploads/1`);
             res.body.should.have.length(5);
             for(let x of res.body) if(x._id === keys[1]) return;
-            throw new Error("key not found in uploads")
+            throw new Error("key not found in uploads");
         });
 
         it("should not be able to see other's hiddens", function(){
@@ -236,7 +234,9 @@ describe("Upload/Download", function(){
         let getDLs, ulid;
         before(function(){
             ulid = keys[1];
-            getDLs = async _id => (await query.index.findOne({_id}, {downloads: 1})).downloads
+            getDLs = async _id => (
+                await query.index.findOne({_id}, {downloads: 1})
+            ).downloads;
         });
 
         it("should increment downloads when downloading a file", async function(){

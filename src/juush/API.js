@@ -10,13 +10,13 @@ const genericAPIOperationResult = res => result => {
 const genericJSON = res => obj => {
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify(obj));
-}
+};
 
 export default async function(server, reqx){
     const {res, urldata, req} = reqx;
     // /juush/uploads/<userid>/[page]/
     // lists some number of uploads from a user, with an optional offset
-    const ip = req.connection.remoteAddress;
+    let ip = req.connection.remoteAddress;
 
     if(urldata.path[1] === "uploads"){
         const [, , userid_, page = 0] = urldata.path;
@@ -130,4 +130,4 @@ export default async function(server, reqx){
         res.statusCode = 405;
         res.end("Unknown method");
     }
-};
+}

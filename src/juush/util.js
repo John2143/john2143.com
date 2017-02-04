@@ -17,7 +17,7 @@ export default new Promise(resolve =>
             async counter(name){
                 if(!countersSeen[name]){
                     //Make sure the counter has been initialized
-                    const counter = await counters.findOneAndUpdate(
+                    await counters.updateOne(
                         {_id: name},
                         {$setOnInsert: {value: 1}},
                         {upsert: true}
@@ -80,7 +80,7 @@ export const guessFileExtension = filename => {
 export let isAdmin;
 if(global.it){
     global.testIsAdmin = true;
-    isAdmin = ip => global.testIsAdmin;
+    isAdmin = __ip => global.testIsAdmin;
 }else{
     isAdmin = ip => ip.indexOf("192.168") >= 0 || ip === "127.0.0.1" || ip === "::1";
 }

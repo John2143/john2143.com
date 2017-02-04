@@ -162,7 +162,7 @@ export default class server{
         if(reqx.denyFavicon()) return;
 
         const filepath = "./pages/" + reqx.urldata.path.join("/") + ".html";
-        fs.stat(filepath, function(err, stats){
+        fs.stat(filepath, function(err, __stats){
             if(err){
                 const dat = reqx.urldata.path[0];
 
@@ -180,6 +180,7 @@ export default class server{
                             ret
                                 .then(() => {})
                                 .catch(err => {
+                                    serverLog(err);
                                     reqx.res.statusCode = 500;
                                     reqx.res.end();
                                 });
@@ -213,7 +214,7 @@ export default class server{
                 this.extip = "0.0.0.0";
                 callback(this.extip);
             }).on("error", /* istanbul ignore next */ err => {
-                serverLog("Failed to get external IP");
+                serverLog("Failed to get external IP", err);
                 this.extip = "0.0.0.0";
                 callback(this.extip);
             });
