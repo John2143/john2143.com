@@ -42,7 +42,7 @@ describe("HTTP Server", function(){
         });
     });
     it("should have a working favicon", function(){
-        return chai.request("http://localhost:3000").get("/favicon.ico").catch(res => {
+        return chai.request("http://localhost:3000").get("/favicon.ico").then(res => {
             res.should.have.status(200);
             res.body.should.equal(fs.readFileSync("favicon.ico"));
         });
@@ -104,4 +104,5 @@ describe("HTTPS Server", function(){
         expect(serv.redirs).to.not.have.property("juush");
         serv.stop();
     });
+    it("should have a working upgrade server");
 });
