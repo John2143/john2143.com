@@ -1,5 +1,5 @@
 
-import server from "../main.js";
+import server from "../index.js";
 
 const url = `http://${serverConst.IP}:${serverConst.PORT}`;
 const req = () => chai.request(url);
