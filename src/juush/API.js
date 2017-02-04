@@ -1,14 +1,6 @@
 
 import {juushErrorCatch, isAdmin, query, whoami} from "./util.js";
 
-
-//If rows only have one field, then use this so that the json is a array instead
-const genericAPIListResult = field => res => result => {
-    const data = result.map(x => x[field]);
-    res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify(data));
-};
-
 //Returns true on success, false if it failed
 const genericAPIOperationResult = res => result => {
     res.setHeader("Content-Type", "application/json");
@@ -24,6 +16,8 @@ export default async function(server, reqx){
     const {res, urldata, req} = reqx;
     // /juush/uploads/<userid>/[page]/
     // lists some number of uploads from a user, with an optional offset
+    const ip = req.connection.remoteAddress;
+
     if(urldata.path[1] === "uploads"){
         const [, , userid_, page = 0] = urldata.path;
         const userid = Number(userid_);
@@ -33,7 +27,6 @@ export default async function(server, reqx){
         };
 
         if(urldata.query["hidden"]){
-            const ip = req.connection.remoteAddress;
             if((await whoami(ip)).includes(userid) || await isAdmin(ip)){
                 //noop
             }else{
@@ -62,7 +55,7 @@ export default async function(server, reqx){
     // /juush/whoami/
     // Return a list of user ids for current IP
     }else if(urldata.path[1] === "whoami"){
-        whoami(req.connection.remoteAddress)
+        whoami(ip)
             .then(genericJSON(res))
             .catch(juushErrorCatch(res));
     // /juush/userinfo/<userid>
@@ -71,6 +64,11 @@ export default async function(server, reqx){
         try{
             let projection = {name: 1};
             if(urldata.query["key"]){
+                if(!await isAdmin(ip)){
+                    res.statusCode = 403;
+                    res.end("You may not see user keys");
+                    return;
+                }
                 projection.key = 1;
             }
 
@@ -113,7 +111,7 @@ export default async function(server, reqx){
     // /juush/deluser/<userid>
     // Delete a user
     }else if(urldata.path[1] === "deluser"){
-        if(!isAdmin(req.connection.remoteAddress)){
+        if(!isAdmin(ip)){
             res.writeHead(401, {});
             res.end("You cannot delete users");
             return;
@@ -125,7 +123,6 @@ export default async function(server, reqx){
     // /juush/isadmin/[ip]
     // Returns if the ip (or connector) is an admin
     }else if(urldata.path[1] === "isadmin"){
-        let ip = req.connection.remoteAddress;
         if(urldata.path[2]) ip = urldata.path[2];
         res.setHeader("Content-Type", "text/plain");
         res.end(isAdmin(ip) ? "true" : "false");

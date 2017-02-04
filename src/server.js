@@ -49,10 +49,6 @@ class request{
         return this._urldata;
     }
 
-    noLog(){
-        this.shouldLog = false;
-    }
-
     logConnection(){
         const dateString = (dt = new Date()) => {
             const abvr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -99,6 +95,7 @@ class request{
 
     serveStatic(path, headers = {"Content-Type": "text/html"}, code = 200){
         fs.readFile(path, "utf8", (err, dat) => {
+            /* istanbul ignore if */
             if(err){
                 this.doHTML("Failed to serve content", 500);
             }else{
@@ -125,6 +122,7 @@ export default class server{
                 res.end();
             });
         }
+
         try{
             const sfunc = (req, res) => this.route(new request(req, res));
             if(this.isHTTPS){
@@ -135,7 +133,9 @@ export default class server{
                 this.server = http.createServer(sfunc);
             }
         }catch(err){
+            /* istanbul ignore next */
             serverLog("Err starting: " + err);
+            /* istanbul ignore next */
             return;
         }
 
@@ -143,10 +143,13 @@ export default class server{
             this.server.listen(this.port, this.ip);
             if(this.serverHTTPUpgrade) this.serverHTTPUpgrade.listen(dat.httpPort, this.ip);
         }catch(err){
+            /* istanbul ignore next */
             serverLog("There was an error starting the server. Are you sure you can access that port?");
+            /* istanbul ignore next */
+            return;
         }
 
-        if(!global.it) this.getExtIP(ip => serverLog("EXTIP is " + String(ip)));
+        this.getExtIP(ip => serverLog("EXTIP is " + String(ip)));
     }
 
     stop(){
@@ -206,10 +209,10 @@ export default class server{
                     this.extip = d;
                     callback(this.extip);
                 });
-            }).setTimeout(1000, () => {
+            }).setTimeout(1000, /* istanbul ignore next */ () => {
                 this.extip = "0.0.0.0";
                 callback(this.extip);
-            }).on("error", err => {
+            }).on("error", /* istanbul ignore next */ err => {
                 serverLog("Failed to get external IP");
                 this.extip = "0.0.0.0";
                 callback(this.extip);
