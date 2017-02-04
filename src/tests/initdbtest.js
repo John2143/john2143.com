@@ -15,6 +15,7 @@ describe("database init", function(){
         query.remove(obj);
     });
 
+    /* istanbul ignore next */
     if(process.env.SETUPDB){
         it("should reset some databases", function(){
             db.collection("keys")    .remove({});

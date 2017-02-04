@@ -23,6 +23,7 @@ redirs.ts = redirs.teamspeak;
 
 let initPromise;
 
+/* istanbul ignore else */
 if(serverConst.dbstring){
     //have to use commonjs here
     const juush = require("./juush");

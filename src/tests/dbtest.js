@@ -60,6 +60,8 @@ describe("API", function(){
             json.should.have.property("total");
         });
     });
+    it("should be able to see userinfo with ?key=true");
+    it("should fail to see userinfo with a user that doesnt exist");
 
     it("should be able to delete users", function(){
         return req().get("/juush/deluser/2").then(res => {
@@ -68,6 +70,7 @@ describe("API", function(){
             json.success.should.be.true;
         });
     });
+    it("should not be able to delete users if not admin");
 
     it("should be an admin", function(){
         global.testIsAdmin = true;
@@ -342,7 +345,8 @@ describe("error", function(){
             res.should.have.status(404);
         });
     });
-    it("generic db failure stuff");
+    it("upload errors");
+    it("generic db failure stuff (juushError)");
     it("should not be able to make new users", async function(){
         global.testIsAdmin = false;
         return req().get("/nuser/user2")
