@@ -44,7 +44,7 @@ describe("HTTP Server", function(){
     it("should have a working favicon", function(){
         return chai.request("http://localhost:3000").get("/favicon.ico").then(res => {
             res.should.have.status(200);
-            res.body.should.equal(fs.readFileSync("favicon.ico"));
+            res.body.should.deep.equal(fs.readFileSync("favicon.ico"));
         });
     });
     it("should have a working funcredir", function(){
