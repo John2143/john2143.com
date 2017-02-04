@@ -15,7 +15,7 @@ let redirs = {
     steam: "//steamcommunity.com/profiles/76561198027378405",
     osu: "//osu.ppy.sh/u/2563776",
     ip: showIP,
-    blank: async (server, reqx) => reqx.res.end(""),
+    blank: (server, reqx) => reqx.res.end(""),
     _def: "git",
 
 };
@@ -39,9 +39,8 @@ if(serverConst.dbstring){
 
 import server from "./server.js";
 
-export let serverInst;
-initPromise.then(() => {
-    serverInst = new server({
+export default initPromise.then(() => {
+    return new server({
         redirs,
         ip: serverConst.IP,
         port: serverConst.PORT,

@@ -30,7 +30,8 @@
     "cover": "nyc --reporter lcov npm run testc",
     "build": "babel src --out-dir c -s",
     "buildw": "npm run build -- --watch",
-    "clean": "rm -r c coverage"
+    "clean": "rm -r c coverage",
+    "lint": "eslint src || exit 0"
   },
   "repository": {
     "type": "git",

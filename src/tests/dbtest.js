@@ -1,3 +1,8 @@
+//Start server
+import serverPromise from "..";
+let server;
+let __server = server;
+
 /* eslint-disable indent, quotes */
 const url = `http://${serverConst.IP}:${serverConst.PORT}`;
 const req = () => chai.request(url);
@@ -5,7 +10,8 @@ const req = () => chai.request(url);
 const uploadKey = "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
 
 describe("Database + server", function(){
-    it("should have created a server", function(){
+    it("should have created a server", async function(){
+        server = await serverPromise;
         return req().get("/blank");
     });
 

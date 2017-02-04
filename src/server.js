@@ -176,7 +176,7 @@ export default class server{
                 if(redir){
                     if(typeof redir === "function"){
                         const ret = redir(this, reqx);
-                        if(ret && "then" in ret){
+                        if(typeof ret === "object" && "then" in ret){
                             ret
                                 .then(() => {})
                                 .catch(err => {

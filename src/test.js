@@ -2,7 +2,7 @@ import "./global.js";
 
 require("source-map-support").install();
 
-global.chai = require("chai");
+const chai = global.chai = require("chai");
 global.expect = chai.expect;
 
 chai.use(require("chai-http"));
