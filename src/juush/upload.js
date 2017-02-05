@@ -3,7 +3,6 @@ import * as U from "./util.js";
 
 //Retreives a database client and randomized url that has not been used before
 const getURL = async function(){
-    let client;
     try{
         for(let x = 1; ; x++){
             let url = U.randomStr(4);
@@ -238,4 +237,4 @@ export default async function(server, reqx){
             wstream.write(write);
         }
     });
-};
+}

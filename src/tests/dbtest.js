@@ -1,13 +1,17 @@
+//Start server
+import serverPromise from "..";
+let server;
+let __server = server;
 
-import server from "../index.js";
-
+/* eslint-disable indent, quotes */
 const url = `http://${serverConst.IP}:${serverConst.PORT}`;
 const req = () => chai.request(url);
 
 const uploadKey = "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
 
 describe("Database + server", function(){
-    it("should have created a server", function(){
+    it("should have created a server", async function(){
+        server = await serverPromise;
         return req().get("/blank");
     });
 
@@ -60,6 +64,8 @@ describe("API", function(){
             json.should.have.property("total");
         });
     });
+    it("should be able to see userinfo with ?key=true");
+    it("should fail to see userinfo with a user that doesnt exist");
 
     it("should be able to delete users", function(){
         return req().get("/juush/deluser/2").then(res => {
@@ -68,6 +74,7 @@ describe("API", function(){
             json.success.should.be.true;
         });
     });
+    it("should not be able to delete users if not admin");
 
     it("should be an admin", function(){
         global.testIsAdmin = true;
@@ -203,7 +210,7 @@ describe("Upload/Download", function(){
             const res = await req().get(`/juush/uploads/1?hidden=true`);
             res.body.should.have.length(5);
             for(let x of res.body) if(x._id === keys[1]) return;
-            throw new Error("key not found in uploads")
+            throw new Error("key not found in uploads");
         });
 
         it("should be able to unhide", function(){
@@ -215,7 +222,7 @@ describe("Upload/Download", function(){
             const res = await req().get(`/juush/uploads/1`);
             res.body.should.have.length(5);
             for(let x of res.body) if(x._id === keys[1]) return;
-            throw new Error("key not found in uploads")
+            throw new Error("key not found in uploads");
         });
 
         it("should not be able to see other's hiddens", function(){
@@ -233,7 +240,9 @@ describe("Upload/Download", function(){
         let getDLs, ulid;
         before(function(){
             ulid = keys[1];
-            getDLs = async _id => (await query.index.findOne({_id}, {downloads: 1})).downloads
+            getDLs = async _id => (
+                await query.index.findOne({_id}, {downloads: 1})
+            ).downloads;
         });
 
         it("should increment downloads when downloading a file", async function(){
@@ -342,7 +351,8 @@ describe("error", function(){
             res.should.have.status(404);
         });
     });
-    it("generic db failure stuff");
+    it("upload errors");
+    it("generic db failure stuff (juushError)");
     it("should not be able to make new users", async function(){
         global.testIsAdmin = false;
         return req().get("/nuser/user2")

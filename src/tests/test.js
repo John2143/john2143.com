@@ -41,6 +41,12 @@ describe("HTTP Server", function(){
             expect(res).to.have.status(404);
         });
     });
+    it("should have a working favicon", function(){
+        return chai.request("http://localhost:3000").get("/favicon.ico").then(res => {
+            res.should.have.status(200);
+            res.body.should.deep.equal(fs.readFileSync("favicon.ico"));
+        });
+    });
     it("should have a working funcredir", function(){
         return chai.request("http://localhost:3000").get("/testfunc").then(res => {
             expect(res).to.have.status(200);
@@ -98,4 +104,5 @@ describe("HTTPS Server", function(){
         expect(serv.redirs).to.not.have.property("juush");
         serv.stop();
     });
+    it("should have a working upgrade server");
 });

@@ -6,15 +6,16 @@ export default async function(server, reqx){
     const {res, urldata, req} = reqx;
     //Only people on the same network as the server can create users
     if(isAdmin(req.connection.remoteAddress)){
-        var newKey = randomStr(32);
+        const key = randomStr(32);
+        const name = urldata.path[1];
+
         query.keys.insert({
-            name: reqx.urldata.path[1],
-            key: newKey,
+            name, key,
             _id: await query.counter("keyid"),
-        }).then(result => {
-            serverLog("A new user has been created", reqx.urldata.path[1], newKey);
+        }).then(_result => {
+            serverLog("A new user has been created", name, key);
             res.setHeader("Content-Type", "text/plain");
-            res.end(newKey);
+            res.end(key);
         }).catch(juushErrorCatch(res));
     }else{
         res.writeHead(401, {
@@ -22,4 +23,4 @@ export default async function(server, reqx){
         });
         res.end("You cannot make users");
     }
-};
+}
