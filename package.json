@@ -24,14 +24,14 @@
     "source-map-support": "^0.4.11"
   },
   "scripts": {
-    "test": "mocha c/test.js",
+    "test": "mocha c/test.js -c",
     "start": "node c | tee \"logs/`date`.txt\"",
-    "testc": "mocha src/test.js --compilers js:babel-register",
+    "testc": "mocha src/test.js --compilers js:babel-register -c",
     "cover": "nyc --reporter lcov npm run testc",
     "build": "babel src --out-dir c -s",
     "buildw": "npm run build -- --watch",
     "clean": "rm -r c coverage",
-    "lint": "eslint src || exit 0"
+    "lint": "eslint src --color || exit 0"
   },
   "repository": {
     "type": "git",
