@@ -15,13 +15,16 @@ let redirs = {
     steam: "//steamcommunity.com/profiles/76561198027378405",
     osu: "//osu.ppy.sh/u/2563776",
     ip: showIP,
-    blank: async (server, reqx) => reqx.res.end(""),
+    blank: (server, reqx) => reqx.res.end(""),
     _def: "git",
 
 };
 redirs.ts = redirs.teamspeak;
 
-if(serverConst.dbuser){
+let initPromise;
+
+/* istanbul ignore else */
+if(serverConst.dbstring){
     //have to use commonjs here
     const juush = require("./juush");
     redirs[""] = juush.download;
@@ -29,14 +32,19 @@ if(serverConst.dbuser){
     redirs.uf = juush.upload;
     redirs.nuser = juush.newUser;
     redirs.juush = juush.API;
+    initPromise = juush.u;
+}else{
+    initPromise = new Promise.resolve(true);
 }
 
 import server from "./server.js";
 
-export default new server({
-    redirs,
-    ip: serverConst.IP,
-    port: serverConst.PORT,
-    httpPort: serverConst.HTTPPORT,
-    keys: serverConst.keys,
+export default initPromise.then(() => {
+    return new server({
+        redirs,
+        ip: serverConst.IP,
+        port: serverConst.PORT,
+        httpPort: serverConst.HTTPPORT,
+        keys: serverConst.keys,
+    });
 });

@@ -1,13 +1,17 @@
+//Start server
+import serverPromise from "..";
+let server;
+let __server = server;
 
-import server from "../main.js";
-
+/* eslint-disable indent, quotes */
 const url = `http://${serverConst.IP}:${serverConst.PORT}`;
 const req = () => chai.request(url);
 
 const uploadKey = "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
 
 describe("Database + server", function(){
-    it("should have created a server", function(){
+    it("should have created a server", async function(){
+        server = await serverPromise;
         return req().get("/blank");
     });
 
@@ -26,8 +30,10 @@ describe("Database + server", function(){
         user.body.should.be.ok;
         user = await req().get("/nuser/user2");
         user.body.should.be.ok;
+        user = await req().get("/nuser/user3");
+        user.body.should.be.ok;
 
-        return await pool.query("UPDATE keys SET key=$1", [uploadKey]);
+        await query.keys.updateMany({}, {$set:{"key": uploadKey}});
     });
 
 describe("API", function(){
@@ -42,8 +48,8 @@ describe("API", function(){
         return req().get("/juush/users/").then(res => {
             res.should.be.json;
             const json = res.body;
-            json.should.have.property("length", 2);
-            json.should.have.deep.property("[0].id");
+            json.should.have.property("length", 3);
+            json.should.have.deep.property("[0]._id");
             json.should.have.deep.property("[0].name");
             json.should.have.deep.property("[0]");
         });
@@ -58,6 +64,8 @@ describe("API", function(){
             json.should.have.property("total");
         });
     });
+    it("should be able to see userinfo with ?key=true");
+    it("should fail to see userinfo with a user that doesnt exist");
 
     it("should be able to delete users", function(){
         return req().get("/juush/deluser/2").then(res => {
@@ -66,6 +74,7 @@ describe("API", function(){
             json.success.should.be.true;
         });
     });
+    it("should not be able to delete users if not admin");
 
     it("should be an admin", function(){
         global.testIsAdmin = true;
@@ -186,12 +195,54 @@ describe("Upload/Download", function(){
                 .and.to.equal("newname.asdf");
         });
 
+        it("should be able to hide", function(){
+            return req().get(`/f/${keys[1]}/hide`)
+                .should.eventually.have.status(200);
+        });
+
+        it("should not find it in the uploads", async function(){
+            const res = await req().get(`/juush/uploads/1`);
+            res.body.should.have.length(4);
+            for(let x of res.body) x._id.should.not.equal(keys[1]);
+        });
+
+        it("should find it in the uploads if hidden is specified", async function(){
+            const res = await req().get(`/juush/uploads/1?hidden=true`);
+            res.body.should.have.length(5);
+            for(let x of res.body) if(x._id === keys[1]) return;
+            throw new Error("key not found in uploads");
+        });
+
+        it("should be able to unhide", function(){
+            return req().get(`/f/${keys[1]}/unhide`)
+                .should.eventually.have.status(200);
+        });
+
+        it("should find it in the uploads again", async function(){
+            const res = await req().get(`/juush/uploads/1`);
+            res.body.should.have.length(5);
+            for(let x of res.body) if(x._id === keys[1]) return;
+            throw new Error("key not found in uploads");
+        });
+
+        it("should not be able to see other's hiddens", function(){
+            global.testIsAdmin = false;
+            return req().get(`/juush/uploads/3?hidden=true`)
+                .should.eventually.be.rejected.with.status(403);
+        });
+
+        it("should be able to see other's hiddens if admin", function(){
+            global.testIsAdmin = true;
+            return req().get(`/juush/uploads/3?hidden=true`)
+                .should.eventually.have.status(200);
+        });
+
         let getDLs, ulid;
         before(function(){
             ulid = keys[1];
-            getDLs = async id => pool
-                .query("SELECT downloads FROM index WHERE id=$1", [id])
-                .then(res => res.rows[0].downloads);
+            getDLs = async _id => (
+                await query.index.findOne({_id}, {downloads: 1})
+            ).downloads;
         });
 
         it("should increment downloads when downloading a file", async function(){
@@ -273,7 +324,7 @@ describe("Account stuff", function(){
         return req().get("/juush/uploads/1").then(res => {
             res.should.be.json;
             const json = res.body;
-            json[0].should.have.property("id");
+            json[0].should.have.property("_id");
             json[0].should.have.property("filename");
             json[0].should.have.property("mimetype");
             json[0].should.have.property("downloads");
@@ -300,7 +351,8 @@ describe("error", function(){
             res.should.have.status(404);
         });
     });
-    it("generic db failure stuff");
+    it("upload errors");
+    it("generic db failure stuff (juushError)");
     it("should not be able to make new users", async function(){
         global.testIsAdmin = false;
         return req().get("/nuser/user2")

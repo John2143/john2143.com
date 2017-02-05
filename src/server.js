@@ -14,7 +14,8 @@ class request{
     constructor(req, res){
         this.req = req;
         this.res = res;
-        this.shouldLog = !global.it;
+        //this.shouldLog = !global.it;
+        this.shouldLog = true;
     }
 
     denyFavicon(){
@@ -41,21 +42,42 @@ class request{
             if(!path[0]){
                 path.shift();
             }
+
+            //Ignore query string
+            if(path[0]) path[path.length - 1] = path[path.length - 1].split("?")[0];
         }
         return this._urldata;
     }
 
-    noLog(){
-        this.shouldLog = false;
-    }
-
     logConnection(){
+        const dateString = (dt = new Date()) => {
+            const abvr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const lead0 = num => num < 10 ? "0" + num : num;
+
+            return abvr[dt.getMonth()] + " "
+                + lead0(dt.getDate()) + " "
+                + dt.getFullYear() + " "
+                + lead0(dt.getHours()) + ":"
+                + lead0(dt.getMinutes()) + ":"
+                + lead0(dt.getSeconds());
+        };
+
+        const padLeft = (str, size = 15) => {
+            let pad = size - str.length;
+            if(pad < 0) return str;
+            return Array(pad + 1).join(" ") + str;
+        };
+
         if(!this.shouldLog) return;
-        serverLog(
-            Date() + " | " +
-            this.req.connection.remoteAddress + " | " +
-            this.urldata.path.join("/")
-        );
+        let line = dateString() + " | " +
+            padLeft(this.req.connection.remoteAddress) + " | " +
+            this.urldata.path.join("/");
+
+        if(Object.keys(this.urldata.query).length !== 0){
+            line += " ~" + JSON.stringify(this.urldata.query);
+        }
+
+        serverLog(line);
     }
 
     doRedirect(redir){
@@ -73,6 +95,7 @@ class request{
 
     serveStatic(path, headers = {"Content-Type": "text/html"}, code = 200){
         fs.readFile(path, "utf8", (err, dat) => {
+            /* istanbul ignore if */
             if(err){
                 this.doHTML("Failed to serve content", 500);
             }else{
@@ -99,6 +122,7 @@ export default class server{
                 res.end();
             });
         }
+
         try{
             const sfunc = (req, res) => this.route(new request(req, res));
             if(this.isHTTPS){
@@ -109,7 +133,9 @@ export default class server{
                 this.server = http.createServer(sfunc);
             }
         }catch(err){
+            /* istanbul ignore next */
             serverLog("Err starting: " + err);
+            /* istanbul ignore next */
             return;
         }
 
@@ -117,10 +143,13 @@ export default class server{
             this.server.listen(this.port, this.ip);
             if(this.serverHTTPUpgrade) this.serverHTTPUpgrade.listen(dat.httpPort, this.ip);
         }catch(err){
+            /* istanbul ignore next */
             serverLog("There was an error starting the server. Are you sure you can access that port?");
+            /* istanbul ignore next */
+            return;
         }
 
-        if(!global.it) this.getExtIP(ip => serverLog("EXTIP is " + String(ip)));
+        this.getExtIP(ip => serverLog("EXTIP is " + String(ip)));
     }
 
     stop(){
@@ -132,8 +161,8 @@ export default class server{
     route(reqx){
         if(reqx.denyFavicon()) return;
 
-        const filepath = "./pages" + reqx.req.url + ".html";
-        fs.stat(filepath, function(err, stats){
+        const filepath = "./pages/" + reqx.urldata.path.join("/") + ".html";
+        fs.stat(filepath, function(err, __stats){
             if(err){
                 const dat = reqx.urldata.path[0];
 
@@ -146,7 +175,16 @@ export default class server{
 
                 if(redir){
                     if(typeof redir === "function"){
-                        redir(this, reqx);
+                        const ret = redir(this, reqx);
+                        if(typeof ret === "object" && "then" in ret){
+                            ret
+                                .then(() => {})
+                                .catch(err => {
+                                    serverLog(err);
+                                    reqx.res.statusCode = 500;
+                                    reqx.res.end();
+                                });
+                        }
                     }else{
                         reqx.doRedirect(redir);
                     }
@@ -172,8 +210,13 @@ export default class server{
                     this.extip = d;
                     callback(this.extip);
                 });
-            }).setTimeout(1000, () => {
-                callback(false);
+            }).setTimeout(1000, /* istanbul ignore next */ () => {
+                this.extip = "0.0.0.0";
+                callback(this.extip);
+            }).on("error", /* istanbul ignore next */ err => {
+                serverLog("Failed to get external IP", err);
+                this.extip = "0.0.0.0";
+                callback(this.extip);
             });
         }else{
             callback(this.extip);

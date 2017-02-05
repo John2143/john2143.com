@@ -1,7 +1,9 @@
 import "./global.js";
 
-let chai = global.chai = require("chai");
-let expect = global.expect = chai.expect;
+require("source-map-support").install();
+
+const chai = global.chai = require("chai");
+global.expect = chai.expect;
 
 chai.use(require("chai-http"));
 chai.use(require("chai-as-promised"));
@@ -14,7 +16,7 @@ describe("Server tests", function(){
     require("./tests/test.js");
 });
 
-if(serverConst.dbuser){
+if(serverConst.dbstring){
     describe("Database tests", function(){
         require("./tests/initdbtest.js");
         require("./tests/dbtest.js");

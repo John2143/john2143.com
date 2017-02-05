@@ -12,6 +12,10 @@ const redirs = {
     "testfunc": (server, reqx) => {
         reqx.doHTML("xd");
     },
+    "qstest": (server, reqx) => {
+        reqx.res.setHeader("Content-Type", "application/json");
+        reqx.res.end(JSON.stringify(reqx.urldata.query));
+    },
     _def: "testredir",
 };
 
@@ -37,6 +41,12 @@ describe("HTTP Server", function(){
             expect(res).to.have.status(404);
         });
     });
+    it("should have a working favicon", function(){
+        return chai.request("http://localhost:3000").get("/favicon.ico").then(res => {
+            res.should.have.status(200);
+            res.body.should.deep.equal(fs.readFileSync("favicon.ico"));
+        });
+    });
     it("should have a working funcredir", function(){
         return chai.request("http://localhost:3000").get("/testfunc").then(res => {
             expect(res).to.have.status(200);
@@ -56,6 +66,12 @@ describe("HTTP Server", function(){
     it("should have a working default", function(){
         return chai.request("http://localhost:3000").get("/").then(res => {
             expect(res).to.have.status(200);
+        });
+    });
+    it("should have a working querystring", function(){
+        return chai.request("http://localhost:3000").get("/qstest?a=3&b=cat").then(res => {
+            const json = res.body;
+            json.should.deep.equal({a: "3", b: "cat"});
         });
     });
 
@@ -88,4 +104,5 @@ describe("HTTPS Server", function(){
         expect(serv.redirs).to.not.have.property("juush");
         serv.stop();
     });
+    it("should have a working upgrade server");
 });

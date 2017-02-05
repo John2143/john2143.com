@@ -1,15 +1,15 @@
 language: node_js
 node_js:
- - "6.0.0"
  - "7.4.0"
 services:
- - postgresql
+ - mongodb
 before_script:
- - psql -c 'create database juush;' -U postgres
  - mv src/travis.const.js src/const.js
 script:
+ - npm run lint
  - npm run cover
+cache:
+  directories:
+  - node_modules
 after_success:
  - cat coverage/lcov.info | node ./node_modules/coveralls/bin/coveralls.js
-env:
- - SETUPDB=true
