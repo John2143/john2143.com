@@ -103,7 +103,6 @@ const processDownload = function(reqx, data, disposition){
         stat = fs.statSync(filepath);
     }catch(e){
         reqx.doHTML("Internal error: file may have been manually deleted.", 500);
-        serverLog(e);
         return;
     }
 
