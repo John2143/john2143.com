@@ -101,6 +101,9 @@ angular.module("app", []).controller("controller", function($scope, $http){
         $scope.refreshUsers();
     });
 
+    $scope.toggleHidden = () => {
+        $scope.adminShowHidden = !$scope.adminShowHidden;
+    }
 
     $scope.updateUserpage = () => {
         if(!$scope.selected){
@@ -417,7 +420,7 @@ angular.module("app", []).controller("controller", function($scope, $http){
                             <ul class="list-group">
                                 <div class="list-group-item list-group-item-info">Admin Menu</div>
                                 <button class="list-group-item list-group-item-action list-group-item-success" ng-click="createNewUser()">Create New User</button>
-                                <button class="list-group-item list-group-item-action list-group-item-default" ng-click="adminShowHidden = !adminShowHidden" ng-class="{'active': adminShowHidden}">Show Hidden</button>
+                                <button class="list-group-item list-group-item-action list-group-item-default" ng-click="toggleHidden()" ng-class="{'active': adminShowHidden}">Show Hidden</button>
                                 <button class="list-group-item list-group-item-action list-group-item-warning" ng-click="userData = {key: uinfo.key}">Show User Key</button>
 
                                 <div ng-show="userData" class="list-group-item">
