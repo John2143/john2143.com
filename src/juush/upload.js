@@ -9,7 +9,7 @@ const getURL = async function(){
             const result = await U.query.index.findOne({_id: url});
 
             if(!result){
-                if(x > 5) serverLog(`took ${x} tries to get a url...`);
+                if(x > 5) serverLog(`took ${x} tries to get a url...`.red);
                 return url;
             }
         }
@@ -38,19 +38,6 @@ const parseHeadersFromUpload = function(data, reqHeaders){
             headerSize: headers.length,
         };
     }catch(e){
-        //serverLog("==============================================start");
-        //serverLog("==============================================start");
-        //serverLog("==============================================start");
-        //serverLog("invalid headers received", e);
-        //serverLog("==============================================DATA START");
-        //serverLog(strData);
-        //serverLog("==============================================DATA END;BOUNDARY START");
-        //serverLog(boundary);
-        //serverLog("==============================================BOUNDARY END;reqHeaders START");
-        //serverLog(reqHeaders);
-        //serverLog("==============================================finish");
-        //serverLog("==============================================finish");
-        //serverLog("==============================================finish");
         return null;
     }
 
@@ -62,7 +49,7 @@ const parseHeadersFromUpload = function(data, reqHeaders){
 
 export default async function(server, reqx){
     const url = await getURL();
-    serverLog("File will appear at " + url);
+    reqx.extraLog = url.green;
 
     //Any connection will timeout after 30 seconds of inactivity.
     let timeoutID = null;
@@ -86,7 +73,7 @@ export default async function(server, reqx){
     //Genertic error function to safely abort a broken connection
     let isError = false;
     const error = function(errt = "Generic error", errc = 500){
-        serverLog("Upload error for " + url, ":", errt);
+        serverLog("Upload error for " + url.green, ":", errt.red);
 
         //Flag error to prevent some kind of data race
         isError = true;
@@ -99,7 +86,9 @@ export default async function(server, reqx){
         }
 
         //Delete file
-        fs.unlink(filepath, function(){});
+        fs.unlinkAsync(filepath).catch(err => {
+            serverLog("Failed to unlink upload!", err);
+        });
         //Delete entry (May or may not exist)
         U.query.index.removeOne({_id: url}).catch(err => {
             serverLog("Upload failure delete failure!", err);

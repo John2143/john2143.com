@@ -1,6 +1,7 @@
 import https from "https";
 import http  from "http";
 import url   from "url";
+import "colors";
 
 let favicon = "";
 
@@ -50,6 +51,8 @@ class request{
     }
 
     logConnection(){
+        if(!this.shouldLog) return;
+
         const dateString = (dt = new Date()) => {
             const abvr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
             const lead0 = num => num < 10 ? "0" + num : num;
@@ -63,18 +66,34 @@ class request{
         };
 
         const padLeft = (str, size = 15) => {
+            str = String(str);
             let pad = size - str.length;
             if(pad < 0) return str;
             return Array(pad + 1).join(" ") + str;
         };
 
-        if(!this.shouldLog) return;
-        let line = dateString() + " | " +
-            padLeft(this.req.connection.remoteAddress) + " | " +
-            this.urldata.path.join("/");
+        const ip = this.req.connection.remoteAddress;
+
+        const path = this.urldata.path.join("/");
+
+        const code = this.res.statusCode;
+        let codestr = String(code);
+
+        if(code == 206){
+            codestr = codestr.blue;
+        }else if(code >= 200 && code < 300){
+            codestr = codestr.green;
+        }else{
+            codestr = codestr.red;
+        }
+
+        let line = `${dateString()} | ${padLeft(ip).blue} | ${codestr} ${path}`;
+        if(this.extraLog){
+            line += " " + this.extraLog;
+        }
 
         if(Object.keys(this.urldata.query).length !== 0){
-            line += " ~" + JSON.stringify(this.urldata.query);
+            line += " " + JSON.stringify(this.urldata.query).blue;
         }
 
         serverLog(line);
@@ -93,16 +112,17 @@ class request{
         this.res.end(html);
     }
 
-    serveStatic(path, headers = {"Content-Type": "text/html"}, code = 200){
-        fs.readFile(path, "utf8", (err, dat) => {
-            /* istanbul ignore if */
-            if(err){
-                this.doHTML("Failed to serve content", 500);
-            }else{
-                this.res.writeHead(code, headers);
-                this.res.end(dat);
-            }
+    async serveStatic(path, headers = {"Content-Type": "text/html"}, code = 200){
+        return fs.readFileAsync(path, "utf8").then(dat => {
+            this.res.writeHead(code, headers);
+            this.res.end(dat);
+        }).catch(/* istanbul ignore next */ err => {
+            this.doHTML("Failed to serve content", 500);
         });
+    }
+
+    serveFunc(f, server){
+        return f(server, this);
     }
 }
 
@@ -124,7 +144,12 @@ export default class server{
         }
 
         try{
-            const sfunc = (req, res) => this.route(new request(req, res));
+            const sfunc = async (req, res) => {
+                let connection = new request(req, res);
+                await this.route(connection);
+                connection.logConnection();
+            };
+
             if(this.isHTTPS){
                 serverLog("Starting https server on " + this.port);
                 this.server = https.createServer(dat.keys, sfunc);
@@ -149,7 +174,7 @@ export default class server{
             return;
         }
 
-        this.getExtIP(ip => serverLog("EXTIP is " + String(ip)));
+        this.getExtIP().then(ip => serverLog("EXTIP is " + ip.blue));
     }
 
     stop(){
@@ -158,68 +183,64 @@ export default class server{
         serverLog("Server stopping");
     }
 
-    route(reqx){
+    async route(reqx){
         if(reqx.denyFavicon()) return;
 
         const filepath = "./pages/" + reqx.urldata.path.join("/") + ".html";
-        fs.stat(filepath, function(err, __stats){
-            if(err){
-                const dat = reqx.urldata.path[0];
+        try{
+            await fs.statAsync(filepath);
+            await reqx.serveStatic(filepath);
+            return;
+        }catch(e){
+            //fall through
+        }
 
-                let redir;
-                if(dat !== undefined){
-                    redir = this.redirs[dat];
-                }else{
-                    redir = this.redirs[this.redirs._def]; //Default to default action defined by the redirect table
-                }
+        const dat = reqx.urldata.path[0];
 
-                if(redir){
-                    if(typeof redir === "function"){
-                        const ret = redir(this, reqx);
-                        if(typeof ret === "object" && "then" in ret){
-                            ret
-                                .then(() => {})
-                                .catch(err => {
-                                    serverLog(err);
-                                    reqx.res.statusCode = 500;
-                                    reqx.res.end();
-                                });
-                        }
-                    }else{
-                        reqx.doRedirect(redir);
-                    }
-                }else{
-                    reqx.serveStatic("./pages/404.html", null, 404);
-                }
-            }else{
-                //TODO transform into pipe
-                reqx.serveStatic(filepath);
+        let redir;
+        if(dat !== undefined){
+            redir = this.redirs[dat];
+        }else{
+            redir = this.redirs[this.redirs._def]; //Default to default action defined by the redirect table
+        }
+
+        if(!redir){
+            reqx.serveStatic("./pages/404.html", null, 404);
+            return;
+        }
+
+        if(typeof redir === "function"){
+            try{
+                await Promise.resolve(reqx.serveFunc(redir, this));
+            }catch(err){
+                serverLog(err);
+                reqx.res.statusCode = 500;
+                reqx.res.end();
             }
-            reqx.logConnection();
-        }.bind(this));
+        }else{
+            reqx.doRedirect(redir);
+        }
     }
 
-    getExtIP(callback, doreset){
-        if(doreset || !this.extip){
-            (this.isHTTPS ? https : http).get({
+    async getExtIP(doreset = false){
+        if(!doreset && this.extip) return this.extip;
+
+        const lib = this.isHTTPS ? https : http;
+        const get = data => new Promise((resolve, reject) => {
+            lib.get(data, r => {
+                r.setEncoding("utf8");
+                r.on("data", resolve);
+            }).setTimeout(1000, reject).on("error", reject);
+        });
+
+        try{
+            return this.extip = await get({
                 host: "api.ipify.org",
                 port: this.isHTTPS ? 443 : 80,
-            }, r => {
-                r.setEncoding("utf8");
-                r.on("data", d => {
-                    this.extip = d;
-                    callback(this.extip);
-                });
-            }).setTimeout(1000, /* istanbul ignore next */ () => {
-                this.extip = "0.0.0.0";
-                callback(this.extip);
-            }).on("error", /* istanbul ignore next */ err => {
-                serverLog("Failed to get external IP", err);
-                this.extip = "0.0.0.0";
-                callback(this.extip);
             });
-        }else{
-            callback(this.extip);
+        }catch(e){
+            serverLog("Failed to get external IP", e);
+            return this.extip = "0.0.0.0";
         }
     }
 }

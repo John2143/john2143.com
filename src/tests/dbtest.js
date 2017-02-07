@@ -169,7 +169,7 @@ describe("Upload/Download", function(){
             );
 
             downloads.push(
-                req().get("/f/")
+                req().get("/f/asdfasdfasdf")
                     .should.eventually.be.rejected
                     .and.have.status(404)
             );
