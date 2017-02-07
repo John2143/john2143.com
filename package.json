@@ -8,13 +8,13 @@
     "babel-preset-latest": "^6.22.0",
     "bluebird": "^3.4.7",
     "mongodb": "^2.2.22"
+    "colors": "^1.1.2",
   },
   "devDependencies": {
     "babel-register": "^6.22.0",
     "chai": "^3.5.0",
     "chai-as-promised": "^6.0.0",
     "chai-http": "^3.0.0",
-    "colors": "^1.1.2",
     "coveralls": "^2.11.15",
     "eslint": "^3.15.0",
     "istanbul": "^0.4.5",
@@ -26,7 +26,7 @@
   },
   "scripts": {
     "test": "mocha c/test.js -c",
-    "start": "node c | tee \"logs/`date`.txt\"",
+    "start": "node c --color=always | tee \"logs/`date`.txt\"",
     "testc": "mocha src/test.js --compilers js:babel-register -c",
     "cover": "nyc --reporter lcov npm run testc",
     "build": "babel src --out-dir c -s",
