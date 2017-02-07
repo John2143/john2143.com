@@ -1,5 +1,5 @@
 global.Promise = require("bluebird");
-global.fs = require("fs");
+global.fs = Promise.promisifyAll(require("fs"));
 global.serverLog = console.log;
 
 try{

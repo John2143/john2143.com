@@ -30,6 +30,9 @@ const serveStreamRequest = async function(reqx, filepath){
         rangeEnd = Number(range[2]);
     }
 
+    const bytesString = `${rangeStart}-${rangeEnd}/${fullContentLength}`;
+    reqx.extraLog = bytesString.green;
+
     const contentLength = rangeEnd - rangeStart + 1;
 
     if(contentLength <= 0 ||
@@ -45,21 +48,12 @@ const serveStreamRequest = async function(reqx, filepath){
         //Ignoring Content-Type to not need a db request
         //Add it back in if this ever requires db stuff
         "Content-Length": contentLength,
-        "Content-Range": "bytes " + rangeStart + "-" + rangeEnd + "/" + fullContentLength,
+        "Content-Range": `bytes ${bytesString}`,
     });
 
     const filePipe = fs.createReadStream(filepath, {start: rangeStart, end: rangeEnd});
     reqx.res.on("error", () => filePipe.end());
     filePipe.pipe(reqx.res);
-};
-
-fs.unlinkAsync = function(path){
-    return new Promise(function(resolve, reject){
-        fs.unlink(path, function(err){
-            if(err) reject();
-            resolve();
-        });
-    });
 };
 
 const setMimeType = async function(id, newmime){

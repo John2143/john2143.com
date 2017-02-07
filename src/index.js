@@ -6,11 +6,12 @@
 import "./global.js";
 
 const showIP = async function(server, reqx){
-    server.getExtIP(ip => reqx.doHTML(ip));
+    const ip = await server.getExtIP();
+    reqx.doHTML(ip);
 };
 
 let redirs = {
-    git: "//github.com/John2143658709/",
+    git: "//github.com/John2143/",
     teamspeak: "ts3server://john2143.com",
     steam: "//steamcommunity.com/profiles/76561198027378405",
     osu: "//osu.ppy.sh/u/2563776",

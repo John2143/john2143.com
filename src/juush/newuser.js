@@ -13,7 +13,7 @@ export default async function(server, reqx){
             name, key,
             _id: await query.counter("keyid"),
         }).then(_result => {
-            serverLog("A new user has been created", name, key);
+            serverLog("A new user has been created", name.red, key.green);
             res.setHeader("Content-Type", "text/plain");
             res.end(key);
         }).catch(juushErrorCatch(res));
