@@ -49,7 +49,6 @@ const parseHeadersFromUpload = function(data, reqHeaders){
 
 export default async function(server, reqx){
     const url = await getURL();
-    reqx.extraLog = url.green;
 
     //Any connection will timeout after 30 seconds of inactivity.
     let timeoutID = null;
@@ -70,9 +69,19 @@ export default async function(server, reqx){
     //This is used to store the headers sent by the client
     let headers = null;
 
+    //Construct a promise in order to properly log the output from uploading
+    const returnPromise = {};
+    returnPromise.promise = new Promise((resolve, reject) => {
+        returnPromise.resolve = resolve;
+        returnPromise.reject = reject;
+    });
+
     //Genertic error function to safely abort a broken connection
     let isError = false;
     const error = function(errt = "Generic error", errc = 500){
+        reqx.extraLog = url.green;
+        returnPromise.resolve();
+
         serverLog("Upload error for " + url.green, ":", errt.red);
 
         //Flag error to prevent some kind of data race
@@ -188,6 +197,9 @@ export default async function(server, reqx){
                     return;
                 }
 
+                reqx.extraLog = url.green + " " + String(item.name).blue;
+                returnPromise.resolve();
+
                 return U.query.index.insert({
                     _id: url, uploaddate: new Date(), ip,
                     filename: headers.filename || "upload.bin",
@@ -225,5 +237,8 @@ export default async function(server, reqx){
         }else{
             wstream.write(write);
         }
+
     });
+
+    return returnPromise.promise;
 }
