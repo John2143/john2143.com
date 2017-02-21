@@ -1,5 +1,6 @@
 
 import * as U from "./util.js";
+import parseTorrentFile from "parse-torrent-file";
 
 //Retreives a database client and randomized url that has not been used before
 const getURL = async function(){

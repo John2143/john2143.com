@@ -1,7 +1,6 @@
 //Start server
 import serverPromise from "..";
 let server;
-let __server = server;
 
 /* eslint-disable indent, quotes */
 const url = `http://${serverConst.IP}:${serverConst.PORT}`;
@@ -98,25 +97,27 @@ describe("API", function(){
 });
 
 
+const fileTests = [
+    "the first",
+    "a large one in parts",
+    "a weird one",
+    "an empty one",
+    "a torrent",
+    "a pic",
+];
 let keys = [];
 let files;
 let filenames;
 
 describe("Upload/Download", function(){
     describe("should be able to upload some files", function(){
-        let tests = [
-            "should upload the first as one",
-            "should upload a large one in parts",
-            "should upload a weird one",
-            "should upload an empty one",
-            "should upload a pic",
-        ];
         before(function(){
             files = [
                 fs.readFileSync("./src/tests/uploads/upload.txt"),
                 fs.readFileSync("./src/tests/uploads/big.txt"),
                 fs.readFileSync("./src/tests/uploads/uploadEdge.txt"),
                 Buffer.from(""),
+                fs.readFileSync("./src/tests/uploads/juush.torrent"),
                 fs.readFileSync("./src/tests/uploads/pic.png"),
             ];
             filenames = [
@@ -124,12 +125,13 @@ describe("Upload/Download", function(){
                 "big.txt",
                 "uploadEdge.txt",
                 "empty.txt",
+                "juush.torrent",
                 "pic.png",
             ];
         });
 
-        tests.forEach((data, index) => {
-            it(data, function(){
+        fileTests.forEach((data, index) => {
+            it("should upload " + data, function(){
                 this.slow(200);
                 return req().post("/uf")
                     .attach(uploadKey, files[index], filenames[index])
@@ -149,33 +151,30 @@ describe("Upload/Download", function(){
         });
     });
 
-    describe("download and api", function(){
-        it("download should equal upload", async function(){
-            this.slow(1000);
-            let downloads = [];
-
-            for(let x = 0; x < 4; x++){
-                downloads.push(
-                    req().get("/f/" + keys[x])
-                        .should.eventually.have.property("text")
-                        .and.deep.equal(files[x].toString())
-                );
-            }
-
-            downloads.push(
-                req().get("/f/" + keys[4])
-                    .should.eventually.have.property("body")
-                    .and.deep.equal(files[4])
-            );
-
-            downloads.push(
-                req().get("/f/asdfasdfasdf")
-                    .should.eventually.be.rejected
-                    .and.have.status(404)
-            );
-
-            return await Promise.all(downloads);
+    describe("download should equal upload", function(){
+        fileTests.forEach((data, x) => {
+            if(x > fileTests.length - 1) return;
+            it("should download " + data, function(){
+                return req().get("/f/" + keys[x])
+                    .should.eventually.have.property("text")
+                    .and.deep.equal(files[x].toString())
+            });
         });
+
+        it("should download a pic", function(){
+            return req().get("/f/" + keys[files.length - 1])
+                .should.eventually.have.property("body")
+                .and.deep.equal(files[files.length - 1])
+        });
+
+        it("should get a 404 on bad download", function(){
+            return req().get("/f/asdfasdfasdf")
+                .should.eventually.be.rejected
+                .and.have.status(404)
+        });
+    });
+
+    describe("download and api", function(){
         it("should be able to check /info", function(){
             return req().get(`/f/${keys[0]}/info`)
                 .should.eventually.have.status(200);
@@ -202,13 +201,13 @@ describe("Upload/Download", function(){
 
         it("should not find it in the uploads", async function(){
             const res = await req().get(`/juush/uploads/1`);
-            res.body.should.have.length(4);
+            res.body.should.have.length(files.length - 1);
             for(let x of res.body) x._id.should.not.equal(keys[1]);
         });
 
         it("should find it in the uploads if hidden is specified", async function(){
             const res = await req().get(`/juush/uploads/1?hidden=true`);
-            res.body.should.have.length(5);
+            res.body.should.have.length(files.length);
             for(let x of res.body) if(x._id === keys[1]) return;
             throw new Error("key not found in uploads");
         });
@@ -220,7 +219,7 @@ describe("Upload/Download", function(){
 
         it("should find it in the uploads again", async function(){
             const res = await req().get(`/juush/uploads/1`);
-            res.body.should.have.length(5);
+            res.body.should.have.length(files.length);
             for(let x of res.body) if(x._id === keys[1]) return;
             throw new Error("key not found in uploads");
         });
@@ -359,5 +358,9 @@ describe("error", function(){
             .should.eventually.be.rejected;
     });
 });
+
+    after(function(){
+        server.stop();
+    });
 
 });
