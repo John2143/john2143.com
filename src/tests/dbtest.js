@@ -153,18 +153,19 @@ describe("Upload/Download", function(){
 
     describe("download should equal upload", function(){
         fileTests.forEach((data, x) => {
-            if(x > fileTests.length - 1) return;
             it("should download " + data, function(){
                 return req().get("/f/" + keys[x])
-                    .should.eventually.have.property("text")
-                    .and.deep.equal(files[x].toString())
+                    .then(res => {
+                        if(res.text !== undefined){
+                            //TODO figure out why the .torrent has neither a text nor a body element
+                            console.log("has text");
+                            res.text.should.deep.equal(files[x].toString())
+                        }else{
+                            console.log("has body");
+                            res.body.should.deep.equal(files[x])
+                        }
+                    });
             });
-        });
-
-        it("should download a pic", function(){
-            return req().get("/f/" + keys[files.length - 1])
-                .should.eventually.have.property("body")
-                .and.deep.equal(files[files.length - 1])
         });
 
         it("should get a 404 on bad download", function(){
