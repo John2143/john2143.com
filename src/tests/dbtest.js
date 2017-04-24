@@ -15,7 +15,7 @@ describe("Database + server", function(){
         return req().get("/blank");
     });
 
-    it("should have a working ip", function(){
+    it.skip("should have a working ip", function(){
         this.timeout(5000);
         this.slow(200);
         return req().get("/ip").then(res => {
@@ -33,7 +33,7 @@ describe("Database + server", function(){
         user = await req().get("/nuser/user3");
         user.body.should.be.ok;
 
-        await query.keys.updateMany({}, {$set:{"key": uploadKey}});
+        await query.keys.updateOne({_id: 1}, {$set:{"key": uploadKey}});
     });
 
 describe("API", function(){
@@ -101,6 +101,7 @@ describe("API", function(){
 let keys = [];
 let files;
 let filenames;
+const numUploads = 7;
 
 describe("Upload/Download", function(){
     describe("should be able to upload some files", function(){
@@ -143,6 +144,33 @@ describe("Upload/Download", function(){
                 .should.eventually.be.rejected
                 .and.to.have.status(400);
         });
+
+        it("should now have a whoami", function(){
+            return req().get("/juush/whoami").then(res => {
+                res.body.should.have.length(1);
+                res.body[0].should.equal(1);
+            });
+        });
+
+        it("should let a cutom url work", async function(){
+            await req().get("/juush/usersetting/1/customURL/cust.url");
+            return req().post("/uf")
+                .attach(uploadKey, Buffer.from(""), "cust url test")
+                .then(res => {
+                    res.text.should.contain("cust.url");
+                });
+        });
+        it("autohide should work", async function(){
+            await req().get("/juush/usersetting/1/autohide/true");
+            let user = await query.keys.findOne({_id: 1});
+            if(!user.autohide) throw "didnt stick";
+            let res = await req().post("/uf").attach(uploadKey, Buffer.from(""), "autohide test");
+            let item = await query.index.findOne({_id: res.text.split("/").pop()});
+            if(!item.modifiers.hidden) throw "not autohidden";
+            return await req().get("/juush/usersetting/1/autohide/false");
+        });
+        it("an unrecognized usersetting should fail")
+        it("usersetting another person should fail")
 
         after(function(){
             keys = keys.map(x => x.split("/").pop().split(".")[0]);
@@ -202,13 +230,13 @@ describe("Upload/Download", function(){
 
         it("should not find it in the uploads", async function(){
             const res = await req().get(`/juush/uploads/1`);
-            res.body.should.have.length(4);
+            res.body.should.have.length(numUploads - 2);
             for(let x of res.body) x._id.should.not.equal(keys[1]);
         });
 
         it("should find it in the uploads if hidden is specified", async function(){
             const res = await req().get(`/juush/uploads/1?hidden=true`);
-            res.body.should.have.length(5);
+            res.body.should.have.length(numUploads);
             for(let x of res.body) if(x._id === keys[1]) return;
             throw new Error("key not found in uploads");
         });
@@ -220,7 +248,7 @@ describe("Upload/Download", function(){
 
         it("should find it in the uploads again", async function(){
             const res = await req().get(`/juush/uploads/1`);
-            res.body.should.have.length(5);
+            res.body.should.have.length(numUploads - 1);
             for(let x of res.body) if(x._id === keys[1]) return;
             throw new Error("key not found in uploads");
         });
@@ -329,12 +357,6 @@ describe("Account stuff", function(){
             json[0].should.have.property("mimetype");
             json[0].should.have.property("downloads");
             json[0].should.have.property("uploaddate");
-        });
-    });
-    it("should now have a whoami", function(){
-        return req().get("/juush/whoami").then(res => {
-            res.body.should.have.length(1);
-            res.body[0].should.equal(1);
         });
     });
 });

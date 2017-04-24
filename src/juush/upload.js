@@ -110,22 +110,26 @@ export default async function(server, reqx){
         error("Writestream failed (server error): " + err, 500);
     });
 
+    let customURL;
+
     //File is ready to be downloaded
-    wstream.on("finish", function(){
+    wstream.on("finish", async function(){
         if(isError) return;
         if(!headers) return error("Bad headers", 400);
 
         //Try to guess a file extension (for posting to reddit and stuff)
         let fileExtension = U.guessFileExtension(headers.filename);
 
+        await returnPromise.promise;
+        if(!customURL) return error("no url to give ??? (probably internal error");
+
         //Construct return link
         let path = server.isHTTPS ? "https" : "http";
-        if(server.ip === "localhost"){
-            path += "://localhost:" + server.port + "/f/";
-        }else{
-            path += "://john2143.com/f/";
-        }
-        path += url;
+            path += "://";
+            path += customURL;
+            path += "/f/";
+            path += url;
+
         if(fileExtension) path += "." + fileExtension;
 
         reqx.res.end(path);
@@ -200,12 +204,19 @@ export default async function(server, reqx){
                 reqx.extraLog = url.green + " " + String(item.name).blue;
                 returnPromise.resolve();
 
+                customURL = item.customURL || "john2143.com";
+
+                let modifiers = {};
+                if(item.autohide){
+                    modifiers.hidden = true;
+                }
+
                 return U.query.index.insert({
                     _id: url, uploaddate: new Date(), ip,
                     filename: headers.filename || "upload.bin",
                     mimetype: headers.mimetype || "application/octet-stream",
                     keyid: item._id,
-                    modifiers: {},
+                    modifiers,
                     downloads: 0,
                 });
             }).catch(errorCatch);
