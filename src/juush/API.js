@@ -150,7 +150,7 @@ export default async function(server, reqx){
                 newvalue
             }});
         }else{
-            res.statusCode = 403;
+            res.statusCode = 405;
             res.end("unknown option");
         }
 

@@ -68,13 +68,19 @@ describe("API", function(){
     it("should fail to see userinfo with a user that doesnt exist");
 
     it("should be able to delete users", function(){
+        global.testIsAdmin = true;
         return req().get("/juush/deluser/2").then(res => {
             res.should.be.json;
             const json = res.body;
             json.success.should.be.true;
         });
     });
-    it("should not be able to delete users if not admin");
+    it("should not be able to delete users if not admin", function(){
+        global.testIsAdmin = false;
+        return req().get("/juush/deluser/1")
+            .should.eventually.be.rejected
+            .and.to.have.status(401);
+    });
 
     it("should be an admin", function(){
         global.testIsAdmin = true;
@@ -171,8 +177,17 @@ describe("Upload/Download", function(){
             return await req().get("/juush/usersetting/1/autohide/false");
         });
 
-        it("an unrecognized usersetting should fail");
-        it("usersetting another person should fail");
+        it("an unrecognized usersetting should fail", function(){
+            return req().get("/juush/usersetting/1/testusersetting/true")
+                .should.eventually.be.rejected
+                .and.to.have.status(405);
+        });
+
+        it("usersetting another person should fail", function(){
+            return req().get("/juush/usersetting/2/autohide/true")
+                .should.eventually.be.rejected
+                .and.to.have.status(403);
+        });
 
         after(function(){
             keys = keys.map(x => x.split("/").pop().split(".")[0]);
@@ -376,7 +391,6 @@ describe("error", function(){
         });
     });
     it("upload errors");
-    it("generic db failure stuff (juushError)");
     it("should not be able to make new users", async function(){
         global.testIsAdmin = false;
         return req().get("/nuser/user2")

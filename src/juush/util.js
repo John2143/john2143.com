@@ -41,12 +41,20 @@ export default new Promise(resolve =>
 
 //This works with dbError to end a broken session
 export const juushError = function(res, err, code){
+    if(!res){
+        serverLog("!!!!!something super weird happened...");
+        try{throw new Error();}catch(e){
+            serverLog(e);
+        }
+        return;
+    }
+
     res.writeHead(code, {
         "Content-Type": "text/html",
     });
     res.end("Internal server error.");
     serverLog("JuushError!");
-    if(err) console.log(err);
+    if(err) serverLog(err);
 };
 
 //This is an error wrapper
