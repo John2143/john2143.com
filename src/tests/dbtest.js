@@ -160,6 +160,7 @@ describe("Upload/Download", function(){
                     res.text.should.contain("cust.url");
                 });
         });
+
         it("autohide should work", async function(){
             await req().get("/juush/usersetting/1/autohide/true");
             let user = await query.keys.findOne({_id: 1});
@@ -169,8 +170,9 @@ describe("Upload/Download", function(){
             if(!item.modifiers.hidden) throw "not autohidden";
             return await req().get("/juush/usersetting/1/autohide/false");
         });
-        it("an unrecognized usersetting should fail")
-        it("usersetting another person should fail")
+
+        it("an unrecognized usersetting should fail");
+        it("usersetting another person should fail");
 
         after(function(){
             keys = keys.map(x => x.split("/").pop().split(".")[0]);

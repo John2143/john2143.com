@@ -124,11 +124,12 @@ export default async function(server, reqx){
         if(!customURL) return error("no url to give ??? (probably internal error");
 
         //Construct return link
-        let path = server.isHTTPS ? "https" : "http";
-            path += "://";
-            path += customURL;
-            path += "/f/";
-            path += url;
+        let path;
+        path = server.isHTTPS ? "https" : "http";
+        path += "://";
+        path += customURL;
+        path += "/f/";
+        path += url;
 
         if(fileExtension) path += "." + fileExtension;
 

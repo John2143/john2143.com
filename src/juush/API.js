@@ -129,33 +129,33 @@ export default async function(server, reqx){
         res.setHeader("Content-Type", "text/plain");
         res.end(isAdmin(ip) ? "true" : "false");
     // /juush/usersetting/<id>/<setting>/<value>
-     }else if(urldata.path[1] === "usersetting"){
-         let _id = Number(urldata.path[2]);
+    }else if(urldata.path[1] === "usersetting"){
+        let _id = Number(urldata.path[2]);
 
-         if(!(await whoami(ip)).includes(_id)){
-             res.statusCode = 403;
-             res.end("You cannot change settings for this user")
-             return;
-         }
+        if(!(await whoami(ip)).includes(_id)){
+            res.statusCode = 403;
+            res.end("You cannot change settings for this user");
+            return;
+        }
 
-         let setting = urldata.path[3];
-         let newvalue = urldata.path[4];
-         if(setting === "autohide"){
-             newvalue = newvalue == "true";
-             await query.keys.updateOne({_id}, {$set: {autohide:
-                 newvalue
-             }});
-         }else if(setting === "customURL"){
-             await query.keys.updateOne({_id}, {$set: {customURL:
-                 newvalue
-             }});
-         }else{
-             res.statusCode = 403;
-             res.end("unknown option");
-         }
+        let setting = urldata.path[3];
+        let newvalue = urldata.path[4];
+        if(setting === "autohide"){
+            newvalue = newvalue == "true";
+            await query.keys.updateOne({_id}, {$set: {autohide:
+                newvalue
+            }});
+        }else if(setting === "customURL"){
+            await query.keys.updateOne({_id}, {$set: {customURL:
+                newvalue
+            }});
+        }else{
+            res.statusCode = 403;
+            res.end("unknown option");
+        }
 
-         res.end  (`setting changed for ${_id}: '${setting}' = '${newvalue}'`);
-         serverLog(`setting changed for ${_id}: '${setting}' = '${newvalue}'`);
+        res.end  (`setting changed for ${_id}: '${setting}' = '${newvalue}'`);
+        serverLog(`setting changed for ${_id}: '${setting}' = '${newvalue}'`);
     }else{
         res.statusCode = 405;
         res.end("Unknown method");
