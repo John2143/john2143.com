@@ -62,7 +62,7 @@ export default async function(server, reqx){
     // Give info about a user.
     }else if(urldata.path[1] === "userinfo"){
         try{
-            let projection = {name: 1};
+            let projection = {name: 1, autohide: 1, customURL: 1};
             if(urldata.query["key"]){
                 if(!await isAdmin(ip)){
                     res.statusCode = 403;
@@ -98,6 +98,8 @@ export default async function(server, reqx){
             let result = {
                 name: user.name,
                 key: user.key,
+                customURL: user.customURL,
+                autohide: user.autohide,
                 downloads: stats.total || 0,
                 total: stats.count || 0,
             };
@@ -126,6 +128,34 @@ export default async function(server, reqx){
         if(urldata.path[2]) ip = urldata.path[2];
         res.setHeader("Content-Type", "text/plain");
         res.end(isAdmin(ip) ? "true" : "false");
+    // /juush/usersetting/<id>/<setting>/<value>
+    }else if(urldata.path[1] === "usersetting"){
+        let _id = Number(urldata.path[2]);
+
+        if(!(await whoami(ip)).includes(_id)){
+            res.statusCode = 403;
+            res.end("You cannot change settings for this user");
+            return;
+        }
+
+        let setting = urldata.path[3];
+        let newvalue = urldata.path[4];
+        if(setting === "autohide"){
+            newvalue = newvalue == "true";
+            await query.keys.updateOne({_id}, {$set: {autohide:
+                newvalue
+            }});
+        }else if(setting === "customURL"){
+            await query.keys.updateOne({_id}, {$set: {customURL:
+                newvalue
+            }});
+        }else{
+            res.statusCode = 405;
+            res.end("unknown option");
+        }
+
+        res.end  (`setting changed for ${_id}: '${setting}' = '${newvalue}'`);
+        serverLog(`setting changed for ${_id}: '${setting}' = '${newvalue}'`);
     }else{
         res.statusCode = 405;
         res.end("Unknown method");

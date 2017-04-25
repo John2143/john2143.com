@@ -171,61 +171,48 @@ angular.module("app", []).controller("controller", function($scope, $http){
         });
     };
 
+    let apiClosure = function(url, val1, val2, cb, ul, data){
+        ul[val1]= true;
+        ul[val2] = false;
+
+        $http({
+            method: "GET",
+            url: "/f/" + ul._id + url + (data ? "/" + data : ""),
+        }).then(function(res){
+            ul[val1] = false;
+            cb(ul, res);
+        }, function(err){
+            console.log("Fail from " + url);
+            ul.err = err.data || err.statusText;
+
+            ul[val1] = false;
+        });
+    };
+
+    let hidecb = ul => {ul.modifiers.hidden = ul.temphidden;};
+    let juushHide   = apiClosure.bind(undefined, "/hide",   "hideprocessing", "hiding", hidecb);
+    let juushUnhide = apiClosure.bind(undefined, "/unhide", "hideprocessing", "hiding", hidecb);
     $scope.juushHides = (ul, nowHidden) => {
-        ul.hideprocessing = true;
-        ul.hiding = false;
-
-        $http({
-            method: "GET",
-            url: "/f/" + ul._id + (nowHidden ? "/hide" : "/unhide"),
-        }).then(function(res){
-            ul.hideprocessing  = false;
-            ul.modifiers.hidden = nowHidden;
-        }, function(err){
-            console.log("Failed to hide/unhide...");
-            ul.err = err.data || err.statusText;
-
-            ul.hideprocessing = false;
-        });
+        ul.temphidden = nowHidden;
+        if(nowHidden){
+            juushHide(ul);
+        }else{
+            juushUnhide(ul);
+        }
     };
 
-    $scope.juushDelete = ul => {
-        ul.deleteprocessing = true;
-        ul.deleting = false;
+    $scope.juushDelete = apiClosure.bind(undefined, "/delete", "deleteprocessing", "deleting", ul => {
+        ul.type = "deleted";
+        ul.mimetype = "deleted";
+    });
 
-        $http({
-            method: "GET",
-            url: "/f/" + ul._id + "/delete",
-        }).then(function(res){
-            ul.type = "deleted";
-            ul.mimetype = "deleted";
-
-            ul.deleteprocessing = false;
-        }, function(err){
-            console.log("Failed to delete...");
-            ul.err = err.data || err.statusText;
-
-            ul.deleteprocessing = false;
-        });
-    };
+    let juushRename = apiClosure.bind(undefined, "/rename", "renameprocessing", "renaming", (ul, res) => {
+        ul.filename = res.data;
+        createFilename(ul);
+    });
 
     $scope.juushRename = ul => {
-        ul.renameprocessing = true;
-        ul.renaming = false;
-        $http({
-            method: "GET",
-            url: "/f/" + ul._id + "/rename/" + ul.newName,
-        }).then(function(res){
-            ul.filename = res.data;
-            createFilename(ul);
-
-            ul.deleteprocessing = false;
-        }, function(err){
-            console.log("Failed to rename...");
-            ul.err = err.data || err.statusText;
-
-            ul.renameprocessing = false;
-        });
+        juushRename(ul, ul.newName);
     };
 
     $scope.deleteThisUser = () => {
@@ -243,6 +230,20 @@ angular.module("app", []).controller("controller", function($scope, $http){
             $scope.refreshUsers();
         }, function(err){
             alert("Failed to del" + err);
+        });
+    };
+
+    $scope.changeAutohide = () => {
+        console.log($scope.uinfo);
+        $scope.uinfo.autohide = !$scope.uinfo.autohide;
+        $http({
+            method: "GET",
+            url: "/juush/usersetting/" + $scope.selected._id + "/autohide/" + $scope.uinfo.autohide,
+        }).then(function(res){
+            //noop
+        }, function(err){
+            $scope.uinfo.autohide = !$scope.uinfo.autohide;
+            alert("Failed to make user");
         });
     };
 
@@ -312,6 +313,13 @@ angular.module("app", []).controller("controller", function($scope, $http){
     width: 100%;
     height:auto;
 }
+.red{
+    color: red;
+}
+.green{
+    color: green;
+}
+
 .dank {
     color: yellow;
 
@@ -441,6 +449,12 @@ angular.module("app", []).controller("controller", function($scope, $http){
                              <ul class="list-group">
                                  <div class="list-group-item list-group-item-info">User Menu</div>
                                  <button class="list-group-item list-group-item-action" ng-click="memify = !memify"> Memify </button>
+                                 <button class="list-group-item list-group-item-action" ng-click="changeAutohide()">
+                                    <i class="red   fa fa-fw fa-eye-slash" ng-if=" uinfo.autohide" ng-class="{fameme: memify}"></i>
+                                    <i class="green fa fa-fw fa-eye"       ng-if="!uinfo.autohide" ng-class="{fameme: memify}"></i>
+                                    Auto-hide {{uinfo.autohide ? "on" : "off"}}
+                                 </button>
+                                 <button class="list-group-item list-group-item-action" ng-click="changeAutohide()"> Custom URL </i>
                                  <button class="list-group-item list-group-item-action" ng-click="admin = true" ng-show="!admin"> Force Open Admin Menu </button>
                              </ul>
                         </div>

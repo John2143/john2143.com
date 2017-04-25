@@ -116,7 +116,7 @@ class request{
         return fs.readFileAsync(path, "utf8").then(dat => {
             this.res.writeHead(code, headers);
             this.res.end(dat);
-        }).catch(/* istanbul ignore next */ err => {
+        }).catch(/* istanbul ignore next */ _err => {
             this.doHTML("Failed to serve content", 500);
         });
     }
