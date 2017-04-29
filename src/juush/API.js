@@ -146,6 +146,7 @@ export default async function(server, reqx){
                 newvalue
             }});
         }else if(setting === "customURL"){
+            if(newvalue === "") newvalue = null;
             await query.keys.updateOne({_id}, {$set: {customURL:
                 newvalue
             }});

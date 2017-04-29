@@ -247,6 +247,22 @@ angular.module("app", []).controller("controller", function($scope, $http){
         });
     };
 
+    $scope.changeURL = () => {
+        let newURL = prompt("Please enter a new domain, or blank for default (john2143.com)");
+        if(newURL === "" || newURL == "john2143.com"){
+            newURL = "";
+        }
+
+        $http({
+            method: "GET",
+            url: "/juush/usersetting/" + $scope.selected._id + "/customURL/" + newURL,
+        }).then(function(res){
+            console.log($scope.uinfo.customURL, res);
+        }, function(err){
+            alert("Failed to change");
+        });
+    };
+
     $scope.createNewUser = () => {
         const uname = prompt("username");
         if(!uname) return;
@@ -445,17 +461,27 @@ angular.module("app", []).controller("controller", function($scope, $http){
                                 <button class="list-group-item list-group-item-action list-group-item-danger" ng-click="deleteThisUser()">Delete this user</button>
                             </ul>
                         </div>
+                        <div>
+                             <ul class="list-group">
+                                 <div class="list-group-item list-group-item-info">Menu</div>
+                                 <button class="list-group-item list-group-item-action" ng-click="memify = !memify"> Memify </button>
+                                 <!-- <button class="list-group-item list-group-item-action" ng-click="admin = true" ng-show="!admin"> Force Open Admin Menu </button> -->
+                                 <button class="list-group-item list-group-item-action" ng-click="blockUserURL = !blockUserURL">
+                                    <i class="green fa fa-fw fa-check" ng-if="!blockUserURL" ng-class="{fameme: memify}"></i>
+                                    <i class="red   fa fa-fw fa-times" ng-if=" blockUserURL" ng-class="{fameme: memify}"></i>
+                                    {{!blockUserURL ? "Allow Cust URL" : "Block Cust URL"}}
+                                 </button>
+                             </ul>
+                        </div>
                         <div ng-show="whoami==selected._id">
                              <ul class="list-group">
                                  <div class="list-group-item list-group-item-info">User Menu</div>
-                                 <button class="list-group-item list-group-item-action" ng-click="memify = !memify"> Memify </button>
                                  <button class="list-group-item list-group-item-action" ng-click="changeAutohide()">
                                     <i class="red   fa fa-fw fa-eye-slash" ng-if=" uinfo.autohide" ng-class="{fameme: memify}"></i>
                                     <i class="green fa fa-fw fa-eye"       ng-if="!uinfo.autohide" ng-class="{fameme: memify}"></i>
                                     Auto-hide {{uinfo.autohide ? "on" : "off"}}
                                  </button>
-                                 <button class="list-group-item list-group-item-action" ng-click="changeAutohide()"> Custom URL </i>
-                                 <button class="list-group-item list-group-item-action" ng-click="admin = true" ng-show="!admin"> Force Open Admin Menu </button>
+                                 <button class="list-group-item list-group-item-action" ng-click="changeURL()"> Custom URL </button>
                              </ul>
                         </div>
                     </div>
