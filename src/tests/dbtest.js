@@ -322,45 +322,49 @@ describe("Upload/Download", function(){
             expect(numDownloads).to.equal(await getDLs(ulid));
         });
 
-        it("should accept and work with stream requests", function(){
+        it("should accept and work with stream requests", async function(){
             const index = 2;
             const resource = `/f/${keys[index]}`;
             let contentLen;
             const start = 9, end = 40;
-            return req().get(resource).then(res => {
-                res.should.have.header("Content-Length");
-                contentLen = res.header["content-length"];
-                res.should.have.header("Accept-Ranges", "bytes");
 
-                return req().get(resource)
-                    .set("Referer", url + resource)
-                    .set("Range", `bytes=${start}-`);
-            }).then(res => {
-                res.should.have.status(206);
-                res.should.have.header("Content-Length");
-                res.should.have.header("Content-Range",
-                    `bytes ${start}-${contentLen-1}/${contentLen}`
-                );
+            let res = await req().get(resource);
+            res.should.have.header("Content-Length");
+            contentLen = res.header["content-length"];
+            res.should.have.header("Accept-Ranges", "bytes");
 
-                return req().get(resource)
-                    .set("Referer", url + resource)
-                    .set("Range", `bytes=${start}-${end}`);
-            }).then(res => {
-                res.should.have.header("Content-Range",
-                    `bytes ${start}-${end}/${contentLen}`
-                );
+            res = await req().get(resource)
+                .set("Referer", url + resource)
+                .set("Range", `bytes=${start}-`);
 
-                const expected = files[index].slice(start, end + 1);
-                Buffer.from(res.text).should.deep.equal(expected);
+            res.should.have.status(206);
+            res.should.have.header("Content-Length");
+            res.should.have.header("Content-Range",
+                `bytes ${start}-${contentLen-1}/${contentLen}`
+            );
 
-                return req().get(resource)
-                    .set("Referer", url + resource)
-                    .set("Range", `bytes=1-999999999999`);
-            })
+            res = await req().get(resource)
+                .set("Referer", url + resource)
+                .set("Range", `bytes=${start}-${end}`);
+
+            res.should.have.header("Content-Range",
+                `bytes ${start}-${end}/${contentLen}`
+            );
+
+            const expected = files[index].slice(start, end + 1);
+            Buffer.from(res.text).should.deep.equal(expected);
+
+            return req().get(resource)
+                .set("Referer", url + resource)
+                .set("Range", `bytes=1-999999999999`)
                 .should.eventually.be.rejected
                 .and.have.status(416);
         });
-        it("should accept and work with download dispotision");
+
+        it("should accept and work with download dispotision", function(){
+            return req().get(`/f/${keys[2]}/dl`)
+                .should.eventually.have.header("Content-Disposition", /attachment/);
+        });
     });
 });
 
@@ -380,16 +384,21 @@ describe("Account stuff", function(){
 
 describe("error", function(){
     it("410 when viewing a deleted file", function(){
-        return req().get(`/f/${keys[0]}`).catch(res => {
-            res.should.have.status(410);
-        });
+        return req().get(`/f/${keys[0]}`)
+            .should.eventually.be.rejected.and.have.status(410);
     });
     it("when incrementing download");
+
     it("404 when viewing missing file", function(){
-        return req().get("/f/zzzzzzz").catch(res => {
-            res.should.have.status(404);
-        });
+        return req().get("/f/zzzzzzz")
+            .should.eventually.be.rejected.and.have.status(404);
     });
+    it("500 when viewing broken file", async function(){
+        await fs.unlinkAsync("./juushFiles/" + keys[3]);
+        return req().get(`/f/${keys[3]}`)
+            .should.eventually.be.rejected.and.have.status(500);
+    });
+
     it("upload errors");
     it("should not be able to make new users", async function(){
         global.testIsAdmin = false;

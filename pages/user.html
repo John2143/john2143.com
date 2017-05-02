@@ -1,317 +1,19 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.1/angular.min.js"></script>
-        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
-        <script src="https://use.fontawesome.com/ed4d2de3d2.js"></script>
-        <script>
-
-angular.module("app", []).controller("controller", function($scope, $http){
-    //Date.getMonth index to abbriv.
-    const abvr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    //Add leading 0's
-    const lead0 = num => num < 10 ? "0" + num : num;
-    $scope.round = num => num.toFixed(2);
-
-    const now = Date.now() / 1000;
-    const dateDistance = d => {
-        let time = now - d.getTime() / 1000;
-        const plural = () => time == 1 ? " ago" : "s ago";
-        time = Math.floor(time);
-        if(time < 60) return time + " second" + plural();
-        time /= 60;
-        time = Math.floor(time);
-        if(time < 60) return time + " minute" + plural();
-        time /= 60;
-        time = Math.floor(time);
-        if(time < 24) return time + " hour" + plural();;
-        if(time < 48) return "Yesterday";
-        time /= 24;
-        time = Math.floor(time);
-        if(time < 31) return time + " day" + plural();
-        time /= 30;
-        time = Math.floor(time);
-        if(time < 12) return time + " month" + plural();
-        time /= 12;
-        time = Math.floor(time);
-        return time + " year" + plural();
-    };
-
-    const createFilename = ul => {
-        const maxlen = 15;
-        if(ul.filename.length < maxlen){
-            ul.filenameShort = ul.filename;
-        }else{
-            ul.filenameShort = ul.filename.substring(0, maxlen - 3) + "...";
-        }
-    }
-
-    $scope.users = {};
-    $scope.whoami = undefined;
-
-    $scope.refreshUsers = () => {
-        $http({
-            method: "GET",
-            url: "/juush/users",
-        }).then(function(res){
-            $scope.users = res.data;
-            for(let x of $scope.users){
-                if(x._id == localStorage.id){
-                    $scope.selected = x;
-                    break;
-                }
-            }
-
-            $scope.$watch("selected", () => {
-                if(!$scope.selected) return;
-                localStorage.id = $scope.selected._id;
-            });
-        }, function(res){
-            document.innerHTML = "Error";
-        });
-    };
-
-    Promise.all([
-        $http({
-            method: "GET",
-            url: "/juush/whoami",
-        }).then(function(res){
-            //undefined => retreiving
-            //false => guest user (no uploads)
-            //null => multiple identities (???)
-            //number => user
-            const idens = res.data.length;
-            if(idens === 1){
-                $scope.whoami = res.data[0];
-            }else if(idens === 0){
-                $scope.whoami = false;
-            }else{
-                $scope.whoamiList = res.data;
-                $scope.whoami = null;
-            }
-        }),
-        $http({
-            method: "GET",
-            url: "/juush/isadmin",
-        }).then(function(res){
-            //Todo handle unknown case
-            $scope.admin = res.data == "true";
-        }),
-    ]).then(() => {
-        $scope.refreshUsers();
-    });
-
-    $scope.toggleHidden = () => {
-        $scope.adminShowHidden = !$scope.adminShowHidden;
-    }
-
-    $scope.updateUserpage = () => {
-        if(!$scope.selected){
-            $scope.uploads = null;
-            return;
-        }
-
-        const id = $scope.selected._id;
-        let url = `/juush/uploads/${id}/${$scope.page}`;
-        if($scope.whoami == id || $scope.adminShowHidden){
-            url += "?hidden=true";
-        }
-
-        $http({method: "GET", url}).then(function(res){
-            $scope.uploads = res.data;
-            for(let ul of $scope.uploads){
-                const mimes = ul.mimetype.split("/");
-                if(mimes[0] === "image"){
-                    ul.type = "image";
-                }else if(mimes[0] === "video"){
-                    ul.type = "video";
-                }else if(mimes[0] === "audio"){
-                    ul.type = "audio";
-                }else if(ul.mimetype === "deleted"){
-                    ul.type = "deleted";
-                }else{
-                    ul.type = null;
-                }
-
-                const dt = new Date(ul.uploaddate);
-                ul.dispDate =
-                      abvr[dt.getMonth()] + " "
-                    + dt.getDate() + " "
-                    + dt.getFullYear() + ", "
-                    + lead0(dt.getHours()) + ":"
-                    + lead0(dt.getMinutes()) + ":"
-                    + lead0(dt.getSeconds());
-
-                ul.timeAgo = dateDistance(dt);
-
-                createFilename(ul);
-            }
-        }, function(){
-
-        });
-
-    };
-
-    $scope.updateInfo = () => {
-        $scope.page = 0;
-        $scope.updateUserpage();
-        if(!$scope.selected){
-            $scope.uinfo = null;
-            return;
-        }
-
-        const id = $scope.selected._id;
-        let url = `/juush/userinfo/${id}`;
-        if($scope.admin){
-            url += "?key=true";
-        }
-
-        $http({method: "GET", url}).then(function(res){
-            $scope.uinfo = res.data;
-        });
-    };
-
-    let apiClosure = function(url, val1, val2, cb, ul, data){
-        ul[val1]= true;
-        ul[val2] = false;
-
-        $http({
-            method: "GET",
-            url: "/f/" + ul._id + url + (data ? "/" + data : ""),
-        }).then(function(res){
-            ul[val1] = false;
-            cb(ul, res);
-        }, function(err){
-            console.log("Fail from " + url);
-            ul.err = err.data || err.statusText;
-
-            ul[val1] = false;
-        });
-    };
-
-    let hidecb = ul => {ul.modifiers.hidden = ul.temphidden;};
-    let juushHide   = apiClosure.bind(undefined, "/hide",   "hideprocessing", "hiding", hidecb);
-    let juushUnhide = apiClosure.bind(undefined, "/unhide", "hideprocessing", "hiding", hidecb);
-    $scope.juushHides = (ul, nowHidden) => {
-        ul.temphidden = nowHidden;
-        if(nowHidden){
-            juushHide(ul);
-        }else{
-            juushUnhide(ul);
-        }
-    };
-
-    $scope.juushDelete = apiClosure.bind(undefined, "/delete", "deleteprocessing", "deleting", ul => {
-        ul.type = "deleted";
-        ul.mimetype = "deleted";
-    });
-
-    let juushRename = apiClosure.bind(undefined, "/rename", "renameprocessing", "renaming", (ul, res) => {
-        ul.filename = res.data;
-        createFilename(ul);
-    });
-
-    $scope.juushRename = ul => {
-        juushRename(ul, ul.newName);
-    };
-
-    $scope.deleteThisUser = () => {
-        const sel = $scope.selected;
-        if(!sel) return;
-        if(!confirm("Are you sure you want to delete " + sel.name)) return;
-
-        $http({
-            method: "GET",
-            url: "/juush/deluser/" + sel._id,
-        }).then(function(res){
-            alert("Deleted? " + res.data);
-            if(!res.success) return;
-            $scope.selected = $scope.users[0];
-            $scope.refreshUsers();
-        }, function(err){
-            alert("Failed to del" + err);
-        });
-    };
-
-    $scope.changeAutohide = () => {
-        console.log($scope.uinfo);
-        $scope.uinfo.autohide = !$scope.uinfo.autohide;
-        $http({
-            method: "GET",
-            url: "/juush/usersetting/" + $scope.selected._id + "/autohide/" + $scope.uinfo.autohide,
-        }).then(function(res){
-            //noop
-        }, function(err){
-            $scope.uinfo.autohide = !$scope.uinfo.autohide;
-            alert("Failed to make user");
-        });
-    };
-
-    $scope.createNewUser = () => {
-        const uname = prompt("username");
-        if(!uname) return;
-
-        $http({
-            method: "GET",
-            url: "/nuser/" + uname,
-        }).then(function(res){
-            let importer = {
-                Name: "John2143",
-                RequestType: "POST",
-                RequestURL: "https://john2143.com/uf",
-                ResponseType: "Text",
-                RegexList: [
-                    "(.+)"
-                ],
-                URL: "$regex:1$",
-                DeletionURL: "$regex:1$/delete"
-            };
-
-            const key = res.data;
-            importer.FileFormName = key;
-            importer = JSON.stringify(importer);
-
-            $scope.userData = {
-                key,
-                importer,
-            };
-
-            $scope.refreshUsers();
-        }, function(err){
-            alert("Failed to make user");
-        });
-    };
-
-    $scope.getwhoamiTitle = id => {
-        let titles = {
-            undefined: "Loading...",
-            false: "Guest user (No uploads)",
-        };
-
-        const myid = $scope.whoami;
-        if(myid === null) return ($scope.whoamiList.includes(id) ? "This might be you: " : "This is not you, but: ") + "Multiple identities: " + $scope.whoamiList.join(", ");
-
-        let title = titles[myid];
-        if(title) return title;
-        return id == myid ? "This is you" : "This is not you";
-    };
-
-    $scope.$watch("selected", $scope.updateInfo);
-    $scope.$watch("page", $scope.updateUserpage);
-
-    $scope.page = 0;
-    window.scoop = $scope;
-});
-        </script>
-        <style>
+  <head>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.1/angular.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <script src="https://use.fontawesome.com/ed4d2de3d2.js"></script>
+    <script src="/userjs.js"></script>
+    <style>
 
 .consv{
     width: 100%;
-    height:auto;
+    height: auto;
 }
 .cons{
     width: 100%;
-    height:auto;
+    height: auto;
 }
 .red{
     color: red;
@@ -333,7 +35,7 @@ angular.module("app", []).controller("controller", function($scope, $http){
     border: 1px solid silver;
 
     /*Magic*/
-    background-image: linear-gradient(magenta,cyan , blue , yellow , green , brown, orange);
+    background-image: linear-gradient(magenta, cyan, blue, yellow, green, brown, orange);
     background-size: 100% 200%;
     transition: background-position 200000s;
 }
@@ -378,155 +80,157 @@ angular.module("app", []).controller("controller", function($scope, $http){
     100% {-webkit-transform: rotate(360deg);}
 }
 
-        </style>
-    </head>
-    <body>
-        <div ng-app="app" ng-controller="controller" class="container-fluid">
-            <!--<div class="row">-->
-                <!--<div class="col-md-2" style="background-color:red;height:100px;"></div>-->
-                <!--<div class="col-md-2" style="background-color:blue;height:100px;"></div>-->
-                <!--<div class="col-md-2" style="background-color:red;height:100px;"></div>-->
-                <!--<div class="col-md-2" style="background-color:blue;height:100px;"></div>-->
-                <!--<div class="col-md-2" style="background-color:red;height:100px;"></div>-->
-                <!--<div class="col-md-2" style="background-color:blue;height:100px;"></div>-->
-            <!--</div>-->
-            <div class="row">
-                <div class="col-xs-2">
-                    <div style="position:fixed">
-                        <ul class="list-group full-width">
-                            <div class="list-group-item list-group-item-info">User</div>
-                            <div class="list-group-item">
-                                <select ng-class="{dank: memify}" ng-model="selected" ng-options="user.name for user in users"></select><br>
-                            </div>
-                            <div class="list-group-item">
-                                <div class="btn-group">
-                                    <button class="btn btn-primary" ng-click="page = page - 1" ng-class="{dank: memify}" ng-disabled="page == 0">Previous</button>
-                                    <button class="btn btn-primary" ng-click="page = page + 1" ng-class="{dank: memify}">Next</button>
-                                </div>
-                            </div>
-                        </ul>
-                        <span ng-show="uinfo" ng-class="{dank: memify}">
-                            <ul class="list-group full-width">
-                                <div class="list-group-item list-group-item-info">User Info</div>
-                                <div class="list-group-item" title="{{getwhoamiTitle(selected._id)}}">
-                                    <i class="fa fa-fw fa-hashtag"></i>
-                                    Userid {{selected._id}}
-                                    <i ng-show="whoami" class="fa whoamicon" ng-class="{
-                                        'fa-check-circle': whoami==selected._id,
-                                        'fa-times-circle': whoami!=selected._id,
-                                    }"></i>
-                                    <i ng-show="whoami === undefined" class="fa fa-fw whoamicon fa-cog fa-spin"></i>
-                                    <i ng-show="whoami === false"     class="fa fa-fw whoamicon fa-user-times"></i>
-                                    <i ng-show="whoami === null"      class="fa fa-fw whoamicon fa-users"></i>
-                                </div>
-                                <div class="list-group-item"><i class="fa fa-fw fa-eye"      ng-class="{fameme: memify}"></i> {{uinfo.downloads}} Total Views</div>
-                                <div class="list-group-item"><i class="fa fa-fw fa-upload"   ng-class="{fameme: memify}"></i> {{uinfo.total}} Uploads</div>
-                                <div class="list-group-item" title="Average downloads per upload"><i class="fa fa-fw fa-arrows-v" ng-class="{fameme: memify}"></i> {{round(uinfo.downloads/uinfo.total)}} ADU</div>
-                            </ul>
-                        </span>
-                        <div ng-if="admin">
-                            <ul class="list-group">
-                                <div class="list-group-item list-group-item-info">Admin Menu</div>
-                                <button class="list-group-item list-group-item-action list-group-item-success" ng-click="createNewUser()">Create New User</button>
-                                <button class="list-group-item list-group-item-action list-group-item-default" ng-click="toggleHidden()" ng-class="{'active': adminShowHidden}">Show Hidden</button>
-                                <button class="list-group-item list-group-item-action list-group-item-warning" ng-click="userData = {key: uinfo.key}">Show User Key</button>
-
-                                <div ng-show="userData" class="list-group-item">
-                                    <div class="input-group" ng-show="userData.key">
-                                        <input class="form-control" type="text" value="{{userData.key}}"      onfocus="this.select()" readonly></input>
-                                        <!--<span class="input-group-addon"><i class="fa fa-key"></i></span>-->
-                                    </div>
-                                    <div class="input-group" ng-show="userData.importer">
-                                        <input class="form-control" type="text" value="{{userData.importer}}" onfocus="this.select()" readonly></input>
-                                        <!--<span class="input-group-addon"><i class="fa fa-clipboard"></i></span>-->
-                                    </div>
-                                </div>
-                                <button class="list-group-item list-group-item-action" ng-click="userData = null" ng-show="userData">Done</button>
-                                <button class="list-group-item list-group-item-action list-group-item-danger" ng-click="deleteThisUser()">Delete this user</button>
-                            </ul>
-                        </div>
-                        <div ng-show="whoami==selected._id">
-                             <ul class="list-group">
-                                 <div class="list-group-item list-group-item-info">User Menu</div>
-                                 <button class="list-group-item list-group-item-action" ng-click="memify = !memify"> Memify </button>
-                                 <button class="list-group-item list-group-item-action" ng-click="changeAutohide()">
-                                    <i class="red   fa fa-fw fa-eye-slash" ng-if=" uinfo.autohide" ng-class="{fameme: memify}"></i>
-                                    <i class="green fa fa-fw fa-eye"       ng-if="!uinfo.autohide" ng-class="{fameme: memify}"></i>
-                                    Auto-hide {{uinfo.autohide ? "on" : "off"}}
-                                 </button>
-                                 <button class="list-group-item list-group-item-action" ng-click="changeAutohide()"> Custom URL </i>
-                                 <button class="list-group-item list-group-item-action" ng-click="admin = true" ng-show="!admin"> Force Open Admin Menu </button>
-                             </ul>
-                        </div>
-                    </div>
+    </style>
+  </head>
+  <body>
+    <div ng-app="app" ng-controller="controller" class="container-fluid">
+      <div class="row">
+        <div class="col-xs-2">
+          <div style="position:fixed">
+            <ul class="list-group full-width">
+              <div class="list-group-item list-group-item-info">User</div>
+              <div class="list-group-item">
+                <select ng-class="{dank: memify}" ng-model="selected" ng-options="user.name for user in users"></select><br>
+              </div>
+              <div class="list-group-item">
+                <div class="btn-group">
+                  <button class="btn btn-primary" ng-click="page = page - 1" ng-class="{dank: memify}" ng-disabled="page == 0">Previous</button>
+                  <button class="btn btn-primary" ng-click="page = page + 1" ng-class="{dank: memify}">Next</button>
                 </div>
-                <div class="col-xs-10">
-                    <div class="row">
-                        <div ng-repeat="pic in uploads" class="col-lg-3 col-sm-12" style="padding: 40px;" ng-class="{hiddenUpload: pic.modifiers.hidden}">
-                            <a href="/f/{{pic._id}}" title="{{pic.filename}}">
-                                <center ng-switch="pic.type">
-                                    <img   ng-switch-when="image" class="card-img-top cons" ng-src="/f/{{pic._id}}/thumb"/>
-                                    <img   ng-switch-when="video" class="card-img-top consv" ng-src="https://john2143.com/f/gqKBv.png"/>
-                                    <audio ng-switch-when="audio" class="card-img-top" controls preload="none"> <source ng-src="/f/{{pic._id}}"/> </audio>
-                                    <div   ng-switch-default      class="card-img-top">{{pic.filename}}</div>
-                                </center>
-                            </a>
-                            <div class="card-block">
-                                <span>{{pic.filenameShort}}<br></span>
-                                <a href="/f/{{pic._id}}/dl">
-                                    <i class="fa fa-fw fa-arrow-down"></i> {{pic.downloads}}<br>
-                                </a>
-                                <i class="fa fa-fw fa-clock-o"></i> {{pic.dispDate}} <br>
-                                <i class="fa fa-fw fa-clock-o"></i> {{pic.timeAgo}} <br>
-                                <i class="fa fa-fw fa-file-code-o"></i> {{pic.mimetype}} <br>
-                                <span ng-show="whoami==selected._id">
-                                    <span ng-show="pic.type !== 'deleted'">
-                                        <a class="btn btn-sm btn-danger" ng-show="!pic.deleting" ng-click="pic.deleting = !pic.deleteprocessing">
-                                            <i class="fa fa-trash" ng-class="{'fa-spin': pic.deleteprocessing}"></i> Delete
-                                        </a>
-                                        <a class="btn btn-sm btn-danger" ng-show="pic.deleting" ng-click="juushDelete(pic);">
-                                            <i class="fa"></i> Confirm
-                                        </a>
-                                        <a class="btn btn-sm btn-success" ng-show="pic.deleting" ng-click="pic.deleting = false">
-                                            <i class="fa"></i> Cancel
-                                        </a>
-                                    </span>
-
-                                    <a class="btn btn-sm btn-warning" ng-click="pic.renaming=true" ng-show="!pic.renaming">
-                                        <i class="fa"></i> Rename
-                                    </a>
-                                    <span ng-show="pic.renaming">
-                                        <div class="input-group">
-                                            <input class="form-control" type="text" placeholder="New name" ng-model="pic.newName">
-                                            <a class="btn btn-sm btn-success" ng-click="juushRename(pic)">
-                                                <i class="fa"></i> Confirm
-                                            </a>
-                                            <a class="btn btn-sm btn-warning" ng-click="pic.renaming = false; pic.newName = ''">
-                                                <i class="fa"></i> Cancel
-                                            </a>
-                                        </div>
-                                    </span>
-
-                                    <a class="btn btn-sm btn-warning" ng-click="pic.hiding=true" ng-show="!pic.hiding">
-                                        <i class="fa"></i> {{pic.modifiers.hidden ? "Unhide" : "Hide"}}
-                                    </a>
-                                    <span ng-show="pic.hiding">
-                                        <div class="input-group">
-                                            <a class="btn btn-sm btn-success" ng-click="juushHides(pic, !pic.modifiers.hidden)">
-                                                <i class="fa"></i> Confirm
-                                            </a>
-                                            <a class="btn btn-sm btn-warning" ng-click="pic.hiding=false">
-                                                <i class="fa"></i> Cancel
-                                            </a>
-                                        </div>
-                                    </span>
-                                    {{pic.err}}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+              </div>
+            </ul>
+            <span ng-show="uinfo" ng-class="{dank: memify}">
+              <ul class="list-group full-width">
+                <div class="list-group-item list-group-item-info">User Info</div>
+                <div class="list-group-item" title="{{getwhoamiTitle(selected._id)}}">
+                  <i class="fa fa-fw fa-hashtag"></i>
+                  Userid {{selected._id}}
+                  <i ng-show="whoami" class="fa whoamicon" ng-class="{
+                    'fa-check-circle': whoami==selected._id,
+                    'fa-times-circle': whoami!=selected._id,
+                    }"></i>
+                  <i ng-show="whoami === undefined" class="fa fa-fw whoamicon fa-cog fa-spin"></i>
+                  <i ng-show="whoami === false"     class="fa fa-fw whoamicon fa-user-times"></i>
+                  <i ng-show="whoami === null"      class="fa fa-fw whoamicon fa-users"></i>
                 </div>
+                <div class="list-group-item"><i class="fa fa-fw fa-eye"      ng-class="{fameme: memify}"></i> {{uinfo.downloads}} Total Views</div>
+                <div class="list-group-item"><i class="fa fa-fw fa-upload"   ng-class="{fameme: memify}"></i> {{uinfo.total}} Uploads</div>
+                <div class="list-group-item" title="Average downloads per upload"><i class="fa fa-fw fa-arrows-v" ng-class="{fameme: memify}"></i> {{round(uinfo.downloads/uinfo.total)}} ADU</div>
+              </ul>
+            </span>
+            <div ng-if="admin">
+              <ul class="list-group">
+                <div class="list-group-item list-group-item-info">Admin Menu</div>
+                <button class="list-group-item list-group-item-action list-group-item-success" ng-click="createNewUser()">Create New User</button>
+                <button class="list-group-item list-group-item-action list-group-item-default" ng-click="toggleHidden()" ng-class="{'active': adminShowHidden}">Show Hidden</button>
+                <button class="list-group-item list-group-item-action list-group-item-warning" ng-click="userData = {key: uinfo.key}">Show User Key</button>
+
+                <div ng-show="userData" class="list-group-item">
+                  <div class="input-group" ng-show="userData.key">
+                    <input class="form-control" type="text" value="{{userData.key}}"      onfocus="this.select()" readonly></input>
+                    <!--<span class="input-group-addon"><i class="fa fa-key"></i></span>-->
+                  </div>
+                  <div class="input-group" ng-show="userData.importer">
+                    <input class="form-control" type="text" value="{{userData.importer}}" onfocus="this.select()" readonly></input>
+                    <!--<span class="input-group-addon"><i class="fa fa-clipboard"></i></span>-->
+                  </div>
+                </div>
+                <button class="list-group-item list-group-item-action" ng-click="userData = null" ng-show="userData">Done</button>
+                <button class="list-group-item list-group-item-action list-group-item-danger" ng-click="deleteThisUser()">Delete this user</button>
+              </ul>
             </div>
+            <div>
+              <ul class="list-group">
+                <div class="list-group-item list-group-item-info">Menu</div>
+                <button class="list-group-item list-group-item-action" ng-click="memify = !memify"> Memify </button>
+                <!-- <button class="list-group-item list-group-item-action" ng-click="admin = true" ng-show="!admin"> Force Open Admin Menu </button> -->
+                <button class="list-group-item list-group-item-action" ng-click="blockUserURL = !blockUserURL">
+                  <i class="green fa fa-fw fa-check" ng-if="!blockUserURL" ng-class="{fameme: memify}"></i>
+                  <i class="red   fa fa-fw fa-times" ng-if=" blockUserURL" ng-class="{fameme: memify}"></i>
+                  {{!blockUserURL ? "Allow Cust URL" : "Block Cust URL"}}
+                </button>
+              </ul>
+            </div>
+            <div ng-show="whoami==selected._id">
+              <ul class="list-group">
+                <div class="list-group-item list-group-item-info">User Menu</div>
+                <button class="list-group-item list-group-item-action" ng-click="changeAutohide()">
+                  <i class="red   fa fa-fw fa-eye-slash" ng-if=" uinfo.autohide" ng-class="{fameme: memify}"></i>
+                  <i class="green fa fa-fw fa-eye"       ng-if="!uinfo.autohide" ng-class="{fameme: memify}"></i>
+                  Auto-hide {{uinfo.autohide ? "on" : "off"}}
+                </button>
+                <button class="list-group-item list-group-item-action" ng-click="changeURL()"> Custom URL </button>
+              </ul>
+            </div>
+          </div>
         </div>
-    </body>
+        <div class="col-xs-10">
+          <div class="row">
+            <div ng-repeat="pic in uploads" class="col-lg-3 col-sm-12" style="padding: 40px;" ng-class="{hiddenUpload: pic.modifiers.hidden}">
+              <a href="/f/{{pic._id}}" title="{{pic.filename}}">
+                <center ng-switch="pic.type">
+                  <img   ng-switch-when="image" class="card-img-top cons" ng-src="/f/{{pic._id}}/thumb"/>
+                  <img   ng-switch-when="video" class="card-img-top consv" ng-src="https://john2143.com/f/gqKBv.png"/>
+                  <audio ng-switch-when="audio" class="card-img-top" controls preload="none"> <source ng-src="/f/{{pic._id}}"/> </audio>
+                  <div   ng-switch-default      class="card-img-top">{{pic.filename}}</div>
+                </center>
+              </a>
+              <div class="card-block">
+                <span>{{pic.filenameShort}}<br></span>
+                <a href="/f/{{pic._id}}/dl">
+                  <i class="fa fa-fw fa-arrow-down"></i> {{pic.downloads}}<br>
+                </a>
+                <i class="fa fa-fw fa-clock-o"></i> {{pic.dispDate}} <br>
+                <i class="fa fa-fw fa-clock-o"></i> {{pic.timeAgo}} <br>
+                <i class="fa fa-fw fa-file-code-o"></i> {{pic.mimetype}} <br>
+                <span ng-show="whoami==selected._id">
+                  <span ng-show="pic.type !== 'deleted'">
+                    <a class="btn btn-sm btn-danger" ng-show="!pic.deleting" ng-click="pic.deleting = !pic.deleteprocessing">
+                      <i class="fa fa-trash" ng-class="{'fa-spin': pic.deleteprocessing}"></i> Delete
+                    </a>
+                    <a class="btn btn-sm btn-danger" ng-show="pic.deleting" ng-click="juushDelete(pic);">
+                      <i class="fa"></i> Confirm
+                    </a>
+                    <a class="btn btn-sm btn-success" ng-show="pic.deleting" ng-click="pic.deleting = false">
+                      <i class="fa"></i> Cancel
+                    </a>
+                  </span>
+
+                  <a class="btn btn-sm btn-warning" ng-click="pic.renaming=true" ng-show="!pic.renaming">
+                    <i class="fa"></i> Rename
+                  </a>
+                  <span ng-show="pic.renaming">
+                    <div class="input-group">
+                      <input class="form-control" type="text" placeholder="New name" ng-model="pic.newName">
+                      <a class="btn btn-sm btn-success" ng-click="juushRename(pic)">
+                        <i class="fa"></i> Confirm
+                      </a>
+                      <a class="btn btn-sm btn-warning" ng-click="pic.renaming = false; pic.newName = ''">
+                        <i class="fa"></i> Cancel
+                      </a>
+                    </div>
+                  </span>
+
+                  <a class="btn btn-sm btn-warning" ng-click="pic.hiding=true" ng-show="!pic.hiding">
+                    <i class="fa"></i> {{pic.modifiers.hidden ? "Unhide" : "Hide"}}
+                  </a>
+                  <span ng-show="pic.hiding">
+                    <div class="input-group">
+                      <a class="btn btn-sm btn-success" ng-click="juushHides(pic, !pic.modifiers.hidden)">
+                        <i class="fa"></i> Confirm
+                      </a>
+                      <a class="btn btn-sm btn-warning" ng-click="pic.hiding=false">
+                        <i class="fa"></i> Cancel
+                      </a>
+                    </div>
+                  </span>
+                  {{pic.err}}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
 </html>

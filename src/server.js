@@ -175,6 +175,21 @@ export default class server{
         }
 
         this.getExtIP().then(ip => serverLog("EXTIP is " + ip.blue));
+
+        this.shortPages = {};
+        this.getPagesDirectory().then(map => this.shortPages = map);
+    }
+
+    //get a list of files so that they can be served without the .html ext
+    async getPagesDirectory(){
+        let htmlPages = (await fs.readdirSync("./pages"))
+            .filter(x => x.endsWith(".html"));
+        let map = {};
+        for(let page of htmlPages){
+            let short = /(.+)\.html/.exec(page)[1];
+            map[short] = page;
+        }
+        return map;
     }
 
     stop(){
@@ -186,7 +201,17 @@ export default class server{
     async route(reqx){
         if(reqx.denyFavicon()) return;
 
-        const filepath = "./pages/" + reqx.urldata.path.join("/") + ".html";
+        const dat = reqx.urldata.path[0];
+
+        //Try to serve with no extension
+        if(this.shortPages[dat]){
+            reqx.serveStatic("./pages/" + this.shortPages[dat]);
+            return;
+        }
+
+        //Try to serve a static page from pages
+        //Can this reach files below the base directory using ..? should test this
+        const filepath = "./pages/" + reqx.urldata.path.join("/");
         try{
             await fs.statAsync(filepath);
             await reqx.serveStatic(filepath);
@@ -194,8 +219,6 @@ export default class server{
         }catch(e){
             //fall through
         }
-
-        const dat = reqx.urldata.path[0];
 
         let redir;
         if(dat !== undefined){
@@ -211,6 +234,7 @@ export default class server{
 
         if(typeof redir === "function"){
             try{
+                //wrapping in a promise works on promies and non promises alike
                 await Promise.resolve(reqx.serveFunc(redir, this));
             }catch(err){
                 serverLog(err);
