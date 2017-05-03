@@ -1,11 +1,12 @@
 <!DOCTYPE html>
+<!-- vim: set sw=2 ts=2 -->
 <html>
-  <head>
-    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.1/angular.min.js"></script>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
-    <script src="https://use.fontawesome.com/ed4d2de3d2.js"></script>
-    <script src="/userjs.js"></script>
-    <style>
+<head>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.1/angular.min.js"></script>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+  <script src="https://use.fontawesome.com/ed4d2de3d2.js"></script>
+  <script src="/userjs.js"></script>
+  <style>
 
 .consv{
     width: 100%;
@@ -80,157 +81,204 @@
     100% {-webkit-transform: rotate(360deg);}
 }
 
-    </style>
-  </head>
-  <body>
-    <div ng-app="app" ng-controller="controller" class="container-fluid">
-      <div class="row">
-        <div class="col-xs-2">
-          <div style="position:fixed">
-            <ul class="list-group full-width">
-              <div class="list-group-item list-group-item-info">User</div>
-              <div class="list-group-item">
-                <select ng-class="{dank: memify}" ng-model="selected" ng-options="user.name for user in users"></select><br>
-              </div>
-              <div class="list-group-item">
-                <div class="btn-group">
-                  <button class="btn btn-primary" ng-click="page = page - 1" ng-class="{dank: memify}" ng-disabled="page == 0">Previous</button>
-                  <button class="btn btn-primary" ng-click="page = page + 1" ng-class="{dank: memify}">Next</button>
-                </div>
-              </div>
-            </ul>
-            <span ng-show="uinfo" ng-class="{dank: memify}">
-              <ul class="list-group full-width">
-                <div class="list-group-item list-group-item-info">User Info</div>
-                <div class="list-group-item" title="{{getwhoamiTitle(selected._id)}}">
-                  <i class="fa fa-fw fa-hashtag"></i>
-                  Userid {{selected._id}}
-                  <i ng-show="whoami" class="fa whoamicon" ng-class="{
-                    'fa-check-circle': whoami==selected._id,
-                    'fa-times-circle': whoami!=selected._id,
-                    }"></i>
-                  <i ng-show="whoami === undefined" class="fa fa-fw whoamicon fa-cog fa-spin"></i>
-                  <i ng-show="whoami === false"     class="fa fa-fw whoamicon fa-user-times"></i>
-                  <i ng-show="whoami === null"      class="fa fa-fw whoamicon fa-users"></i>
-                </div>
-                <div class="list-group-item"><i class="fa fa-fw fa-eye"      ng-class="{fameme: memify}"></i> {{uinfo.downloads}} Total Views</div>
-                <div class="list-group-item"><i class="fa fa-fw fa-upload"   ng-class="{fameme: memify}"></i> {{uinfo.total}} Uploads</div>
-                <div class="list-group-item" title="Average downloads per upload"><i class="fa fa-fw fa-arrows-v" ng-class="{fameme: memify}"></i> {{round(uinfo.downloads/uinfo.total)}} ADU</div>
-              </ul>
-            </span>
-            <div ng-if="admin">
-              <ul class="list-group">
-                <div class="list-group-item list-group-item-info">Admin Menu</div>
-                <button class="list-group-item list-group-item-action list-group-item-success" ng-click="createNewUser()">Create New User</button>
-                <button class="list-group-item list-group-item-action list-group-item-default" ng-click="toggleHidden()" ng-class="{'active': adminShowHidden}">Show Hidden</button>
-                <button class="list-group-item list-group-item-action list-group-item-warning" ng-click="userData = {key: uinfo.key}">Show User Key</button>
+  </style>
+</head>
+<body>
+<div ng-app="app" ng-controller="controller" class="container-fluid">
+  <!--container-->
+  <div class="row">
+    <!--left-side info menu-->
+    <div class="col-xs-2">
+      <div style="position: fixed;">
+        <!--list of users and next/back-->
+        <ul class="list-group full-width">
+          <!--header-->
+          <div class="list-group-item list-group-item-info">User</div>
 
-                <div ng-show="userData" class="list-group-item">
-                  <div class="input-group" ng-show="userData.key">
-                    <input class="form-control" type="text" value="{{userData.key}}"      onfocus="this.select()" readonly></input>
-                    <!--<span class="input-group-addon"><i class="fa fa-key"></i></span>-->
-                  </div>
-                  <div class="input-group" ng-show="userData.importer">
-                    <input class="form-control" type="text" value="{{userData.importer}}" onfocus="this.select()" readonly></input>
-                    <!--<span class="input-group-addon"><i class="fa fa-clipboard"></i></span>-->
-                  </div>
-                </div>
-                <button class="list-group-item list-group-item-action" ng-click="userData = null" ng-show="userData">Done</button>
-                <button class="list-group-item list-group-item-action list-group-item-danger" ng-click="deleteThisUser()">Delete this user</button>
-              </ul>
-            </div>
-            <div>
-              <ul class="list-group">
-                <div class="list-group-item list-group-item-info">Menu</div>
-                <button class="list-group-item list-group-item-action" ng-click="memify = !memify"> Memify </button>
-                <!-- <button class="list-group-item list-group-item-action" ng-click="admin = true" ng-show="!admin"> Force Open Admin Menu </button> -->
-                <button class="list-group-item list-group-item-action" ng-click="blockUserURL = !blockUserURL">
-                  <i class="green fa fa-fw fa-check" ng-if="!blockUserURL" ng-class="{fameme: memify}"></i>
-                  <i class="red   fa fa-fw fa-times" ng-if=" blockUserURL" ng-class="{fameme: memify}"></i>
-                  {{!blockUserURL ? "Allow Cust URL" : "Block Cust URL"}}
-                </button>
-              </ul>
-            </div>
-            <div ng-show="whoami==selected._id">
-              <ul class="list-group">
-                <div class="list-group-item list-group-item-info">User Menu</div>
-                <button class="list-group-item list-group-item-action" ng-click="changeAutohide()">
-                  <i class="red   fa fa-fw fa-eye-slash" ng-if=" uinfo.autohide" ng-class="{fameme: memify}"></i>
-                  <i class="green fa fa-fw fa-eye"       ng-if="!uinfo.autohide" ng-class="{fameme: memify}"></i>
-                  Auto-hide {{uinfo.autohide ? "on" : "off"}}
-                </button>
-                <button class="list-group-item list-group-item-action" ng-click="changeURL()"> Custom URL </button>
-              </ul>
+          <!--dropdown of users-->
+          <div class="list-group-item">
+            <select ng-class="{dank: memify}" ng-model="selected" ng-options="user.name for user in users"></select><br>
+          </div>
+
+          <!--next/prev buttons-->
+          <div class="list-group-item">
+            <div class="btn-group">
+              <button class="btn btn-primary" ng-click="page = page - 1" ng-class="{dank: memify}" ng-disabled="page == 0">Previous</button>
+              <button class="btn btn-primary" ng-click="page = page + 1" ng-class="{dank: memify}">Next</button>
             </div>
           </div>
-        </div>
-        <div class="col-xs-10">
-          <div class="row">
-            <div ng-repeat="pic in uploads" class="col-lg-3 col-sm-12" style="padding: 40px;" ng-class="{hiddenUpload: pic.modifiers.hidden}">
-              <a href="/f/{{pic._id}}" title="{{pic.filename}}">
-                <center ng-switch="pic.type">
-                  <img   ng-switch-when="image" class="card-img-top cons" ng-src="/f/{{pic._id}}/thumb"/>
-                  <img   ng-switch-when="video" class="card-img-top consv" ng-src="https://john2143.com/f/gqKBv.png"/>
-                  <audio ng-switch-when="audio" class="card-img-top" controls preload="none"> <source ng-src="/f/{{pic._id}}"/> </audio>
-                  <div   ng-switch-default      class="card-img-top">{{pic.filename}}</div>
-                </center>
-              </a>
-              <div class="card-block">
-                <span>{{pic.filenameShort}}<br></span>
-                <a href="/f/{{pic._id}}/dl">
-                  <i class="fa fa-fw fa-arrow-down"></i> {{pic.downloads}}<br>
-                </a>
-                <i class="fa fa-fw fa-clock-o"></i> {{pic.dispDate}} <br>
-                <i class="fa fa-fw fa-clock-o"></i> {{pic.timeAgo}} <br>
-                <i class="fa fa-fw fa-file-code-o"></i> {{pic.mimetype}} <br>
-                <span ng-show="whoami==selected._id">
-                  <span ng-show="pic.type !== 'deleted'">
-                    <a class="btn btn-sm btn-danger" ng-show="!pic.deleting" ng-click="pic.deleting = !pic.deleteprocessing">
-                      <i class="fa fa-trash" ng-class="{'fa-spin': pic.deleteprocessing}"></i> Delete
-                    </a>
-                    <a class="btn btn-sm btn-danger" ng-show="pic.deleting" ng-click="juushDelete(pic);">
-                      <i class="fa"></i> Confirm
-                    </a>
-                    <a class="btn btn-sm btn-success" ng-show="pic.deleting" ng-click="pic.deleting = false">
-                      <i class="fa"></i> Cancel
-                    </a>
-                  </span>
+        </ul>
 
-                  <a class="btn btn-sm btn-warning" ng-click="pic.renaming=true" ng-show="!pic.renaming">
-                    <i class="fa"></i> Rename
-                  </a>
-                  <span ng-show="pic.renaming">
-                    <div class="input-group">
-                      <input class="form-control" type="text" placeholder="New name" ng-model="pic.newName">
-                      <a class="btn btn-sm btn-success" ng-click="juushRename(pic)">
-                        <i class="fa"></i> Confirm
-                      </a>
-                      <a class="btn btn-sm btn-warning" ng-click="pic.renaming = false; pic.newName = ''">
-                        <i class="fa"></i> Cancel
-                      </a>
-                    </div>
-                  </span>
+        <!--info portion (stats and stuff)-->
+        <span ng-show="uinfo" ng-class="{dank: memify}">
+          <ul class="list-group full-width">
+            <!--header-->
+            <div class="list-group-item list-group-item-info">User Info</div>
+            <!--userid and badge-->
+            <div class="list-group-item" title="{{getwhoamiTitle(selected._id)}}">
+              <i class="fa fa-fw fa-hashtag"></i>
+              Userid {{selected._id}}
 
-                  <a class="btn btn-sm btn-warning" ng-click="pic.hiding=true" ng-show="!pic.hiding">
-                    <i class="fa"></i> {{pic.modifiers.hidden ? "Unhide" : "Hide"}}
-                  </a>
-                  <span ng-show="pic.hiding">
-                    <div class="input-group">
-                      <a class="btn btn-sm btn-success" ng-click="juushHides(pic, !pic.modifiers.hidden)">
-                        <i class="fa"></i> Confirm
-                      </a>
-                      <a class="btn btn-sm btn-warning" ng-click="pic.hiding=false">
-                        <i class="fa"></i> Cancel
-                      </a>
-                    </div>
-                  </span>
-                  {{pic.err}}
-                </span>
+              <!--check or x icon-->
+              <i ng-show="whoami" class="fa whoamicon" ng-class="{
+                'fa-check-circle': whoami==selected._id,
+                'fa-times-circle': whoami!=selected._id,
+                }"></i>
+
+              <!--loading = cog, no uploads = user with x, unknown = group-->
+              <i ng-show="whoami === undefined" class="fa fa-fw whoamicon fa-cog fa-spin"></i>
+              <i ng-show="whoami === false"     class="fa fa-fw whoamicon fa-user-times"></i>
+              <i ng-show="whoami === null"      class="fa fa-fw whoamicon fa-users"></i>
+            </div>
+
+            <!--total views-->
+            <div class="list-group-item"><i class="fa fa-fw fa-eye"      ng-class="{fameme: memify}"></i> {{uinfo.downloads}} Total Views</div>
+            <!--num uploads-->
+            <div class="list-group-item"><i class="fa fa-fw fa-upload"   ng-class="{fameme: memify}"></i> {{uinfo.total}} Uploads</div>
+            <!--downloads per upload-->
+            <div class="list-group-item" title="Average downloads per upload"><i class="fa fa-fw fa-arrows-v" ng-class="{fameme: memify}"></i> {{round(uinfo.downloads/uinfo.total)}} ADU</div>
+          </ul>
+        </span>
+
+        <!--admin menu-->
+        <div ng-if="admin">
+          <ul class="list-group">
+            <!--header-->
+            <div class="list-group-item list-group-item-info">Admin Menu</div>
+            <!--new user-->
+            <button class="list-group-item list-group-item-action list-group-item-success" ng-click="createNewUser()">Create New User</button>
+            <!--show hidden-->
+            <button class="list-group-item list-group-item-action list-group-item-default" ng-click="toggleHidden()" ng-class="{'active': adminShowHidden}">Show Hidden</button>
+            <!--get key and info-->
+            <button class="list-group-item list-group-item-action list-group-item-warning" ng-click="userData = {key: uinfo.key}">Show User Key</button>
+
+            <!--these fields are used when you click "show user key"-->
+            <div ng-show="userData" class="list-group-item">
+              <div class="input-group" ng-show="userData.key">
+                <input class="form-control" type="text" value="{{userData.key}}"      onfocus="this.select()" readonly></input>
+              </div>
+              <div class="input-group" ng-show="userData.importer">
+                <input class="form-control" type="text" value="{{userData.importer}}" onfocus="this.select()" readonly></input>
               </div>
             </div>
+            <button class="list-group-item list-group-item-action" ng-click="userData = null" ng-show="userData">Done</button>
+
+            <!--delete user-->
+            <button class="list-group-item list-group-item-action list-group-item-danger" ng-click="deleteThisUser()">Delete this user</button>
+          </ul>
+        </div>
+
+        <!--general menu-->
+        <div>
+          <ul class="list-group">
+            <!--header-->
+            <div class="list-group-item list-group-item-info">Menu</div>
+            <!--meme button made by cooley-->
+            <button class="list-group-item list-group-item-action" ng-click="memify = !memify"> Memify </button>
+            <!--disallow custom urls-->
+            <button class="list-group-item list-group-item-action" ng-click="blockUserURL = !blockUserURL">
+              <i class="green fa fa-fw fa-check" ng-if="!blockUserURL" ng-class="{fameme: memify}"></i>
+              <i class="red   fa fa-fw fa-times" ng-if=" blockUserURL" ng-class="{fameme: memify}"></i>
+              {{!blockUserURL ? "Allow Cust URL" : "Block Cust URL"}}
+            </button>
+          </ul>
+        </div>
+
+        <!--user options menu-->
+        <div ng-show="whoami==selected._id">
+          <ul class="list-group">
+            <!--header-->
+            <div class="list-group-item list-group-item-info">User Menu</div>
+            <!--auto hide options-->
+            <button class="list-group-item list-group-item-action" ng-click="changeAutohide()">
+              <i class="red   fa fa-fw fa-eye-slash" ng-if=" uinfo.autohide" ng-class="{fameme: memify}"></i>
+              <i class="green fa fa-fw fa-eye"       ng-if="!uinfo.autohide" ng-class="{fameme: memify}"></i>
+              Auto-hide {{uinfo.autohide ? "on" : "off"}}
+            </button>
+            <!--custom url-->
+            <button class="list-group-item list-group-item-action" ng-click="changeURL()"> Custom URL </button>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <!--left-side info menu end-->
+
+    <!--uploads display-->
+    <div class="col-xs-10">
+      <div class="row">
+        <div ng-repeat="pic in uploads" class="col-lg-3 col-sm-12" style="padding: 40px;" ng-class="{hiddenUpload: pic.modifiers.hidden}">
+          <!--preview for the item-->
+          <a href="/f/{{pic._id}}" title="{{pic.filename}}">
+            <center ng-switch="pic.type">
+              <img   ng-switch-when="image" class="card-img-top cons" ng-src="/f/{{pic._id}}/thumb"/>
+              <img   ng-switch-when="video" class="card-img-top consv" ng-src="https://john2143.com/f/gqKBv.png"/>
+              <audio ng-switch-when="audio" class="card-img-top" controls preload="none"> <source ng-src="/f/{{pic._id}}"/> </audio>
+              <div   ng-switch-default      class="card-img-top">{{pic.filename}}</div>
+            </center>
+          </a>
+
+          <div class="card-block">
+            <span>{{pic.filenameShort}}<br></span>
+
+            <!--direct download button-->
+            <a href="/f/{{pic._id}}/dl">
+              <i class="fa fa-fw fa-arrow-down"></i> {{pic.downloads}}<br>
+            </a>
+
+            <i class="fa fa-fw fa-clock-o"></i> {{pic.dispDate}} <br>
+            <i class="fa fa-fw fa-clock-o"></i> {{pic.timeAgo}} <br>
+            <i class="fa fa-fw fa-file-code-o"></i> {{pic.mimetype}} <br>
+
+            <!--upload option buttons-->
+            <span ng-if="whoami==selected._id">
+              <!--TODO make this code a lot dry-er-->
+              <!--delete upload-->
+              <span ng-show="pic.type !== 'deleted'">
+                <a class="btn btn-sm btn-danger" ng-show="!pic.deleting" ng-click="pic.deleting = !pic.deleteprocessing">
+                  <i class="fa fa-trash"></i> Delete
+                  <i class="fa fa-cog fa-spin" ng-show="pic.deleteprocessing"></i>
+                </a>
+                <a class="btn btn-sm btn-danger" ng-show="pic.deleting" ng-click="juushDelete(pic);">
+                  <i class="fa"></i> Confirm
+                </a>
+                <a class="btn btn-sm btn-success" ng-show="pic.deleting" ng-click="pic.deleting = false">
+                  <i class="fa"></i> Cancel
+                </a>
+              </span>
+
+              <!--rename upload-->
+              <a class="btn btn-sm btn-warning" ng-click="pic.renaming=true" ng-show="!pic.renaming">
+                <i class="fa fa-pencil"></i> Rename
+                <i class="fa fa-cog fa-spin" ng-show="pic.renameprocessing"></i>
+              </a>
+              <span ng-show="pic.renaming">
+                <div class="input-group">
+                  <input class="form-control" type="text" placeholder="New name" ng-model="pic.newName">
+                  <a class="btn btn-sm btn-success" ng-click="juushRename(pic)">
+                    <i class="fa"></i> Confirm
+                  </a>
+                  <a class="btn btn-sm btn-warning" ng-click="pic.renaming = false; pic.newName = ''">
+                    <i class="fa"></i> Cancel
+                  </a>
+                </div>
+              </span>
+
+              <!--hide upload-->
+              <a class="btn btn-sm btn-warning" ng-click="juushHides(pic, !pic.modifiers.hidden)">
+                <i class="fa fa-eye"></i> {{pic.modifiers.hidden ? "Unhide" : "Hide"}}
+                <i class="fa fa-cog fa-spin" ng-show="pic.hideprocessing"></i>
+              </a>
+
+              <!--if there was an error doing any of the things above, it goes here-->
+              {{pic.err}}
+            </span>
           </div>
         </div>
       </div>
     </div>
-  </body>
+    <!--uploads display end-->
+  </div>
+  <!--container end-->
+</div>
+</body>
 </html>
