@@ -117,7 +117,7 @@ class request{
             this.res.writeHead(code, headers);
             this.res.end(dat);
         }).catch(/* istanbul ignore next */ _err => {
-            this.doHTML("Failed to serve content", 500);
+            this.doHTML("Failed to serve content: " + JSON.stringify({path, headers, code}), 500);
         });
     }
 
@@ -209,17 +209,6 @@ export default class server{
             return;
         }
 
-        //Try to serve a static page from pages
-        //Can this reach files below the base directory using ..? should test this
-        const filepath = "./pages/" + reqx.urldata.path.join("/");
-        try{
-            await fs.statAsync(filepath);
-            await reqx.serveStatic(filepath);
-            return;
-        }catch(e){
-            //fall through
-        }
-
         let redir;
         if(dat !== undefined){
             redir = this.redirs[dat];
@@ -228,11 +217,16 @@ export default class server{
         }
 
         if(!redir){
-            reqx.serveStatic("./pages/404.html", null, 404);
-            return;
-        }
-
-        if(typeof redir === "function"){
+            //Try to serve a static page from pages
+            //Can this reach files below the base directory using ..? should test this
+            const filepath = "./pages/" + reqx.urldata.path.join("/");
+            try{
+                await fs.statAsync(filepath);
+                await reqx.serveStatic(filepath);
+            }catch(e){
+                reqx.serveStatic("./pages/404.html", null, 404);
+            }
+        }else if(typeof redir === "function"){
             try{
                 //wrapping in a promise works on promies and non promises alike
                 await Promise.resolve(reqx.serveFunc(redir, this));
