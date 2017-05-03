@@ -224,7 +224,7 @@ export default class server{
                 await fs.statAsync(filepath);
                 await reqx.serveStatic(filepath);
             }catch(e){
-                reqx.serveStatic("./pages/404.html", null, 404);
+                await reqx.serveStatic("./pages/404.html", null, 404);
             }
         }else if(typeof redir === "function"){
             try{
