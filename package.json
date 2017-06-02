@@ -20,7 +20,7 @@
     "istanbul": "^0.4.5",
     "jshint": "^2.9.4",
     "mocha": "^3.3.0",
-    "nyc": "^10.2.0",
+    "nyc": "^11.0.2",
     "sinon": "^2.1.0",
     "source-map-support": "^0.4.14"
   },
