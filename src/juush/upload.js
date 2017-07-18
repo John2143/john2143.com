@@ -98,6 +98,7 @@ export default async function(server, reqx){
         fs.unlinkAsync(filepath).catch(err => {
             serverLog("Failed to unlink upload!", err);
         });
+
         //Delete entry (May or may not exist)
         U.query.index.removeOne({_id: url}).catch(err => {
             serverLog("Upload failure delete failure!", err);
