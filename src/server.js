@@ -117,7 +117,7 @@ class request{
             this.res.writeHead(code, headers);
             this.res.end(dat);
         }).catch(/* istanbul ignore next */ _err => {
-            this.doHTML("Failed to serve content", 500);
+            this.doHTML("Failed to serve content" + JSON.stringify(_err), 500);
         });
     }
 
@@ -211,13 +211,15 @@ export default class server{
 
         //Try to serve a static page from pages
         //Can this reach files below the base directory using ..? should test this
-        const filepath = "./pages/" + reqx.urldata.path.join("/");
-        try{
-            await fs.statAsync(filepath);
-            await reqx.serveStatic(filepath);
-            return;
-        }catch(e){
-            //fall through
+        if(reqx.urldata.path.length !== 0){
+            const filepath = "./pages/" + reqx.urldata.path.join("/");
+            try{
+                await fs.statAsync(filepath);
+                await reqx.serveStatic(filepath);
+                return;
+            }catch(e){
+                //fall through
+            }
         }
 
         let redir;
