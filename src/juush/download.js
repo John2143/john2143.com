@@ -1,5 +1,5 @@
 
-import * as U from "./util.js";
+import U from "./util.js";
 
 //You will get a referer and range if you are trying to stream an audio/video
 const isStreamRequest = req => req.headers.referer && req.headers.range;
