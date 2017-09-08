@@ -4,8 +4,7 @@
       "targets": {
         "node": "current"
       },
-      "useBuiltIns": true,
-      "debug": true
+      "useBuiltIns": true
     }]
   ]
 }
