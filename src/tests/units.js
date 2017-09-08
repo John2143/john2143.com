@@ -1,6 +1,7 @@
 
 import * as util from "../juush/util.js";
 import * as http from "http";
+import sinon from "sinon";
 
 describe("Util.js", function(){
     let res = sinon.createStubInstance(http.ServerResponse);
@@ -17,7 +18,7 @@ describe("Util.js", function(){
         util.randomStr(5).should.have.length(5);
     });
 
-    it("random string", function(){
+    it("guessFileExtension should work", function(){
         util.guessFileExtension("lol.png").should.equal("png");
         util.guessFileExtension(".png").should.equal("png");
         util.guessFileExtension("lol------!@#$%^&*()---431432.asffseg-zzzz.png").should.equal("png");
