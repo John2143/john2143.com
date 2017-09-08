@@ -1,5 +1,5 @@
 
-import util from "../juush/util.js";
+import * as util from "../juush/util.js";
 import http from "http";
 import sinon from "sinon";
 
