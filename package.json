@@ -4,25 +4,23 @@
   "description": "Server for john2143.com, including juush",
   "main": "c/index.js",
   "dependencies": {
-    "babel-cli": "^6.24.1",
-    "babel-preset-latest": "^6.24.1",
+    "babel-preset-env": "^1.6.0",
     "bluebird": "^3.5.0",
+    "colors": "^1.1.2",
     "mongodb": "^2.2.26",
-    "colors": "^1.1.2"
+    "source-map-support": "^0.4.14"
   },
   "devDependencies": {
-    "babel-register": "^6.24.1",
-    "chai": "^3.5.0",
-    "chai-as-promised": "^6.0.0",
+    "babel-register": "^6.26.0",
+    "chai": "^4.1.2",
+    "chai-as-promised": "^7.1.1",
     "chai-http": "^3.0.0",
     "coveralls": "^2.13.0",
-    "eslint": "^3.19.0",
+    "eslint": "^4.6.1",
     "istanbul": "^0.4.5",
-    "jshint": "^2.9.4",
     "mocha": "^3.3.0",
-    "nyc": "^10.2.0",
-    "sinon": "^2.1.0",
-    "source-map-support": "^0.4.14"
+    "nyc": "^11.2.1",
+    "sinon": "^3.2.1"
   },
   "scripts": {
     "test": "mocha c/test.js -c",
