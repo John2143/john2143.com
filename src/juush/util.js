@@ -91,15 +91,23 @@ if(global.it){
 export const IPEqual = (a, b) => a && b && a.split("/")[0] === b.split("/")[0];
 export const getFilename = id => "./juushFiles/" + id;
 
-export const ipHasAccess = async (ip, uploadID) => {
-    //"SELECT ip FROM index WHERE keyid=(SELECT keyid FROM index WHERE id=$1) GROUP BY ip ORDER BY max(uploaddate)",
-    const keyid = (await query.index.findOne({_id: uploadID}, {keyid: 1})).keyid;
+//Returns false if access is granted
+export const ipHasAccess = async (ip, uploadID, queryStub = query) => {
+    //Querystub is passed only for testing purposes. See tests/units.js
+    if(!queryStub) throw new Error("Trying to use util function without db init");
+
+    let result = await queryStub.index.findOne({_id: uploadID}, {keyid: 1});
+    if(!result) throw new Error("MongoDB failure");
+    const keyid = result.keyid;
     if(!keyid) return "NOFILE";
 
-    const result = await query.index
-        .find({keyid}, {uploaddate: 1, ip: 1})
+
+    result = await queryStub.index
+        .find({keyid}, {ip: 1})
         //.sort({uploaddate: 1})
         .toArray();
+
+    if(!result) throw new Error("MongoDB failure");
 
     if(result.length === 0){
         return "NOUPLOADS";
