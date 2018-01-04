@@ -20,9 +20,7 @@ describe("Server tests", function(){
     require("./tests/test.js");
 });
 
-if(serverConst.dbstring){
-    describe("Database tests", function(){
-        require("./tests/initdbtest.js");
-        require("./tests/dbtest.js");
-    });
-}
+(serverConst.dbopts ? describe : describe.skip)("Database tests", function(){
+    require("./tests/initdbtest.js");
+    require("./tests/dbtest.js");
+});

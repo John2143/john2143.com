@@ -1,7 +1,6 @@
 //Start server
 import serverPromise from "..";
 let server;
-let __server = server;
 
 /* eslint-disable indent, quotes */
 const url = `http://${serverConst.IP}:${serverConst.PORT}`;

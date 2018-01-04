@@ -3,8 +3,10 @@ import mongo from "mongodb";
 describe("database init", function(){
     let query, db;
     before(async function(){
-        let client = new mongo.MongoClient();
-        db = await client.connect(serverConst.dbstring);
+        let mongoServer = new mongo.Server(serverConst.dbopts.ip, serverConst.dbopts.port);
+        let client = new mongo.MongoClient(mongoServer);
+        let dbclient = await client.connect();
+        db = dbclient.db(serverConst.dbopts.db);
         query = db.collection("test");
     });
 
@@ -12,15 +14,15 @@ describe("database init", function(){
 
     it("should be queryable", function(){
         query.insert(obj);
-        query.remove(obj);
+        query.deleteMany(obj);
     });
 
     /* istanbul ignore next */
     if(process.env.SETUPDB){
         it("should reset some databases", function(){
-            db.collection("keys")    .remove({});
-            db.collection("index")   .remove({});
-            db.collection("counters").remove({});
+            db.collection("keys")    .deleteMany({});
+            db.collection("index")   .deleteMany({});
+            db.collection("counters").deleteMany({});
         });
     }
 });

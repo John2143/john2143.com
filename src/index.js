@@ -24,8 +24,7 @@ redirs.ts = redirs.teamspeak;
 
 let initPromise;
 
-/* istanbul ignore else */
-if(serverConst.dbstring){
+if(serverConst.dbopts){
     //have to use commonjs here
     const juush = require("./juush");
     redirs[""] = juush.download;

@@ -1,10 +1,12 @@
 import mongodb from "mongodb";
 
-export const mongoclient = new mongodb.MongoClient();
+export const mongoserver = new mongodb.Server(serverConst.dbopts.ip, serverConst.dbopts.port);
+export const mongoclient = new mongodb.MongoClient(mongoserver);
 export let query;
 
 export const initializeMongo = async () => {
-    let db = await mongoclient.connect(serverConst.dbstring);
+    let dbclient = await mongoclient.connect();
+    let db = dbclient.db(serverConst.dbopts.db);
     const countersSeen = [];
 
     const counters = db.collection("counters");
@@ -32,6 +34,7 @@ export const initializeMongo = async () => {
         }
     };
     if(global.it) global.query = query;
+    setTimeout(() => dbclient.close(), 5000);
 };
 
 //This works with dbError to end a broken session

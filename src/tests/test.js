@@ -83,8 +83,7 @@ describe("HTTP Server", function(){
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 describe("HTTPS Server", function(){
     let serv;
-
-    it("should work", function(){
+    before(function(){
         serv = new server({
             ip: "localhost",
             httpPort: 3000,
@@ -95,14 +94,17 @@ describe("HTTPS Server", function(){
             },
             redirs
         });
+    })
 
+    it("should work", function(){
         expect(serv).to.be.ok;
         expect(serv.ip).to.be.ok;
         expect(serv.port).to.eq(4000);
         expect(serv.httpPort).to.eq(3000);
         expect(serv.isHTTPS).to.be.true;
         expect(serv.redirs).to.not.have.property("juush");
-        serv.stop();
     });
-    it("should have a working upgrade server");
+    after(function(){
+        serv.stop();
+    })
 });
