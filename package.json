@@ -20,7 +20,7 @@
     "istanbul": "^0.4.5",
     "mocha": "^3.3.0",
     "nyc": "^11.2.1",
-    "sinon": "^3.2.1"
+    "sinon": "^4.2.0"
   },
   "scripts": {
     "test": "mocha c/test.js -c",
