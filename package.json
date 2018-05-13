@@ -8,7 +8,7 @@
     "bluebird": "^3.5.0",
     "colors": "^1.1.2",
     "mongodb": "^2.2.26",
-    "source-map-support": "^0.4.14"
+    "source-map-support": "^0.5.6"
   },
   "devDependencies": {
     "babel-register": "^6.26.0",
