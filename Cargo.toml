@@ -1,0 +1,14 @@
+[package]
+name = "john2143-com"
+version = "0.1.0"
+authors = ["John Schmidt <john@john2143.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "3.0.1"
+serde = { version = "1.0.116", features = ["derive"] }
+serde_json = "1.0.57"
+tokio = "0.2.22"
+actix-rt = "1.1.1"
