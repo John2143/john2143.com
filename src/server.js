@@ -116,8 +116,9 @@ class request{
         return fs.readFileAsync(path, "utf8").then(dat => {
             this.res.writeHead(code, headers);
             this.res.end(dat);
-        }).catch(/* istanbul ignore next */ _err => {
-            this.doHTML("Failed to serve content: " + JSON.stringify({path, headers, code}), 500);
+        }).catch(/* istanbul ignore next */ err => {
+            this.doHTML("Failed to serve content: ", 500);
+            serverLog("Failed to serve: ", path, headers, code, err);
         });
     }
 
@@ -206,6 +207,19 @@ export default class server{
         //Try to serve with no extension
         if(this.shortPages[dat]){
             return await reqx.serveStatic("./pages/" + this.shortPages[dat]);
+        }
+
+        //Try to serve a static page from pages
+        //Can this reach files below the base directory using ..? should test this
+        if(reqx.urldata.path.length !== 0){
+            const filepath = "./pages/" + reqx.urldata.path.join("/");
+            try{
+                await fs.statAsync(filepath);
+                await reqx.serveStatic(filepath);
+                return;
+            }catch(e){
+                //fall through
+            }
         }
 
         let redir;

@@ -28,7 +28,7 @@ const parseHeadersFromUpload = function(data, reqHeaders){
         const headers  = /[\s\S]+?\r\n\r\n/     .exec(strData)[0];
         const key      = /name="([A-Za-z0-9]+)"/.exec(headers)[1];
         const filename = /filename="([^"]+)"/   .exec(headers)[1];
-        const mimetype = /Content\-Type: (.+)\r/.exec(headers)[1];
+        const mimetype = /Content-Type: (.+)\r/.exec(headers)[1];
 
         return {
             key,
