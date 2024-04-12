@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+
+<body style="margin: 0px;">
+  <script type="module">
+    import init from './rots.js'
+
+
+    async function loadingBarFetch(resource) {
+        return {
+            start: ({ filename }) => {
+
+            },
+            update: ({ isIndeterminate, loadedPercent }) => {
+            },
+            finish: () => {
+            }
+        }
+    }
+    window.bevyLoadingBarFetch = loadingBarFetch;
+
+    init("https://john2143.com/ROTS/rots_bg.wasm").catch((error) => {
+      if (!error.message.startsWith("Using exceptions for control flow, don't mind me. This isn't actually an error!")) {
+        throw error;
+      }
+    });
+  </script>
+</body>
+
+</html>

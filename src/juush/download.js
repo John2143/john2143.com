@@ -149,7 +149,8 @@ const processDownload = function(reqx, data, disposition){
 
 //Returns true if there is an auth error. also handles reqx
 const accessCheck = async function(uploadID, reqx){
-    const canDo = await U.ipHasAccess(reqx.req.connection.remoteAddress, uploadID);
+    const ip = reqx.req.headers["x-real-ip"];
+    const canDo = await U.ipHasAccess(ip, uploadID);
 
     if(canDo === "NOFILE"){
         reqx.doHTML("That file does not exist", 404);

@@ -1,4 +1,4 @@
-juushFiles/*
+juushFiles/
 node_modules/*
 letsencrypt/*
 logs/*
@@ -7,3 +7,4 @@ c/*
 src/const.js
 .nyc_output/*
 npm-debug.log
+rots/*.wasm

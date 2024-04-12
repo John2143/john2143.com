@@ -72,7 +72,7 @@ class request{
             return Array(pad + 1).join(" ") + str;
         };
 
-        const ip = this.req.connection.remoteAddress;
+        const ip = this.req.headers["x-real-ip"];
 
         const path = this.urldata.path.join("/");
 
