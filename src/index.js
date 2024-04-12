@@ -33,14 +33,14 @@ if(serverConst.dbstring){
     redirs.uf = juush.upload;
     redirs.nuser = juush.newUser;
     redirs.juush = juush.API;
-    initPromise = juush.U.initializeMongo();
+    initPromise = juush.u;
 }else{
     initPromise = new Promise.resolve(true);
 }
 
 import server from "./server.js";
 
-export let serverPromise = initPromise.then(() => {
+export default initPromise.then(() => {
     return new server({
         redirs,
         ip: serverConst.IP,

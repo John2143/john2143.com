@@ -1,38 +1,43 @@
+"use strict";
+
 import mongodb from "mongodb";
 
 export const mongoclient = new mongodb.MongoClient();
 export let query;
 
-export const initializeMongo = async () => {
-    let db = await mongoclient.connect(serverConst.dbstring);
-    const countersSeen = [];
+export default new Promise(resolve =>
+    mongoclient.connect(serverConst.dbstring).then(db => {
+        const countersSeen = [];
 
-    const counters = db.collection("counters");
+        const counters = db.collection("counters");
 
-    query = {
-        keys: db.collection("keys"),
-        index: db.collection("index"),
-        async counter(name){
-            if(!countersSeen[name]){
-                //Make sure the counter has been initialized
-                await counters.updateOne(
+        query = {
+            keys: db.collection("keys"),
+            index: db.collection("index"),
+            async counter(name){
+                if(!countersSeen[name]){
+                    //Make sure the counter has been initialized
+                    await counters.updateOne(
+                        {_id: name},
+                        {$setOnInsert: {value: 1}},
+                        {upsert: true}
+                    );
+                    countersSeen[name] = true;
+                }
+
+                const counter = await counters.findOneAndUpdate(
                     {_id: name},
-                    {$setOnInsert: {value: 1}},
-                    {upsert: true}
+                    {$inc: {value: 1}}
                 );
-                countersSeen[name] = true;
+
+                return counter.value.value;
             }
+        };
+        if(global.it) global.query = query;
 
-            const counter = await counters.findOneAndUpdate(
-                {_id: name},
-                {$inc: {value: 1}}
-            );
-
-            return counter.value.value;
-        }
-    };
-    if(global.it) global.query = query;
-};
+        resolve();
+    })
+);
 
 //This works with dbError to end a broken session
 export const juushError = function(res, err, code){

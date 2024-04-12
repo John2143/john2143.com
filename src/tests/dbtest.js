@@ -49,8 +49,9 @@ describe("API", function(){
             res.should.be.json;
             const json = res.body;
             json.should.have.property("length", 3);
-            json[0].should.have.property("_id");
-            json[0].should.have.property("name");
+            json.should.have.deep.property("[0]._id");
+            json.should.have.deep.property("[0].name");
+            json.should.have.deep.property("[0]");
         });
     });
 

@@ -64,6 +64,21 @@ const setMimeType = async function(id, newmime){
 };
 
 const shouldInline = function(__filedata, __mime){
+    //const inlineTypes = [
+        //"txt", "text", "png", "jpg", "jpeg", "html",
+        //"webm", "mp4", "mp3", "wav", "vorbis"
+    //];
+    //Mimetype is supplied by the user, meaning the subset may not exist
+
+    //const regex = /(.+)\/?(.+)?/g;
+    //var regexResult = regex.exec(mime);
+    //var category = regexResult[1];
+    //var subset = regexResult[2];
+
+    //return category === "video" || category === "audio" ||
+        //category === "image" || category === "text";
+
+    //just let the browser decide
     return true;
 };
 
