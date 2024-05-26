@@ -46,6 +46,7 @@ export async function startdb() {
 
 //This works with dbError to end a broken session
 export const juushError = function(res, err, code){
+    serverLog(err, code);
     if(!res){
         serverLog("!!!!!something super weird happened...");
         try{throw new Error();}catch(e){

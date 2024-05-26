@@ -200,7 +200,7 @@ export default async function(server, reqx){
             //console.log("Completed header parsing");
             //Check the uploaders key (Sharex passes this as 'name="xxxx"')
             //console.log(headers);
-            const ip = "127.0.0.1";
+            const ip = reqx.req.headers["x-real-ip"];
             U.query.keys.findOne({key: headers.key}).then(item => {
                 if(!item) {
                     error("You must supply a valid key in order to upload.");
