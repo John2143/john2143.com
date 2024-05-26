@@ -97,7 +97,7 @@ const processDownload = async function(reqx, data, disposition){
     //Try to get file details
     let stat;
     try{
-        stat = fs.statSync(filepath);
+        stat = await fs.stat(filepath);
     }catch(e){
         reqx.doHTML("Internal error: file may have been manually deleted.", 500);
         return;

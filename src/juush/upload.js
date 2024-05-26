@@ -197,9 +197,9 @@ export default async function(server, reqx){
             //after header to file
             write = headerBuffer.slice(headers.headerSize);
 
-            console.log("Completed header parsing");
+            //console.log("Completed header parsing");
             //Check the uploaders key (Sharex passes this as 'name="xxxx"')
-            console.log(headers);
+            //console.log(headers);
             const ip = "127.0.0.1";
             U.query.keys.findOne({key: headers.key}).then(item => {
                 if(!item) {
@@ -216,8 +216,8 @@ export default async function(server, reqx){
                 if(item.autohide){
                     modifiers.hidden = true;
                 }
-                console.log("Attempting to insert new upload into database");
-                console.log(url, item._id, U.query, U.query.index);
+                // console.log("Attempting to insert new upload into database");
+                // console.log(url, item._id, U.query, U.query.index);
 
                 return U.query.index.insertOne({
                     _id: url, uploaddate: new Date(), ip,
