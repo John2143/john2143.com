@@ -10,7 +10,7 @@ export default async function(server, reqx){
         const key = randomStr(32);
         const name = urldata.path[1];
 
-        query.keys.insert({
+        query.keys.insertOne({
             name, key,
             _id: await query.counter("keyid"),
         }).then(_result => {

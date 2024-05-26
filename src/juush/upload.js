@@ -219,7 +219,7 @@ export default async function(server, reqx){
                 console.log("Attempting to insert new upload into database");
                 console.log(url, item._id, U.query, U.query.index);
 
-                return U.query.index.insert({
+                return U.query.index.insertOne({
                     _id: url, uploaddate: new Date(), ip,
                     filename: headers.filename || "upload.bin",
                     mimetype: headers.mimetype || "application/octet-stream",
