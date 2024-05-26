@@ -1,5 +1,7 @@
 
 import * as U from "./util.js";
+import fs from "node:fs/promises";
+
 
 //You will get a referer and range if you are trying to stream an audio/video
 const isStreamRequest = req => req.headers.referer && req.headers.range;
@@ -12,7 +14,7 @@ const serveStreamRequest = async function(reqx, filepath){
 
     try{
         //statSync fails if filepath does not exist
-        stat = fs.statSync(filepath);
+        stat = await fs.stat(filepath);
     }catch(e){
         reqx.res.writeHead(400, {});
         reqx.res.end();
@@ -51,7 +53,8 @@ const serveStreamRequest = async function(reqx, filepath){
         "Content-Range": `bytes ${bytesString}`,
     });
 
-    const filePipe = fs.createReadStream(filepath, {start: rangeStart, end: rangeEnd});
+    let f = await fs.open(filepath, "r");
+    const filePipe = f.createReadStream({start: rangeStart, end: rangeEnd});
     reqx.res.on("error", () => filePipe.end());
     filePipe.pipe(reqx.res);
 };
@@ -82,7 +85,7 @@ const shouldInline = function(__filedata, __mime){
     return true;
 };
 
-const processDownload = function(reqx, data, disposition){
+const processDownload = async function(reqx, data, disposition){
     const uploadID = data._id;
     const filepath = U.getFilename(uploadID);
 
@@ -143,7 +146,8 @@ const processDownload = function(reqx, data, disposition){
     });
 
     //Stream file from disk directly
-    const stream = fs.createReadStream(filepath);
+    let f = await fs.open(filepath, "r");
+    const stream = f.createReadStream({start: rangeStart, end: rangeEnd});
     stream.pipe(reqx.res);
 };
 
@@ -245,7 +249,7 @@ const download = async function(server, reqx){
             reqx.doHTML("This upload does not exist", 404);
             return;
         }
-        processDownload(reqx, result, disposition);
+        await processDownload(reqx, result, disposition);
     }
 };
 

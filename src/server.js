@@ -1,15 +1,11 @@
 import https from "https";
 import http  from "http";
 import url   from "url";
+import fs    from "node:fs/promises";
 import "colors";
 
 let favicon = "";
-
-try{
-    favicon = fs.readFileSync("favicon.ico");
-}catch(e){
-    //NOOP
-}
+fs.readFile("favicon.ico").then(dat => favicon = dat);;
 
 class request{
     constructor(req, res){
@@ -113,7 +109,7 @@ class request{
     }
 
     async serveStatic(path, headers = {"Content-Type": "text/html"}, code = 200){
-        return fs.readFileAsync(path, "utf8").then(dat => {
+        return fs.readFile(path, "utf8").then(dat => {
             this.res.writeHead(code, headers);
             this.res.end(dat);
         }).catch(/* istanbul ignore next */ _err => {
@@ -220,7 +216,7 @@ export default class server{
             //Can this reach files below the base directory using ..? should test this
             const filepath = "./pages/" + reqx.urldata.path.join("/");
             try{
-                await fs.statAsync(filepath);
+                await fs.stat(filepath);
                 await reqx.serveStatic(filepath);
             }catch(e){
                 await reqx.serveStatic("./pages/404.html", null, 404);
