@@ -16,3 +16,4 @@ RUN adduser app
 COPY --chown=app:app . .
 RUN npm install --omit=dev
 COPY --from=builder --chown=app:app /app/c /app/c
+CMD ["node", "c/index.js"]
