@@ -1,43 +1,43 @@
 "use strict";
 
-import mongodb from "mongodb";
+import { MongoClient } from "mongodb";
 
-export const mongoclient = new mongodb.MongoClient();
+export let mongoclient = new MongoClient(serverConst.dbstring);
 export let query;
 
-export default new Promise(resolve =>
-    mongoclient.connect(serverConst.dbstring).then(db => {
-        const countersSeen = [];
+export async function startdb() {
+    console.log("Connecting to database...");
+    let cli = await mongoclient.connect();
+    let db = cli.db("juush");
+    const countersSeen = [];
 
-        const counters = db.collection("counters");
+    const counters = db.collection("counters");
+    console.log("Connected to database.");
 
-        query = {
-            keys: db.collection("keys"),
-            index: db.collection("index"),
-            async counter(name){
-                if(!countersSeen[name]){
-                    //Make sure the counter has been initialized
-                    await counters.updateOne(
-                        {_id: name},
-                        {$setOnInsert: {value: 1}},
-                        {upsert: true}
-                    );
-                    countersSeen[name] = true;
-                }
-
-                const counter = await counters.findOneAndUpdate(
+    query = {
+        keys: db.collection("keys"),
+        index: db.collection("index"),
+        async counter(name){
+            if(!countersSeen[name]){
+                //Make sure the counter has been initialized
+                await counters.updateOne(
                     {_id: name},
-                    {$inc: {value: 1}}
+                    {$setOnInsert: {value: 1}},
+                    {upsert: true}
                 );
-
-                return counter.value.value;
+                countersSeen[name] = true;
             }
-        };
-        if(global.it) global.query = query;
 
-        resolve();
-    })
-);
+            const counter = await counters.findOneAndUpdate(
+                {_id: name},
+                {$inc: {value: 1}}
+            );
+
+            return counter.value.value;
+        }
+    };
+    if(global.it) global.query = query;
+}
 
 //This works with dbError to end a broken session
 export const juushError = function(res, err, code){

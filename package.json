@@ -6,9 +6,8 @@
   "dependencies": {
     "babel-cli": "^6.24.1",
     "babel-preset-latest": "^6.24.1",
-    "bluebird": "^3.5.0",
-    "mongodb": "^2.2.26",
-    "colors": "^1.1.2"
+    "colors": "^1.1.2",
+    "mongodb": "^6.6.2"
   },
   "devDependencies": {
     "babel-register": "^6.24.1",
@@ -26,7 +25,7 @@
   },
   "scripts": {
     "test": "mocha c/test.js -c",
-    "start": "node c --color=always",
+    "start": "node c --enable-source-maps --color=always",
     "startLog": "npm run start | tee \"logs/`date '+%Y-%m-%d_%H-%M-%S'`.txt\" | tee logs/cur",
     "testc": "mocha src/test.js --compilers js:babel-register -c",
     "cover": "nyc --reporter lcov npm run testc",

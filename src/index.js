@@ -22,30 +22,30 @@ let redirs = {
 };
 redirs.ts = redirs.teamspeak;
 
-let initPromise;
-
-/* istanbul ignore else */
-if(serverConst.dbstring){
-    //have to use commonjs here
-    const juush = require("./juush");
-    redirs[""] = juush.download;
-    redirs.f = juush.download;
-    redirs.uf = juush.upload;
-    redirs.nuser = juush.newUser;
-    redirs.juush = juush.API;
-    initPromise = juush.u;
-}else{
-    initPromise = new Promise.resolve(true);
-}
-
 import server from "./server.js";
 
-export default initPromise.then(() => {
-    return new server({
+async function m(){
+    /* istanbul ignore else */
+    if(serverConst.dbstring){
+        //have to use commonjs here
+        const juush = require("./juush");
+        redirs[""] = juush.download;
+        redirs.f = juush.download;
+        redirs.uf = juush.upload;
+        redirs.nuser = juush.newUser;
+        redirs.juush = juush.API;
+        await juush.startdb();
+    }
+
+    let srv = new server({
         redirs,
         ip: serverConst.IP,
         port: serverConst.PORT,
         httpPort: serverConst.HTTPPORT,
         keys: serverConst.keys,
     });
-});
+
+    return srv;
+}
+
+export default m();

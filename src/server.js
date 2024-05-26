@@ -182,7 +182,7 @@ export default class server{
 
     //get a list of files so that they can be served without the .html ext
     async getPagesDirectory(){
-        let htmlPages = (await fs.readdirSync("./pages"))
+        let htmlPages = (await fs.readdir("./pages"))
             .filter(x => x.endsWith(".html"));
         let map = {};
         for(let page of htmlPages){

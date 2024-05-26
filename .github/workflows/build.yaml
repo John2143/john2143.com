@@ -1,0 +1,33 @@
+name: server
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create_docker:
+    runs-on: john-k8s
+    needs: [ setup ]
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Docker login
+      run: |
+        echo "${{ secrets.PAT_PACKAGES }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Docker build and push
+      run: |
+        TAG=ghcr.io/john2143/john2143.com:${{ github.run_number }}
+        docker build -t b . --label "runnumber=${{ github.run_number }}"
+        docker tag b $TAG
+        docker push $TAG
