@@ -5,6 +5,9 @@ import { MongoClient } from "mongodb";
 export let mongoclient = new MongoClient(serverConst.dbstring);
 export let query;
 
+export let db_index;
+export let db_keys;
+
 export async function startdb() {
     console.log("Connecting to database...");
     let cli = await mongoclient.connect();
@@ -13,6 +16,8 @@ export async function startdb() {
 
     const counters = db.collection("counters");
     console.log("Connected to database.");
+    db_keys = db.collection("keys");
+    db_index = db.collection("index");
 
     query = {
         keys: db.collection("keys"),
