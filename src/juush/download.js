@@ -147,7 +147,7 @@ const processDownload = async function(reqx, data, disposition){
 
     //Stream file from disk directly
     let f = await fs.open(filepath, "r");
-    const stream = f.createReadStream({start: rangeStart, end: rangeEnd});
+    const stream = f.createReadStream();
     stream.pipe(reqx.res);
 };
 
