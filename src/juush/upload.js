@@ -142,7 +142,8 @@ export default async function(server, reqx){
     const maxHeaderBufferSize = 32000;
     let headerBuffer = null;
 
-    reqx.req.on("error", function(){
+    reqx.req.on("error", function(e){
+        error(e);
         error("Upload error.");
     });
 
