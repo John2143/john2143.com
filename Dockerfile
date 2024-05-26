@@ -7,7 +7,7 @@ COPY . .
 RUN npm run build
 
 
-FROM debian:12-slim as runner
+FROM node:22-slim as runner
 RUN mkdir -p /app
 WORKDIR /app
 RUN adduser app
