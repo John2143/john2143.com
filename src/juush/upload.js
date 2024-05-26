@@ -79,7 +79,7 @@ export default async function(server, reqx){
 
     //Genertic error function to safely abort a broken connection
     let isError = false;
-    const error = function(errt = "Generic error", errc = 500){
+    const error = async function(errt = "Generic error", errc = 500){
         reqx.extraLog = url.green;
         returnPromise.resolve();
 
@@ -96,7 +96,7 @@ export default async function(server, reqx){
         }
 
         //Delete file
-        fs.unlinkAsync(filepath).catch(err => {
+        await fs.unlink(filepath).catch(err => {
             serverLog("Failed to unlink upload!", err);
         });
 

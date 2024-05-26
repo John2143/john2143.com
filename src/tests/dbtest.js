@@ -394,7 +394,7 @@ describe("error", function(){
             .should.eventually.be.rejected.and.have.status(404);
     });
     it("500 when viewing broken file", async function(){
-        await fs.unlinkAsync("./juushFiles/" + keys[3]);
+        await fs.unlink("./juushFiles/" + keys[3]);
         return req().get(`/f/${keys[3]}`)
             .should.eventually.be.rejected.and.have.status(500);
     });

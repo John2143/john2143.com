@@ -62,7 +62,7 @@ const serveStreamRequest = async function(reqx, filepath){
 const setMimeType = async function(id, newmime){
     return await Promise.all([
         U.query.index.updateOne({_id: id}, {$set: {mimetype: newmime}}),
-        newmime === "deleted" && fs.unlinkAsync(U.getFilename(id)),
+        newmime === "deleted" && fs.unlink(U.getFilename(id)),
     ]);
 };
 
