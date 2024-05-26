@@ -197,8 +197,9 @@ export default async function(server, reqx){
             //after header to file
             write = headerBuffer.slice(headers.headerSize);
 
-            coonsole.log("Completed header parsing");
+            console.log("Completed header parsing");
             //Check the uploaders key (Sharex passes this as 'name="xxxx"')
+            console.log(reqx.req.headers);
             const ip = "127.0.0.1";
             U.query.keys.findOne({key: headers.key}).then(item => {
                 if(!item) {
