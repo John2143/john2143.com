@@ -11,7 +11,8 @@ env:
 
 jobs:
   create_docker:
-    runs-on: john-k8s
+    #runs-on: john-k8s
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
