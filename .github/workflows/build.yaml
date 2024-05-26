@@ -12,7 +12,6 @@ env:
 jobs:
   create_docker:
     runs-on: john-k8s
-    needs: [ setup ]
     permissions:
       contents: write
     steps:
