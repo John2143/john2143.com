@@ -1,5 +1,6 @@
 
 import * as U from "./util.js";
+import fs from "node:fs/promises";
 
 //Retreives a database client and randomized url that has not been used before
 const getURL = async function(){
@@ -61,8 +62,8 @@ export default async function(server, reqx){
     };
 
     const filepath = U.getFilename(url);
-    const wstream = fs.createWriteStream(filepath, {
-        flags: "w",
+    let f = await fs.open(filepath, "w");
+    const wstream = f.createWriteStream({
         encoding: "binary",
     });
 
