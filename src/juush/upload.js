@@ -216,6 +216,8 @@ export default async function(server, reqx){
                 if(item.autohide){
                     modifiers.hidden = true;
                 }
+                console.log("Attempting to insert new upload into database");
+                console.log(url, item._id);
 
                 return U.query.index.insert({
                     _id: url, uploaddate: new Date(), ip,
