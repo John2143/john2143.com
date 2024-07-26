@@ -1,4 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+#REMOTE="https://john2143.com/uf"
+REMOTE="https://john2143.com/uf"
+#CLIPBOARD=xclip -selection clipboard
+CLIPBOARD=wl-copy
+NOTIFY=notify-send
+KEYFILE="$HOME/.ssh/juushkey"
+
 
 usage(){
     echo "Usage juush [-r URL] [-k key | -a] [-m mime] file"
@@ -17,8 +25,6 @@ echoerr(){
     echo $@ >&2
 }
 
-REMOTE="https://john2143.com/uf"
-
 while test $# != 0
 do
     case "$1" in
@@ -34,10 +40,8 @@ do
     shift
 done
 
-echoerr "Trying to upload $FILE"
 
 if [[ -z $JUUSH_KEY ]]; then
-    KEYFILE="$HOME/.ssh/juushkey"
     if [[ -z $ANON_UPLOAD ]] && [[ -e $KEYFILE ]]; then
         source $KEYFILE
         echoerr "Got key..."
@@ -47,19 +51,18 @@ if [[ -z $JUUSH_KEY ]]; then
     fi
 fi
 
+if [[ ! -f "$FILE" ]]; then
+    echoerr "File does not exist"
+    exit 1
+fi
+
+echoerr "Getting MIME"
 if [[ -z $MIME_TYPE ]]; then
     MIME_TYPE=$(file --mime-type $FILE | awk '{print $2}')
 fi
 
-echoerr "It is a '$MIME_TYPE'"
-
-URL=$(curl -X POST -F "$JUUSH_KEY=@$FILE;type=$MIME_TYPE" $REMOTE)
-
-if [[ -z $XCLIP ]]; then
-    echo "$URL"
-else
-    echo "$URL" | xclip -selection clipboard
-    echo "Success"
-fi
-
-#
+echoerr "Starting upload"
+$NOTIFY "Starting upload"
+URL=`curl -X POST --limit-rate 5M -F "$JUUSH_KEY=@$FILE;type=$MIME_TYPE" $REMOTE`
+echo -n "$URL" | $CLIPBOARD
+$NOTIFY "Got Url: $URL"
