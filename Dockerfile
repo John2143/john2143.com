@@ -1,4 +1,4 @@
-FROM node:latest as builder
+FROM node:latest AS builder
 
 WORKDIR /app
 COPY package-lock.json package.json ./
@@ -7,7 +7,7 @@ COPY . .
 RUN npm run build
 
 
-FROM node:22-slim as runner
+FROM node:22-slim AS runner
 RUN mkdir -p /app
 WORKDIR /app
 RUN adduser app
