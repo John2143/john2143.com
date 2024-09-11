@@ -96,7 +96,7 @@ if(global.it){
     global.testIsAdmin = true;
     isAdmin = __ip => global.testIsAdmin;
 }else{
-    isAdmin = ip => ip.indexOf("192.168") >= 0 || ip === "127.0.0.1" || ip === "::1";
+    isAdmin = ip => ip.indexOf("192.168") == 0 || ip === "127.0.0.1" || ip === "::1" || ip.indexOf("10.") == 0;
 }
 
 export const IPEqual = (a, b) => a && b && a.split("/")[0] === b.split("/")[0];

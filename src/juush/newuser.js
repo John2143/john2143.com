@@ -5,7 +5,7 @@ import {juushErrorCatch, isAdmin, query, randomStr} from "./util.js";
 export default async function(server, reqx){
     const {res, urldata, req} = reqx;
     //Only people on the same network as the server can create users
-    const ip = req.headers["x-real-ip"];
+    const ip = req.headers["x-forwarded-for"];
     if(isAdmin(ip)){
         const key = randomStr(32);
         const name = urldata.path[1];

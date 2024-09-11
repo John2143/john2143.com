@@ -68,7 +68,7 @@ class request{
             return Array(pad + 1).join(" ") + str;
         };
 
-        const ip = this.req.headers["x-real-ip"];
+        const ip = this.req.headers["x-forwarded-for"];
 
         const path = this.urldata.path.join("/");
 

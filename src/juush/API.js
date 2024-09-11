@@ -16,7 +16,7 @@ export default async function(server, reqx){
     const {res, urldata, req} = reqx;
     // /juush/uploads/<userid>/[page]/
     // lists some number of uploads from a user, with an optional offset
-    const ip = req.headers["x-real-ip"];
+    const ip = req.headers["x-forwarded-for"];
 
     if(urldata.path[1] === "uploads"){
         const [, , userid_, page = 0] = urldata.path;
