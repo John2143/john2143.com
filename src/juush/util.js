@@ -16,7 +16,7 @@ export async function startdb() {
         console.log("setting up s3 connection");
         s3_client = new S3({
             apiVersion: "latest",
-            endpoint: `${process.env.S3_ENDPOINT_URL}${path}`,
+            endpoint: `${process.env.S3_ENDPOINT_URL}`,
             credentials: {
                 accessKeyId: process.env.S3_ACCESS_KEY,
                 secretAccessKey: process.env.S3_SECRET_KEY,
