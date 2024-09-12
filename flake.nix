@@ -11,9 +11,8 @@
       in {
         devShell = pkgs.mkShell {
           buildInputs=[
-            pkgs.nodePackages.pnpm
-            pkgs.nodePackages.typescript
-            pkgs.nodePackages.typescript-language-server
+            pkgs.nodejs_18
+            #pkgs.nodePackages."@babel/cli"
           ];
         };
       }
