@@ -1,6 +1,7 @@
 "use strict";
 
 import { MongoClient } from "mongodb";
+import * as S3 from "aws-sdk/clients/s3";
 
 export let mongoclient = new MongoClient(serverConst.dbstring);
 export let query;
@@ -8,7 +9,20 @@ export let query;
 export let db_index;
 export let db_keys;
 
+export let s3_client;
+
 export async function startdb() {
+    if(process.env.S3_ENDPOINT_URL){
+        console.log("setting up s3 connection");
+        s3_client = new S3({
+            apiVersion: "latest",
+            endpoint: `${process.env.S3_ENDPOINT_URL}${path}`,
+            credentials: {
+                accessKeyId: process.env.S3_ACCESS_KEY,
+                secretAccessKey: process.env.S3_SECRET_KEY,
+            },
+        });
+    }
     console.log("Connecting to database...");
     let cli = await mongoclient.connect();
     let db = cli.db("juush");

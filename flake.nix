@@ -11,7 +11,9 @@
       in {
         devShell = pkgs.mkShell {
           buildInputs=[
-            pkgs.nodejs_18
+            pkgs.nodejs_22
+            pkgs.nodePackages.typescript
+            pkgs.nodePackages.typescript-language-server
           ];
         };
       }

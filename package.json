@@ -4,13 +4,14 @@
   "description": "Server for john2143.com, including juush",
   "main": "c/index.js",
   "dependencies": {
+    "aws-sdk": "^2.1691.0",
     "colors": "^1.1.2",
     "mongodb": "^6.6.2"
   },
   "devDependencies": {
     "babel-cli": "^6.24.1",
-    "babel-preset-latest": "^6.24.1",
     "babel-plugin-transform-es2015-modules-commonjs": "^6.26.2",
+    "babel-preset-latest": "^6.24.1",
     "babel-register": "^6.24.1",
     "chai": "^3.5.0",
     "chai-as-promised": "^6.0.0",
