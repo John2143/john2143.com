@@ -1,23 +1,47 @@
 {
-  "name": "typescript-pnpm-template",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.ts",
-  "scripts": {
-    "start": "webpack serve --open"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "name": "john2143.com",
+  "version": "2.0.0",
+  "description": "Server for john2143.com, including juush",
+  "main": "c/index.js",
   "dependencies": {
-    "lodash": "^4.17.21",
-    "typescript": "^5.4.3"
+    "babel-cli": "^6.24.1",
+    "babel-preset-latest": "^6.24.1",
+    "colors": "^1.1.2",
+    "mongodb": "^6.6.2"
   },
   "devDependencies": {
-    "@types/lodash": "^4.17.0",
-    "ts-loader": "^9.5.1",
-    "webpack": "^5.91.0",
-    "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^5.0.4"
-  }
+    "babel-register": "^6.24.1",
+    "chai": "^3.5.0",
+    "chai-as-promised": "^6.0.0",
+    "chai-http": "^3.0.0",
+    "coveralls": "^2.13.0",
+    "eslint": "^3.19.0",
+    "istanbul": "^0.4.5",
+    "jshint": "^2.9.4",
+    "mocha": "^3.3.0",
+    "nyc": "^10.2.0",
+    "sinon": "^2.1.0",
+    "source-map-support": "^0.4.14"
+  },
+  "scripts": {
+    "test": "mocha c/test.js -c",
+    "start": "node c --enable-source-maps --color=always",
+    "startLog": "npm run start | tee \"logs/`date '+%Y-%m-%d_%H-%M-%S'`.txt\" | tee logs/cur",
+    "testc": "mocha src/test.js --compilers js:babel-register -c",
+    "cover": "nyc --reporter lcov npm run testc",
+    "build": "babel src --out-dir c -s",
+    "buildw": "npm run build -- --watch",
+    "clean": "rm -r c coverage",
+    "lint": "eslint src --color || exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/John2143/john2143.com.git"
+  },
+  "author": "John2143",
+  "license": "GPL-3.0+",
+  "bugs": {
+    "url": "https://github.com/John2143/john2143.com/issues"
+  },
+  "homepage": "https://john2143.com"
 }
