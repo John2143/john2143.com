@@ -240,23 +240,28 @@ export default async function(server, reqx){
 
                 let prom = null;
                 if(U.s3_client) {
+                    console.log("has s3 client: starting multipart");
                     // Create multipart upload
                     prom = s3_client.send(new CreateMultipartUploadCommand({
                         Bucket: process.env.BUCKET,
                         Key: `${process.env.FOLDER}/${url}`,
-                        ContentType: mongoData.mimetype,
+                        //ContentType: mongoData.mimetype,
                         ACL: "public-read",
                     })).then(data => {
+                        console.log("s3 possible");
                         currentMultipartUpload = data
                         data.Parts = [];
                         currentMultipartUploadChunk = Buffer.allocUnsafe(maxChunkSize);
                         currentMultipartUploadChunkIndex = 0;
+                    }).catch(e => {
+                        console.log("s3 not possible", e);
+                        return e;
                     });
                 } else {
                     prom = new Promise(resolve => resolve());
                 }
 
-                return prom.then(U.query.index.insertOne(mongoData));
+                return Promise.allSettled([U.query.index.insertOne(mongoData), prom]);
             }).catch(errorCatch);
         }
 
@@ -301,6 +306,7 @@ export default async function(server, reqx){
             if(currentMultipartUploadChunkIndex > minChunkSize) {
                 let newPartNum = currentMultipartUpload.Parts.length + 1;
                 // Now start uploading parts
+                console.log("starting multipart part");
                 let res = s3_client.send(new UploadPartCommand({
                     Bucket: process.env.BUCKET,
                     Key: `${process.env.FOLDER}/${url}`,
@@ -318,6 +324,7 @@ export default async function(server, reqx){
                 currentMultipartUploadChunkIndex = 0;
 
                 if(slice) {
+                    console.log("multipart done");
                     // We are done: finish the upload
                     let res2 = s3_client.send(new CompleteMultipartUploadCommand({
                         Bucket: process.env.BUCKET,

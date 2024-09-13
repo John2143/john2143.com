@@ -70,7 +70,7 @@ export async function startdb() {
     // If the user set this environment variable, we will use s3
     if(process.env.S3_ENDPOINT_URL){
         console.log("setting up s3 connection");
-        s3_client = new S3Client({
+        let local_s3_client = new S3Client({
             endpoint: `${process.env.S3_ENDPOINT_URL}`,
             forcePathStyle: false,
             region: "us-east-1",
@@ -81,16 +81,14 @@ export async function startdb() {
         });
 
         console.log("Uploading test file to s3");
-        s3_client.send(new PutObjectCommand({
-            Bucket: "imagehost-files",
+        local_s3_client.send(new PutObjectCommand({
+            Bucket: process.env.BUCKET,
             Key: "a/test",
             Body: "Hello, World!",
             ACL: "public-read",
-            //Metadata: { // Defines metadata tags.
-                //"x-amz-meta-my-key": "your-value"
-            //}
         })).then(() => {
             console.log("Uploaded test file to s3");
+            s3_client = local_s3_client;
         }).catch((err) => {
             console.log("Failed to upload test file to s3");
             console.log(err);
