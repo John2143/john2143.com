@@ -1,7 +1,7 @@
 "use strict";
 
 import { MongoClient } from "mongodb";
-import * as S3 from "aws-sdk/clients/s3";
+import { S3Client, PutObjectCommand, UploadPartCommand, CreateMultipartUploadCommand, CompleteMultipartUploadCommand } from "@aws-sdk/client-s3";
 
 export let mongoclient = new MongoClient(serverConst.dbstring);
 export let query;
@@ -11,18 +11,92 @@ export let db_keys;
 
 export let s3_client;
 
+export async function test_uploads() {
+    console.log("Uploading test file to s3");
+    let res = await s3_client.send(new PutObjectCommand({
+        Bucket: "imagehost-files",
+        Key: "a/test",
+        Body: "Hello, World!",
+        ACL: "public-read",
+        //Metadata: { // Defines metadata tags.
+            //"x-amz-meta-my-key": "your-value"
+        //}
+    }));
+    console.log("Uploaded test file to s3");
+}
+
+export async function test_multipart_uploads() {
+
+    // Create multipart upload
+    let mpu = await s3_client.send(new CreateMultipartUploadCommand({
+        Bucket: "imagehost-files",
+        Key: "a/test3",
+        ACL: "public-read",
+    }));
+
+    let entry = [];
+
+    for(let i = 0; i < 10; i++){
+        // Now start uploading parts
+        let res = await s3_client.send(new UploadPartCommand({
+            Bucket: "imagehost-files",
+            Key: "a/test3",
+            ContentLength: 1024 * 1024 * 7,
+            Body: Array(1024 * 1024 * 7).fill(32),
+            UploadId: mpu.UploadId,
+            PartNumber: i + 1,
+        }));
+        entry.push({
+            ETag: res.ETag,
+            PartNumber: i + 1,
+        });
+    }
+
+    console.log(entry);
+
+    let res2 = await s3_client.send(new CompleteMultipartUploadCommand({
+        Bucket: "imagehost-files",
+        Key: "a/test3",
+        UploadId: mpu.UploadId,
+        MultipartUpload: {
+            Parts: entry,
+        }
+    }));
+
+    console.log(res2);
+}
+
 export async function startdb() {
+    // If the user set this environment variable, we will use s3
     if(process.env.S3_ENDPOINT_URL){
         console.log("setting up s3 connection");
-        s3_client = new S3({
-            apiVersion: "latest",
+        s3_client = new S3Client({
             endpoint: `${process.env.S3_ENDPOINT_URL}`,
+            forcePathStyle: false,
+            region: "us-east-1",
             credentials: {
                 accessKeyId: process.env.S3_ACCESS_KEY,
                 secretAccessKey: process.env.S3_SECRET_KEY,
             },
         });
+
+        console.log("Uploading test file to s3");
+        s3_client.send(new PutObjectCommand({
+            Bucket: "imagehost-files",
+            Key: "a/test",
+            Body: "Hello, World!",
+            ACL: "public-read",
+            //Metadata: { // Defines metadata tags.
+                //"x-amz-meta-my-key": "your-value"
+            //}
+        })).then(() => {
+            console.log("Uploaded test file to s3");
+        }).catch((err) => {
+            console.log("Failed to upload test file to s3");
+            console.log(err);
+        });
     }
+
     console.log("Connecting to database...");
     let cli = await mongoclient.connect();
     let db = cli.db("juush");

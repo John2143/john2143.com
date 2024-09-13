@@ -1,6 +1,7 @@
 
 import * as U from "./util.js";
 import fs from "node:fs/promises";
+import { PutObjectCommand, UploadPartCommand, CreateMultipartUploadCommand, CompleteMultipartUploadCommand } from "@aws-sdk/client-s3";
 
 //Retreives a database client and randomized url that has not been used before
 const getURL = async function(){
@@ -142,6 +143,15 @@ export default async function(server, reqx){
     const maxHeaderBufferSize = 32000;
     let headerBuffer = null;
 
+    let currentMultipartUpload = null;
+    // 5 mb
+    const minChunkSize = 1024 * 1024 * 5;
+    // actually 5 gb, but we'll cap it at 25 mb
+    const maxChunkSize = 1024 * 1024 * 25;
+
+    let currentMultipartUploadChunk = null;
+    let currentMultipartUploadChunkIndex = null;
+
     reqx.req.on("error", function(e){
         error(e);
         error("Upload error.");
@@ -210,7 +220,7 @@ export default async function(server, reqx){
                 reqx.extraLog = url.green + " " + String(item.name).blue;
                 returnPromise.resolve();
 
-                customURL = item.customURL || "john2143.com";
+                customURL = item.customURL || headers.hostname || "john2143.com";
 
                 let modifiers = {};
                 if(item.autohide){
@@ -218,15 +228,35 @@ export default async function(server, reqx){
                 }
                 // console.log("Attempting to insert new upload into database");
                 // console.log(url, item._id, U.query, U.query.index);
-
-                return U.query.index.insertOne({
+                //
+                let mongoData = {
                     _id: url, uploaddate: new Date(), ip,
                     filename: headers.filename || "upload.bin",
                     mimetype: headers.mimetype || "application/octet-stream",
                     keyid: item._id,
                     modifiers,
                     downloads: 0,
-                });
+                };
+
+                let prom = null;
+                if(U.s3_client) {
+                    // Create multipart upload
+                    prom = s3_client.send(new CreateMultipartUploadCommand({
+                        Bucket: process.env.BUCKET,
+                        Key: `${process.env.FOLDER}/${url}`,
+                        ContentType: mongoData.mimetype,
+                        ACL: "public-read",
+                    })).then(data => {
+                        currentMultipartUpload = data
+                        data.Parts = [];
+                        currentMultipartUploadChunk = Buffer.allocUnsafe(maxChunkSize);
+                        currentMultipartUploadChunkIndex = 0;
+                    });
+                } else {
+                    prom = new Promise(resolve => resolve());
+                }
+
+                return prom.then(U.query.index.insertOne(mongoData));
             }).catch(errorCatch);
         }
 
@@ -248,13 +278,58 @@ export default async function(server, reqx){
             }
         }
 
+        let curData = write;
+        let curDataLen = 0;
         if(slice){
-            //Only write the portion of the buffer
+            //Only write the portion of the buffer up to the boundary
             let write2 = Buffer.allocUnsafe(diff);
             write.copy(write2, 0, 0, diff);
-            wstream.write(write2);
+
+            curData = write2;
+            curDataLen = diff;
         }else{
-            wstream.write(write);
+            curData = write;
+            curDataLen = lenw;
+        }
+        wstream.write(curData);
+
+        if (currentMultipartUpload) {
+            // Copy the curData into the currentMultipartUploadChunk
+            let chunk = currentMultipartUploadChunk;
+            curData.copy(chunk, currentMultipartUploadChunkIndex, 0, curDataLen);
+            currentMultipartUploadChunkIndex += curDataLen;
+            if(currentMultipartUploadChunkIndex > minChunkSize) {
+                let newPartNum = currentMultipartUpload.Parts.length + 1;
+                // Now start uploading parts
+                let res = s3_client.send(new UploadPartCommand({
+                    Bucket: process.env.BUCKET,
+                    Key: `${process.env.FOLDER}/${url}`,
+                    ContentLength: currentMultipartUploadChunkIndex,
+                    Body: chunk.slice(0, currentMultipartUploadChunkIndex),
+                    UploadId: currentMultipartUpload.UploadId,
+                    PartNumber: newPartNum,
+                }));
+
+                currentMultipartUpload.Parts.push({
+                    ETag: res.ETag,
+                    PartNumber: newPartNum,
+                });
+
+                currentMultipartUploadChunkIndex = 0;
+
+                if(slice) {
+                    // We are done: finish the upload
+                    let res2 = s3_client.send(new CompleteMultipartUploadCommand({
+                        Bucket: process.env.BUCKET,
+                        Key: `${process.env.FOLDER}/${url}`,
+                        UploadId: currentMultipartUpload.UploadId,
+                        MultipartUpload: {
+                            Parts: currentMultipartUpload.Parts,
+                        }
+                    }));
+                    console.log(res2);
+                }
+            }
         }
 
     });
