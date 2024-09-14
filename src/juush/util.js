@@ -14,7 +14,7 @@ export let s3_client;
 export async function test_uploads() {
     console.log("Uploading test file to s3");
     let res = await s3_client.send(new PutObjectCommand({
-        Bucket: "imagehost-files",
+        Bucket: process.env.BUCKET,
         Key: "a/test",
         Body: "Hello, World!",
         ACL: "public-read",
@@ -29,7 +29,7 @@ export async function test_multipart_uploads() {
 
     // Create multipart upload
     let mpu = await s3_client.send(new CreateMultipartUploadCommand({
-        Bucket: "imagehost-files",
+        Bucket: process.env.BUCKET,
         Key: "a/test3",
         ACL: "public-read",
     }));
