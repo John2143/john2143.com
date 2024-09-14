@@ -80,19 +80,7 @@ export async function startdb() {
             },
         });
 
-        console.log("Uploading test file to s3");
-        local_s3_client.send(new PutObjectCommand({
-            Bucket: process.env.BUCKET,
-            Key: "a/test",
-            Body: "Hello, World!",
-            ACL: "public-read",
-        })).then(() => {
-            console.log("Uploaded test file to s3");
-            s3_client = local_s3_client;
-        }).catch((err) => {
-            console.log("Failed to upload test file to s3");
-            console.log(err);
-        });
+        await test_uploads();
     }
 
     console.log("Connecting to database...");
@@ -182,7 +170,7 @@ if(global.it){
     global.testIsAdmin = true;
     isAdmin = __ip => global.testIsAdmin;
 }else{
-    isAdmin = ip => ip.indexOf("192.168") == 0 || ip === "127.0.0.1" || ip === "::1" || ip.indexOf("10.") == 0;
+    isAdmin = ip => ip === "127.0.0.1" || ip === "::1";
 }
 
 export const IPEqual = (a, b) => a && b && a.split("/")[0] === b.split("/")[0];
