@@ -24,6 +24,17 @@ const getURL = async function(){
 const parseHeadersFromUpload = function(data, reqHeaders){
     const strData = data.toString("utf8");
     try{
+        // reqHeaders = {
+        // {
+        //     host: '2143.me',
+        //     'x-forwarded-for': '123.213.111.222',
+        //     connection: 'close',
+        //     'content-length': '1602',
+        //     'user-agent': 'curl/8.9.1',
+        //     accept: '*/*',
+        //     'content-type': 'multipart/form-data; boundary=------------------------ouBpDMbKKVIyn3W1VXnOhj'
+        // }
+
         let boundary = "\r\n--" + /boundary=(\S+)/.exec(reqHeaders["content-type"])[1] + "--\r\n";
         boundary = Buffer.from(boundary, "utf8");
 
@@ -217,10 +228,23 @@ export default async function(server, reqx){
                     return;
                 }
 
+                // headers = {
+                //     key: '...',
+                //     filename: '2024y-09m-22d_05h-25m-52s_.png',
+                //     mimetype: 'image/png',
+                //     boundary: <Buffer ...>,
+                //     headerSize: 193
+                // }
+                console.log(reqx.req.headers);
                 reqx.extraLog = url.green + " " + String(item.name).blue;
                 returnPromise.resolve();
 
-                customURL = item.customURL || headers.hostname || "john2143.com";
+                if(!item.customURL || item.customURL === "host") {
+                    // Set this to the input header host
+                    customURL = reqx.req.headers.host;
+                } else {
+                    customURL = item.customURL;
+                }
 
                 let modifiers = {};
                 if(item.autohide){

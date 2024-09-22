@@ -10,6 +10,7 @@
         pkgs = (import (inputs.nixpkgs) { inherit system; });
       in {
         devShell = pkgs.mkShell {
+          name = "node22";
           buildInputs=[
             pkgs.nodejs_22
             pkgs.nodePackages.typescript
