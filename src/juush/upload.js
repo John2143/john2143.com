@@ -139,7 +139,7 @@ export default async function(server, reqx){
 
         //Construct return link
         let path;
-        path = server.isHTTPS ? "https" : "http";
+        path = customURL.includes("localhost") ? "http" : "https";
         path += "://";
         path += customURL;
         path += "/f/";
