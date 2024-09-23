@@ -102,7 +102,7 @@ async function getFromBackup(uploadID: string, filepath: string) {
 
     let response = await fetch(
         // TODO: change to home-endpoint
-        "https://2143.me/f/" + uploadID,
+        `https://2143.me/f/${uploadID}.cache`,
         //{
             //agent: httpsAgent,
         //}
