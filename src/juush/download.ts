@@ -97,7 +97,7 @@ let curDownloading = {};
 async function getFromBackup(uploadID: string, filepath: string) {
     if(curDownloading[uploadID]) {
         let res = await curDownloading[uploadID];
-        return res;
+        return [res, 1];
     }
 
     let response = await fetch(
@@ -135,7 +135,7 @@ async function getFromBackup(uploadID: string, filepath: string) {
 
     curDownloading[uploadID] = p;
     let res = await p;
-    return res;
+    return [res, 0];
 }
 
 const processDownload = async function(reqx, data, disposition){
@@ -152,9 +152,15 @@ const processDownload = async function(reqx, data, disposition){
     try{
         stat = await fs.stat(filepath);
     }catch(e){
-        reqx.extraLog = "Cache miss".yellow;
-        console.log("Cache miss for " + uploadID);
-        stat = await getFromBackup(uploadID, filepath);
+        let startTime = performance.now();
+        let [s, isDup] = await getFromBackup(uploadID, filepath);
+        stat = s;
+        let endTime = performance.now();
+        let diff = Math.floor(endTime - startTime);
+        reqx.extraLog = `Cache miss, +${diff}ms`.yellow;
+        if(isDup){
+            reqx.extraLog += " (duplicate request)";
+        }
     }
 
     //Do the database call to increment downloads
