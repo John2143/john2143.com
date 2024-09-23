@@ -23,6 +23,7 @@ const serveStreamRequest = async function(reqx, filepath){
         return;
     }
 
+
     const range = rangeRequestRegex.exec(reqx.req.headers.range || "");
     const fullContentLength = stat.size;
     const rangeStart = Number(range[1]);
@@ -209,6 +210,8 @@ const processDownload = async function(reqx, data, disposition){
     let f = await fs.open(filepath, "r");
     const stream = f.createReadStream();
     stream.pipe(reqx.res);
+    reqx.res.on("error", () => stream.end());
+    reqx.res.on("close", () => stream.end());
 };
 
 //Returns true if there is an auth error. also handles reqx
