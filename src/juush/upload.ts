@@ -235,7 +235,7 @@ export default async function(server, reqx){
                 //     boundary: <Buffer ...>,
                 //     headerSize: 193
                 // }
-                console.log(reqx.req.headers);
+                //console.log(reqx.req.headers);
                 reqx.extraLog = url.green + " " + String(item.name).blue;
                 returnPromise.resolve();
 

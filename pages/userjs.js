@@ -241,8 +241,9 @@ angular.module("app", []).controller("controller", function($scope, $http){
 
     $scope.changeURL = () => {
         let newURL = prompt("Please enter a new domain, or blank for default (john2143.com)");
-        if(newURL === "" || newURL == "john2143.com"){
-            newURL = "";
+        if(newURL === "" || newURL == "host"){
+            // host: current hostname for upload
+            newURL = "host";
         }
 
         $http({

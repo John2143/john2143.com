@@ -2,18 +2,18 @@ FROM node:latest AS builder
 
 WORKDIR /app
 COPY package-lock.json package.json ./
-RUN npm install
+RUN npm ci
 COPY . .
 RUN npm run build || true
 
+# Build the final image
+RUN rm -rf node_modules
+RUN npm ci --omit=dev
 
-FROM node:22-slim AS runner
-RUN mkdir -p /app
+FROM gcr.io/distroless/nodejs22-debian12 AS runner
 WORKDIR /app
-RUN adduser app
-#COPY --chown=app:app ./pages/ .
-#COPY --chown=app:app ./favicon.ico .
-COPY --chown=app:app . .
-RUN npm install --omit=dev
-COPY --from=builder --chown=app:app /app/c /app/c
-CMD ["node", "c/index.js"]
+COPY ./pages/ ./pages/
+COPY ./favicon.ico .
+COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/c /app/c
+CMD ["/app/c/index.js"]

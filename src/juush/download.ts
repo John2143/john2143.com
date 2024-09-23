@@ -1,8 +1,8 @@
 
+import { Stats } from "node:fs";
 import * as U from "./util.js";
 import fs from "node:fs/promises";
-import https from "node:https";
-import stream from "node:stream";
+import {pipeline} from "node:stream";
 
 
 //You will get a referer and range if you are trying to stream an audio/video
@@ -88,9 +88,55 @@ const shouldInline = function(__filedata, __mime){
 };
 
 
-const httpsAgent = new https.Agent({
-  rejectUnauthorized: false,
-});
+//const httpsAgent = new https.Agent({
+    //rejectUnauthorized: false,
+//});
+
+let curDownloading = {};
+
+async function getFromBackup(uploadID: string, filepath: string) {
+    if(curDownloading[uploadID]) {
+        let res = await curDownloading[uploadID];
+        return res;
+    }
+
+    let response = await fetch(
+        // TODO: change to home-endpoint
+        "https://2143.me/f/" + uploadID,
+        //{
+            //agent: httpsAgent,
+        //}
+    );
+
+    if(!response.ok) {
+        throw new Error(`upstream HTTP error! status: ${response.status}`);
+    }
+
+    let p = new Promise((resolve, reject) => {
+        let stream = response.body;
+
+        if(!stream) {
+            reject(new Error("Response body is undefined"));
+        }
+
+        // Now, write it to file as local cache
+        let file = require("fs").createWriteStream(filepath);
+        // Pipe the response to the file
+        pipeline(stream!, file, err => {
+            if(err) {
+                reject(err);
+            } else {
+                fs.stat(filepath)
+                    .then(resolve)
+                    .catch(reject);
+            }
+        });
+    });
+
+    curDownloading[uploadID] = p;
+    let res = await p;
+    return res;
+}
 
 const processDownload = async function(reqx, data, disposition){
     const uploadID = data._id;
@@ -102,37 +148,13 @@ const processDownload = async function(reqx, data, disposition){
     }
 
     //Try to get file details
-    let stat;
+    let stat: Stats;
     try{
         stat = await fs.stat(filepath);
-        console.log("Cache hit");
     }catch(e){
-        console.log("Going to backup... https://home-endpoint/")
-        // This is going to request the file (png, jpg, etc) from the home-endpoint
-        let response = await fetch(
-            "https://2143.me/f/" + uploadID,
-            //{
-                //agent: httpsAgent,
-            //}
-        );
-
-        await new Promise((resolve, reject) => {
-            // Now, write it to file as local cache
-            let file = require("fs").createWriteStream(filepath);
-            // Pipe the response to the file
-            response.body.pipe(file);
-
-            // Wait for that to finish
-            response.body.on("end", () => {
-                console.log("File downloaded successfully");
-                resolve();
-            });
-            response.body.on("error", reject);
-            file.on("error", reject);
-        });
-
-        // save writestream to file
-        console.log("Pulled from cold cache");
+        reqx.extraLog = "Cache miss".yellow;
+        console.log("Cache miss for " + uploadID);
+        stat = await getFromBackup(uploadID, filepath);
     }
 
     //Do the database call to increment downloads
