@@ -27,6 +27,9 @@
     "source-map-support": "^0.4.14"
   },
   "scripts": {
+    "docker": "docker build -t imagehost:latest .",
+    "kind": "TAG=$(date +%s); npm run docker -- -t imagehost:$TAG; kind load docker-image imagehost:$TAG; kubectl set image deployment/john2143-com john2143-com=imagehost:$TAG",
+    "deploy": "npm run docker && npm run kind",
     "test": "mocha c/test.js -c",
     "start": "node c --enable-source-maps --color=always",
     "startLog": "npm run start | tee \"logs/`date '+%Y-%m-%d_%H-%M-%S'`.txt\" | tee logs/cur",

@@ -1,6 +1,8 @@
 
 import * as U from "./util.js";
 import fs from "node:fs/promises";
+import https from "node:https";
+import stream from "node:stream";
 
 
 //You will get a referer and range if you are trying to stream an audio/video
@@ -85,6 +87,11 @@ const shouldInline = function(__filedata, __mime){
     return true;
 };
 
+
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false,
+});
+
 const processDownload = async function(reqx, data, disposition){
     const uploadID = data._id;
     const filepath = U.getFilename(uploadID);
@@ -98,9 +105,34 @@ const processDownload = async function(reqx, data, disposition){
     let stat;
     try{
         stat = await fs.stat(filepath);
+        console.log("Cache hit");
     }catch(e){
-        reqx.doHTML("Internal error: file may have been manually deleted.", 500);
-        return;
+        console.log("Going to backup... https://home-endpoint/")
+        // This is going to request the file (png, jpg, etc) from the home-endpoint
+        let response = await fetch(
+            "https://2143.me/f/" + uploadID,
+            //{
+                //agent: httpsAgent,
+            //}
+        );
+
+        await new Promise((resolve, reject) => {
+            // Now, write it to file as local cache
+            let file = require("fs").createWriteStream(filepath);
+            // Pipe the response to the file
+            response.body.pipe(file);
+
+            // Wait for that to finish
+            response.body.on("end", () => {
+                console.log("File downloaded successfully");
+                resolve();
+            });
+            response.body.on("error", reject);
+            file.on("error", reject);
+        });
+
+        // save writestream to file
+        console.log("Pulled from cold cache");
     }
 
     //Do the database call to increment downloads
