@@ -20,8 +20,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Download artifacts
-      uses: actions/download-artifact@v3
+    #- name: Download artifacts
+      #uses: actions/download-artifact@v
 
     - name: Docker login
       run: |
