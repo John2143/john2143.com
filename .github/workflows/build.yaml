@@ -35,6 +35,6 @@ jobs:
       with:
         context: .
         push: true
-        tags: "${{ env.registry }}/${{ env.repo }}:${{ steps.tag.outputs.image_tag }}"
+        tags: "${{ env.registry }}/${{ env.repo }}:${{ github.run_number }}"
         cache-from: type=gha
         cache-to: type=gha,mode=max
