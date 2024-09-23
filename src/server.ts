@@ -4,7 +4,7 @@ import url   from "url";
 import fs    from "node:fs/promises";
 import "colors";
 
-let favicon = "";
+let favicon: Buffer;
 fs.readFile("favicon.ico").then(dat => favicon = dat);;
 
 class request{
