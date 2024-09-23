@@ -210,8 +210,6 @@ const processDownload = async function(reqx, data, disposition){
     let f = await fs.open(filepath, "r");
     const stream = f.createReadStream();
     stream.pipe(reqx.res);
-    reqx.res.on("error", () => stream.end());
-    reqx.res.on("close", () => stream.end());
 };
 
 //Returns true if there is an auth error. also handles reqx
