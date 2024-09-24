@@ -39,7 +39,7 @@
     "clean": "rm -r c coverage",
     "lint": "eslint src --color || exit 0",
     "test1": "fish -c 'curl \"http://localhost:3000/f/\"(curl \"https://john2143.com/juush/uploads/1/\"(random 100 200) | jq .[]._id -r | head -n (random 1 20) | head -n 1)\".png\" -o test.png ; timg test.png; rm test.png'",
-    "test2": "fish -c 'dd if=/dev/urandom of=test1 bs=1M count=1; set url (juush -r localhost:3000/uf test1.bin); sleep 1; curl $url > test2.bin; timg test2.bin; shasum test*.bin; rm test*.bin'",
+    "test2": "fish -c 'dd if=/dev/urandom of=test1 bs=1M count=1; set url (juush -r localhost:3000/uf test1.bin); sleep 1; curl $url > test2.bin; timg test2.bin; shasum test*.bin; rm test*.bin'"
   },
   "repository": {
     "type": "git",
