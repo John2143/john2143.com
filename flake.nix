@@ -15,6 +15,10 @@
             pkgs.nodejs_22
             pkgs.nodePackages.typescript
             pkgs.nodePackages.typescript-language-server
+            pkgs.yq
+            pkgs.curl
+            pkgs.fish
+            pkgs.jq
           ];
         };
       }
