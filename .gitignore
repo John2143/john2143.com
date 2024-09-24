@@ -7,3 +7,4 @@ c/*
 .nyc_output/*
 npm-debug.log
 rots/*.wasm
+.direnv/
