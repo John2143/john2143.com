@@ -14,8 +14,8 @@ env:
 jobs:
   create_docker:
     #runs-on: john-k8s
-    #runs-on: ubuntu-latest
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
+    #runs-on: self-hosted
     permissions:
       contents: write
     steps:
