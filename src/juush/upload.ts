@@ -248,6 +248,7 @@ export default async function(server, reqx){
                     // Set this to the input header host
                     customURL = reqx.req.headers.host;
                 } else if(item.customURL === "host-no-f") {
+                    customURL = `i.${reqx.req.headers.host}`;
                     customURL = "host-no-f";
                 } else {
                     customURL = item.customURL;
