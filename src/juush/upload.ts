@@ -125,6 +125,7 @@ export default async function(server, reqx){
     });
 
     let customURL;
+    let customURLSettings = null;
 
     //File is ready to be downloaded
     wstream.on("finish", async function(){
@@ -142,7 +143,11 @@ export default async function(server, reqx){
         path = customURL.includes("localhost") ? "http" : "https";
         path += "://";
         path += customURL;
-        path += "/f/";
+        if(customURLSettings?.no_f) {
+            path += "/";
+        } else {
+            path += "/f/";
+        }
         path += url;
 
         if(fileExtension) path += "." + fileExtension;
@@ -242,6 +247,8 @@ export default async function(server, reqx){
                 if(!item.customURL || item.customURL === "host") {
                     // Set this to the input header host
                     customURL = reqx.req.headers.host;
+                } else if(item.customURL === "host-no-f") {
+                    customURL = "host-no-f";
                 } else {
                     customURL = item.customURL;
                 }
