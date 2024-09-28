@@ -277,7 +277,7 @@ export default async function(server, reqx){
                 if(U.s3_client) {
                     console.log("has s3 client: starting multipart");
                     // Create multipart upload
-                    prom = s3_client.send(new CreateMultipartUploadCommand({
+                    prom = U.s3_client.send(new CreateMultipartUploadCommand({
                         Bucket: process.env.BUCKET,
                         Key: `${process.env.FOLDER}/${url}`,
                         //ContentType: mongoData.mimetype,
@@ -342,7 +342,7 @@ export default async function(server, reqx){
                 let newPartNum = currentMultipartUpload.Parts.length + 1;
                 // Now start uploading parts
                 console.log("starting multipart part");
-                let res = s3_client.send(new UploadPartCommand({
+                let res = U.s3_client.send(new UploadPartCommand({
                     Bucket: process.env.BUCKET,
                     Key: `${process.env.FOLDER}/${url}`,
                     ContentLength: currentMultipartUploadChunkIndex,
@@ -361,7 +361,7 @@ export default async function(server, reqx){
                 if(slice) {
                     console.log("multipart done");
                     // We are done: finish the upload
-                    let res2 = s3_client.send(new CompleteMultipartUploadCommand({
+                    let res2 = U.s3_client.send(new CompleteMultipartUploadCommand({
                         Bucket: process.env.BUCKET,
                         Key: `${process.env.FOLDER}/${url}`,
                         UploadId: currentMultipartUpload.UploadId,
