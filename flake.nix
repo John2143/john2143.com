@@ -19,6 +19,7 @@
             pkgs.curl
             pkgs.fish
             pkgs.jq
+            pkgs.mongodb-tools
           ];
         };
       }
