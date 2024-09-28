@@ -70,7 +70,7 @@ export async function startdb() {
     // If the user set this environment variable, we will use s3
     if(process.env.S3_ENDPOINT_URL){
         console.log("setting up s3 connection");
-        let local_s3_client = new S3Client({
+        s3_client = new S3Client({
             endpoint: `${process.env.S3_ENDPOINT_URL}`,
             forcePathStyle: false,
             region: "us-east-1",
