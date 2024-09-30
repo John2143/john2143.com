@@ -334,6 +334,7 @@ export default async function(server, reqx){
         wstream.write(curData);
 
         if (currentMultipartUpload) {
+            console.log("has currentMultipartUpload");
             // Copy the curData into the currentMultipartUploadChunk
             let chunk = currentMultipartUploadChunk;
             curData.copy(chunk, currentMultipartUploadChunkIndex, 0, curDataLen);
