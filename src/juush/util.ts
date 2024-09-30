@@ -66,19 +66,51 @@ export async function test_multipart_uploads() {
     console.log(res2);
 }
 
+class FakeS3Client {
+    endpoint: string;
+    forcePathStyle: boolean;
+    region: string;
+    credentials: {
+        accessKeyId: string;
+        secretAccessKey: string;
+    };
+
+    constructor(obj: any) {
+        this.endpoint = obj.endpoint;
+        this.forcePathStyle = obj.forcePathStyle;
+        this.region = obj.region;
+        this.credentials = obj.credentials;
+    }
+    async send(command: any) {
+        console.log("FakeS3Client: ", command);
+    }
+}
+
 export async function startdb() {
     // If the user set this environment variable, we will use s3
     if(process.env.S3_ENDPOINT_URL){
         console.log("setting up s3 connection");
-        s3_client = new S3Client({
-            endpoint: `${process.env.S3_ENDPOINT_URL}`,
-            forcePathStyle: false,
-            region: "us-east-1",
-            credentials: {
-                accessKeyId: process.env.S3_ACCESS_KEY,
-                secretAccessKey: process.env.S3_SECRET_KEY,
-            },
-        });
+        if(process.env.INT_S3){
+            s3_client = new FakeS3Client({
+                endpoint: `${process.env.S3_ENDPOINT_URL}`,
+                forcePathStyle: false,
+                region: "us-east-1",
+                credentials: {
+                    accessKeyId: process.env.S3_ACCESS_KEY,
+                    secretAccessKey: process.env.S3_SECRET_KEY,
+                },
+            });
+        } else {
+            s3_client = new S3Client({
+                endpoint: `${process.env.S3_ENDPOINT_URL}`,
+                forcePathStyle: false,
+                region: "us-east-1",
+                credentials: {
+                    accessKeyId: process.env.S3_ACCESS_KEY,
+                    secretAccessKey: process.env.S3_SECRET_KEY,
+                },
+            });
+        }
 
         await test_uploads();
     }
