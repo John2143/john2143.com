@@ -276,6 +276,9 @@ export default async function(server, reqx){
                 let prom = null;
                 if(U.s3_client) {
                     console.log("has s3 client: starting multipart");
+                    currentMultipartUpload = {
+                        Parts: [],
+                    };
                     // Create multipart upload
                     prom = U.s3_client.send(new CreateMultipartUploadCommand({
                         Bucket: process.env.BUCKET,
@@ -284,8 +287,8 @@ export default async function(server, reqx){
                         ACL: "public-read",
                     })).then(data => {
                         console.log("s3 possible");
-                        currentMultipartUpload = data
-                        data.Parts = [];
+                        // merge currentMultipartUpload with data
+                        currentMultipartUpload = Object.assign(currentMultipartUpload, data);
                         currentMultipartUploadChunk = Buffer.allocUnsafe(maxChunkSize);
                         currentMultipartUploadChunkIndex = 0;
                     }).catch(e => {
@@ -343,6 +346,7 @@ export default async function(server, reqx){
                 let newPartNum = currentMultipartUpload.Parts.length + 1;
                 // Now start uploading parts
                 console.log("starting multipart part");
+                //let res = U.s3_client.send(new UploadPartCommand({
                 let res = U.s3_client.send(new UploadPartCommand({
                     Bucket: process.env.BUCKET,
                     Key: `${process.env.FOLDER}/${url}`,
