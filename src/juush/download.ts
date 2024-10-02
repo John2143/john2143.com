@@ -143,6 +143,8 @@ const processDownload = async function(reqx, data, disposition){
     const uploadID = data._id;
     const filepath = U.getFilename(uploadID);
 
+    let fff = U.query.index.findOne({_id: uploadID});
+
     if(data.mimetype === "deleted"){
         reqx.doHTML("This file has been deleted.", 410);
         return;
@@ -170,9 +172,23 @@ const processDownload = async function(reqx, data, disposition){
     //  inline, attachment (download)
     let codisp = "inline";
 
+    let skipresponse = false;
+
     //dl for download
     if(disposition === "dl"){
         codisp = "attachment";
+    } else if(disposition === "cdn") {
+        fff = await fff;
+        if(fff.cdn) {
+            skipresponse = true;
+            // Permanent redirect = 301
+            // Temp redirect = 302
+            reqx.res.writeHead(302, {
+                "Location": fff.cdn,
+            });
+            reqx.res.end();
+        }
+
     //thumbnail
     }else if(disposition === "thumb"){
         incDL = false;
@@ -196,6 +212,10 @@ const processDownload = async function(reqx, data, disposition){
         }).catch(err => {
             serverLog("Error when incrementing download. " + uploadID, err);
         });
+    }
+
+    if(skipresponse) {
+        return;
     }
 
     reqx.res.writeHead(200, {

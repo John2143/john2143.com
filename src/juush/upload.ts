@@ -278,9 +278,12 @@ export default async function(server, reqx){
                     console.log("has s3 client: starting multipart");
                     currentMultipartUpload = {
                         Parts: [],
+                        prom: null,
                     };
+                    currentMultipartUploadChunk = Buffer.allocUnsafe(maxChunkSize);
+                    currentMultipartUploadChunkIndex = 0;
                     // Create multipart upload
-                    prom = U.s3_client.send(new CreateMultipartUploadCommand({
+                    currentMultipartUpload.prom = prom = U.s3_client.send(new CreateMultipartUploadCommand({
                         Bucket: process.env.BUCKET,
                         Key: `${process.env.FOLDER}/${url}`,
                         //ContentType: mongoData.mimetype,
@@ -289,8 +292,6 @@ export default async function(server, reqx){
                         console.log("s3 possible");
                         // merge currentMultipartUpload with data
                         currentMultipartUpload = Object.assign(currentMultipartUpload, data);
-                        currentMultipartUploadChunk = Buffer.allocUnsafe(maxChunkSize);
-                        currentMultipartUploadChunkIndex = 0;
                     }).catch(e => {
                         console.log("s3 not possible", e);
                         return e;
@@ -337,46 +338,70 @@ export default async function(server, reqx){
         wstream.write(curData);
 
         if (currentMultipartUpload) {
-            console.log("has currentMultipartUpload");
-            // Copy the curData into the currentMultipartUploadChunk
-            let chunk = currentMultipartUploadChunk;
-            curData.copy(chunk, currentMultipartUploadChunkIndex, 0, curDataLen);
-            currentMultipartUploadChunkIndex += curDataLen;
-            if(currentMultipartUploadChunkIndex > minChunkSize) {
-                let newPartNum = currentMultipartUpload.Parts.length + 1;
-                // Now start uploading parts
-                console.log("starting multipart part");
-                //let res = U.s3_client.send(new UploadPartCommand({
-                let res = U.s3_client.send(new UploadPartCommand({
-                    Bucket: process.env.BUCKET,
-                    Key: `${process.env.FOLDER}/${url}`,
-                    ContentLength: currentMultipartUploadChunkIndex,
-                    Body: chunk.slice(0, currentMultipartUploadChunkIndex),
-                    UploadId: currentMultipartUpload.UploadId,
-                    PartNumber: newPartNum,
-                }));
-
-                currentMultipartUpload.Parts.push({
-                    ETag: res.ETag,
-                    PartNumber: newPartNum,
-                });
-
-                currentMultipartUploadChunkIndex = 0;
-
-                if(slice) {
-                    console.log("multipart done");
-                    // We are done: finish the upload
-                    let res2 = U.s3_client.send(new CompleteMultipartUploadCommand({
+            currentMultipartUpload.prom.then(() => {
+                //console.log("has currentMultipartUpload");
+                // Copy the curData into the currentMultipartUploadChunk
+                let chunk = currentMultipartUploadChunk;
+                //console.log("chunk, currentMultipartUploadChunkIndex, 0, curDataLen");
+                // buffer ... 950272 0 32768;
+                curData.copy(chunk, currentMultipartUploadChunkIndex, 0, curDataLen);
+                currentMultipartUploadChunkIndex += curDataLen;
+                if(currentMultipartUploadChunkIndex > minChunkSize || slice) {
+                    let newPartNum = currentMultipartUpload.Parts.length + 1;
+                    // Now start uploading parts
+                    console.log("starting multipart part");
+                    //let res = U.s3_client.send(new UploadPartCommand)
+                    U.s3_client.send(new UploadPartCommand({
                         Bucket: process.env.BUCKET,
                         Key: `${process.env.FOLDER}/${url}`,
+                        ContentLength: currentMultipartUploadChunkIndex,
+                        Body: chunk.slice(0, currentMultipartUploadChunkIndex),
                         UploadId: currentMultipartUpload.UploadId,
-                        MultipartUpload: {
-                            Parts: currentMultipartUpload.Parts,
+                        PartNumber: newPartNum,
+                    })).then(res => {
+
+                        currentMultipartUpload.Parts.push({
+                            ETag: res.ETag,
+                            PartNumber: newPartNum,
+                        });
+
+                        currentMultipartUploadChunkIndex = 0;
+
+                        if(slice) {
+                            console.log("multipart done", currentMultipartUpload.Parts);
+                            // We are done: finish the upload
+                            U.s3_client.send(new CompleteMultipartUploadCommand({
+                                Bucket: process.env.BUCKET,
+                                Key: `${process.env.FOLDER}/${url}`,
+                                UploadId: currentMultipartUpload.UploadId,
+                                MultipartUpload: {
+                                    Parts: currentMultipartUpload.Parts,
+                                }
+                            })).then(res2 => {
+                                // res2 => {
+                                //   '$metadata': {
+                                //     httpStatusCode: 200,
+                                //     requestId: 'tx000007c48809e86c8110a-0066fb427c-148abbdc-nyc3d',
+                                //     extendedRequestId: undefined,
+                                //     cfId: undefined,
+                                //     attempts: 1,
+                                //     totalRetryDelay: 0
+                                //   },
+                                //   Bucket: 'imagehost-files',
+                                //   ETag: '0bb64710e6054c644f1ee581734ca2f4-1',
+                                //   Key: 'public-prod/YTUS',
+                                //   Location: 'nyc3.digitaloceanspaces.com/imagehost-files/public-prod/YTUS'
+                                // }
+                                U.query.index.updateOne({_id: url}, {$set: {
+                                    cdn: `https://${res2.Location}`,
+                                }}).then(() => {
+                                    console.log("updated cdn");
+                                });
+                            });
                         }
-                    }));
-                    console.log(res2);
+                    });
                 }
-            }
+            });
         }
 
     });
