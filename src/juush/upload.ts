@@ -59,31 +59,29 @@ const parseHeadersFromUpload = function(data, reqHeaders){
 // 5 mb
 const minChunkSize = 1024 * 1024 * 5;
 // actually 5 gb, but we'll cap it at 25 mb
-const normalChunkSize = 1024 * 1024 * 25;
+//const normalChunkSize = 1024 * 1024 * 25;
+const normalChunkSize = 1024 * 1024 * 5;
 
 export async function uploadToS3(url, mimeType) {
     const filepath = U.getFilename(url);
     console.log("has s3 client: starting multipart");
-    let currentMultipartUpload = {
-        Parts: [],
-        prom: null,
-    };
-    let data = await U.s3_client.send(new CreateMultipartUploadCommand({
+    let currentMultipartUpload = await U.s3_client.send(new CreateMultipartUploadCommand({
         Bucket: process.env.BUCKET,
         Key: `${process.env.FOLDER}/${url}`,
         ContentType: mimeType,
         ACL: "public-read",
     }));
-    console.log("s3 possible");
-    // merge currentMultipartUpload with data
-    currentMultipartUpload = Object.assign(currentMultipartUpload, data);
+
+    let parts = [];
 
     let st = await fs.stat(filepath);
     let size = st.size;
 
-    for(let i = 0; i < size; i += normalChunkSize) {
-        let newPartNum = currentMultipartUpload.Parts.length + 1;
+    let numParts = Math.ceil(size / normalChunkSize);
+    console.log(`Starting multipart upload for ${url} with ${numParts} parts`);
 
+    let currentPart = 1;
+    for(let i = 0; i < size; i += normalChunkSize) {
         let currentChunk = createReadStream(filepath, {
             start: i,
             end: Math.min(i + normalChunkSize, size),
@@ -96,24 +94,25 @@ export async function uploadToS3(url, mimeType) {
             ContentLength: Math.min(normalChunkSize, size - i),
             Body: currentChunk,
             UploadId: currentMultipartUpload.UploadId,
-            PartNumber: newPartNum,
+            PartNumber: currentPart,
         }));
 
-        currentMultipartUpload.Parts.push({
+        parts.push({
             ETag: res.ETag,
-            PartNumber: newPartNum,
+            PartNumber: currentPart,
         });
 
+        currentPart++;
     }
 
-    console.log("multipart done", currentMultipartUpload.Parts);
+    console.log("multipart done", parts);
     // We are done: finish the upload
     let res2 = await U.s3_client.send(new CompleteMultipartUploadCommand({
         Bucket: process.env.BUCKET,
         Key: `${process.env.FOLDER}/${url}`,
         UploadId: currentMultipartUpload.UploadId,
         MultipartUpload: {
-            Parts: currentMultipartUpload.Parts,
+            Parts: parts,
         }
     }));
 
@@ -132,10 +131,11 @@ export async function uploadToS3(url, mimeType) {
     //   Location: 'nyc3.digitaloceanspaces.com/imagehost-files/public-prod/YTUS'
     // }
 
+    let cdn = `https://${res2.Location}`;
     U.query.index.updateOne({_id: url}, {$set: {
-        cdn: `https://${res2.Location}`,
+        cdn,
     }}).then(() => {
-        console.log(`Updated CDN link for ${url} to ${res2.Location}`);
+        console.log(`Updated CDN link for ${url} to ${cdn}`);
     });
 }
 
