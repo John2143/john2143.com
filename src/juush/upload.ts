@@ -50,6 +50,7 @@ const parseHeadersFromUpload = function(data, reqHeaders){
             mimetype,
             boundary,
             headerSize: headers.length,
+            contentLength: reqHeaders["content-length"],
         };
     }catch(e){
         return null;
@@ -60,9 +61,24 @@ const parseHeadersFromUpload = function(data, reqHeaders){
 const minChunkSize = 1024 * 1024 * 5;
 // actually 5 gb, but we'll cap it at 25 mb
 //const normalChunkSize = 1024 * 1024 * 25;
-const normalChunkSize = 1024 * 1024 * 5;
+const normalChunkSize = 1024 * 1024 * 7;
+
+// Convert bytes to human readable string like 20.0MB, 1.0GB, 100KB
+function humanFileSize(size) {
+    size = Number(size);
+    const i = Math.floor(Math.log(size) / Math.log(1024));
+    return (size / Math.pow(1024, i)).toFixed(1) + ["B", "KB", "MB", "GB", "TB"][i];
+}
 
 export async function uploadToS3(url, mimeType) {
+    try {
+        await uploadToS3Inner(url, mimeType);
+    } catch (e) {
+        console.error("Failed to upload to s3", e);
+    }
+}
+
+export async function uploadToS3Inner(url, mimeType) {
     const filepath = U.getFilename(url);
     console.log("has s3 client: starting multipart");
     let currentMultipartUpload = await U.s3_client.send(new CreateMultipartUploadCommand({
@@ -82,12 +98,13 @@ export async function uploadToS3(url, mimeType) {
 
     let currentPart = 1;
     for(let i = 0; i < size; i += normalChunkSize) {
-        let currentChunk = createReadStream(filepath, {
+        let p = {
             start: i,
             end: Math.min(i + normalChunkSize, size),
-        });
+        };
+        let currentChunk = createReadStream(filepath, p);
+        console.log(`multipart_part: ${currentPart}/${numParts}: ${p.start}-${p.end}`);
 
-        console.log("starting multipart part");
         let res = await U.s3_client.send(new UploadPartCommand({
             Bucket: process.env.BUCKET,
             Key: `${process.env.FOLDER}/${url}`,
@@ -97,6 +114,7 @@ export async function uploadToS3(url, mimeType) {
             PartNumber: currentPart,
         }));
 
+        console.log(`multipart_part_done: ${res.ETag} ${currentPart}/${numParts}`);
         parts.push({
             ETag: res.ETag,
             PartNumber: currentPart,
@@ -315,7 +333,7 @@ export default async function(server, reqx){
                 //     headerSize: 193
                 // }
                 //console.log(reqx.req.headers);
-                reqx.extraLog = url.green + " " + String(item.name).blue;
+                reqx.extraLog = url.green + " " + String(item.name).blue + " " + String(humanFileSize(headers.contentLength)).blue;
                 returnPromise.resolve();
 
                 if(!item.customURL || item.customURL === "host") {
