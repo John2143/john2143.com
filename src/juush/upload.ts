@@ -96,6 +96,7 @@ export async function uploadToS3Inner(url, mimeType) {
 
     let numParts = Math.ceil(size / normalChunkSize);
     console.log(`Starting multipart upload for ${url} with ${numParts} parts`);
+    let proms = []
 
     let currentPart = 1;
     for(let i = 0; i < size; i += normalChunkSize) {
@@ -107,23 +108,30 @@ export async function uploadToS3Inner(url, mimeType) {
         let contentLength = Math.min(normalChunkSize, size - i);
         console.log(`multipart_part: ${currentPart}/${numParts}: ${p.start}-${p.end} (${humanFileSize(contentLength)})`);
 
-        let res = await U.s3_client.send(new UploadPartCommand({
+        let uc = new UploadPartCommand({
             Bucket: process.env.BUCKET,
             Key: `${process.env.FOLDER}/${url}`,
             ContentLength: contentLength,
             Body: currentChunk,
             UploadId: currentMultipartUpload.UploadId,
             PartNumber: currentPart,
-        }));
-
-        console.log(`multipart_part_done: ${res.ETag} ${currentPart}/${numParts}`);
-        parts.push({
-            ETag: res.ETag,
-            PartNumber: currentPart,
+        });
+        //console.log(uc);
+        let res = U.s3_client.send(uc);
+        let part = currentPart;
+        proms.push(async () => {
+            let s = await res;
+            console.log(`multipart_part_done: ${s.ETag} ${part}/${numParts}`);
+            return {
+                ETag: s.ETag,
+                PartNumber: part,
+            };
         });
 
         currentPart++;
     }
+
+    parts = await Promise.all(proms.map(p => p()));
 
     console.log("multipart done", parts);
     // We are done: finish the upload
