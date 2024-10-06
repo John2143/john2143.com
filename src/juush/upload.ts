@@ -75,6 +75,7 @@ export async function uploadToS3(url, mimeType) {
         await uploadToS3Inner(url, mimeType);
     } catch (e) {
         console.error("Failed to upload to s3", e);
+        console.error(e["$response"]);
     }
 }
 
@@ -103,12 +104,13 @@ export async function uploadToS3Inner(url, mimeType) {
             end: Math.min(i + normalChunkSize, size),
         };
         let currentChunk = createReadStream(filepath, p);
-        console.log(`multipart_part: ${currentPart}/${numParts}: ${p.start}-${p.end}`);
+        let contentLength = Math.min(normalChunkSize, size - i);
+        console.log(`multipart_part: ${currentPart}/${numParts}: ${p.start}-${p.end} (${humanFileSize(contentLength)})`);
 
         let res = await U.s3_client.send(new UploadPartCommand({
             Bucket: process.env.BUCKET,
             Key: `${process.env.FOLDER}/${url}`,
-            ContentLength: Math.min(normalChunkSize, size - i),
+            ContentLength: contentLength,
             Body: currentChunk,
             UploadId: currentMultipartUpload.UploadId,
             PartNumber: currentPart,
