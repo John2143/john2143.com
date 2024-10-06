@@ -143,7 +143,19 @@ const processDownload = async function(reqx, data, disposition){
     const uploadID = data._id;
     const filepath = U.getFilename(uploadID);
 
-    let fff = U.query.index.findOne({_id: uploadID});
+    let fff = await U.query.index.findOne({_id: uploadID});
+    if(fff.cdn && disposition == "cdn") {
+        // Modify extraLog
+        reqx.extraLog = "CDN redirect".yellow;
+
+        // Permanent redirect = 301
+        // Temp redirect = 302
+        reqx.res.writeHead(302, {
+            "Location": fff.cdn,
+        });
+        reqx.res.end();
+        return ;
+    }
 
     if(data.mimetype === "deleted"){
         reqx.doHTML("This file has been deleted.", 410);
@@ -177,18 +189,6 @@ const processDownload = async function(reqx, data, disposition){
     //dl for download
     if(disposition === "dl"){
         codisp = "attachment";
-    } else if(disposition === "cdn") {
-        fff = await fff;
-        if(fff.cdn) {
-            skipresponse = true;
-            // Permanent redirect = 301
-            // Temp redirect = 302
-            reqx.res.writeHead(302, {
-                "Location": fff.cdn,
-            });
-            reqx.res.end();
-        }
-
     //thumbnail
     }else if(disposition === "thumb"){
         incDL = false;

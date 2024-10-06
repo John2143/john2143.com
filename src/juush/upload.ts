@@ -81,15 +81,14 @@ export async function uploadToS3(url, mimeType) {
 
 export async function uploadToS3Inner(url, mimeType) {
     const filepath = U.getFilename(url);
+    let key = `${process.env.FOLDER}/${url}`;
     console.log("has s3 client: starting multipart");
     let currentMultipartUpload = await U.s3_client.send(new CreateMultipartUploadCommand({
         Bucket: process.env.BUCKET,
-        Key: `${process.env.FOLDER}/${url}`,
+        Key: key,
         ContentType: mimeType,
         ACL: "public-read",
     }));
-
-    let parts = [];
 
     let st = await fs.stat(filepath);
     let size = st.size;
@@ -110,7 +109,7 @@ export async function uploadToS3Inner(url, mimeType) {
 
         let uc = new UploadPartCommand({
             Bucket: process.env.BUCKET,
-            Key: `${process.env.FOLDER}/${url}`,
+            Key: key,
             ContentLength: contentLength,
             Body: currentChunk,
             UploadId: currentMultipartUpload.UploadId,
@@ -131,13 +130,14 @@ export async function uploadToS3Inner(url, mimeType) {
         currentPart++;
     }
 
-    parts = await Promise.all(proms.map(p => p()));
+    let parts = await Promise.all(proms.map(p => p()));
+    parts.sort((a, b) => a.PartNumber - b.PartNumber);
 
     console.log("multipart done", parts);
     // We are done: finish the upload
     let res2 = await U.s3_client.send(new CompleteMultipartUploadCommand({
         Bucket: process.env.BUCKET,
-        Key: `${process.env.FOLDER}/${url}`,
+        Key: key,
         UploadId: currentMultipartUpload.UploadId,
         MultipartUpload: {
             Parts: parts,

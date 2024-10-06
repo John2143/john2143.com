@@ -16,7 +16,13 @@ let redirs = {
     steam: "//steamcommunity.com/profiles/76561198027378405",
     osu: "//osu.ppy.sh/u/2563776",
     ip: showIP,
-    blank: (server, reqx) => reqx.res.end(""),
+    blank: (server, reqx) => {
+        reqx.res.end("");
+    },
+    health: (server, reqx) => {
+        reqx.shouldLog = false;
+        reqx.res.end("OK");
+    },
     _def: "git",
 
 };
