@@ -2,6 +2,7 @@
 import * as U from "./util.js";
 import fs from "node:fs/promises";
 import { PutObjectCommand, UploadPartCommand, CreateMultipartUploadCommand, CompleteMultipartUploadCommand } from "@aws-sdk/client-s3";
+import { createReadStream } from "node:fs";
 
 //Retreives a database client and randomized url that has not been used before
 const getURL = async function(){
@@ -55,6 +56,88 @@ const parseHeadersFromUpload = function(data, reqHeaders){
     }
 
 };
+// 5 mb
+const minChunkSize = 1024 * 1024 * 5;
+// actually 5 gb, but we'll cap it at 25 mb
+const normalChunkSize = 1024 * 1024 * 25;
+
+export async function uploadToS3(url, mimeType) {
+    const filepath = U.getFilename(url);
+    console.log("has s3 client: starting multipart");
+    let currentMultipartUpload = {
+        Parts: [],
+        prom: null,
+    };
+    let data = await U.s3_client.send(new CreateMultipartUploadCommand({
+        Bucket: process.env.BUCKET,
+        Key: `${process.env.FOLDER}/${url}`,
+        ContentType: mimeType,
+        ACL: "public-read",
+    }));
+    console.log("s3 possible");
+    // merge currentMultipartUpload with data
+    currentMultipartUpload = Object.assign(currentMultipartUpload, data);
+
+    let st = await fs.stat(filepath);
+    let size = st.size;
+
+    for(let i = 0; i < size; i += normalChunkSize) {
+        let newPartNum = currentMultipartUpload.Parts.length + 1;
+
+        let currentChunk = createReadStream(filepath, {
+            start: i,
+            end: Math.min(i + normalChunkSize, size),
+        });
+
+        console.log("starting multipart part");
+        let res = await U.s3_client.send(new UploadPartCommand({
+            Bucket: process.env.BUCKET,
+            Key: `${process.env.FOLDER}/${url}`,
+            ContentLength: Math.min(normalChunkSize, size - i),
+            Body: currentChunk,
+            UploadId: currentMultipartUpload.UploadId,
+            PartNumber: newPartNum,
+        }));
+
+        currentMultipartUpload.Parts.push({
+            ETag: res.ETag,
+            PartNumber: newPartNum,
+        });
+
+    }
+
+    console.log("multipart done", currentMultipartUpload.Parts);
+    // We are done: finish the upload
+    let res2 = await U.s3_client.send(new CompleteMultipartUploadCommand({
+        Bucket: process.env.BUCKET,
+        Key: `${process.env.FOLDER}/${url}`,
+        UploadId: currentMultipartUpload.UploadId,
+        MultipartUpload: {
+            Parts: currentMultipartUpload.Parts,
+        }
+    }));
+
+    // res2 => {
+    //   '$metadata': {
+    //     httpStatusCode: 200,
+    //     requestId: 'tx000007c48809e86c8110a-0066fb427c-148abbdc-nyc3d',
+    //     extendedRequestId: undefined,
+    //     cfId: undefined,
+    //     attempts: 1,
+    //     totalRetryDelay: 0
+    //   },
+    //   Bucket: 'imagehost-files',
+    //   ETag: '0bb64710e6054c644f1ee581734ca2f4-1',
+    //   Key: 'public-prod/YTUS',
+    //   Location: 'nyc3.digitaloceanspaces.com/imagehost-files/public-prod/YTUS'
+    // }
+
+    U.query.index.updateOne({_id: url}, {$set: {
+        cdn: `https://${res2.Location}`,
+    }}).then(() => {
+        console.log(`Updated CDN link for ${url} to ${res2.Location}`);
+    });
+}
 
 //TODO
 //The exucution order could in theory be changed to connect to the database only
@@ -158,15 +241,6 @@ export default async function(server, reqx){
     //Arbirary
     const maxHeaderBufferSize = 32000;
     let headerBuffer = null;
-
-    let currentMultipartUpload = null;
-    // 5 mb
-    const minChunkSize = 1024 * 1024 * 5;
-    // actually 5 gb, but we'll cap it at 25 mb
-    const maxChunkSize = 1024 * 1024 * 25;
-
-    let currentMultipartUploadChunk = null;
-    let currentMultipartUploadChunkIndex = null;
 
     reqx.req.on("error", function(e){
         error(e);
@@ -273,34 +347,7 @@ export default async function(server, reqx){
                     downloads: 0,
                 };
 
-                let prom = null;
-                if(U.s3_client) {
-                    console.log("has s3 client: starting multipart");
-                    currentMultipartUpload = {
-                        Parts: [],
-                        prom: null,
-                    };
-                    currentMultipartUploadChunk = Buffer.allocUnsafe(maxChunkSize);
-                    currentMultipartUploadChunkIndex = 0;
-                    // Create multipart upload
-                    currentMultipartUpload.prom = prom = U.s3_client.send(new CreateMultipartUploadCommand({
-                        Bucket: process.env.BUCKET,
-                        Key: `${process.env.FOLDER}/${url}`,
-                        //ContentType: mongoData.mimetype,
-                        ACL: "public-read",
-                    })).then(data => {
-                        console.log("s3 possible");
-                        // merge currentMultipartUpload with data
-                        currentMultipartUpload = Object.assign(currentMultipartUpload, data);
-                    }).catch(e => {
-                        console.log("s3 not possible", e);
-                        return e;
-                    });
-                } else {
-                    prom = new Promise(resolve => resolve());
-                }
-
-                return Promise.allSettled([U.query.index.insertOne(mongoData), prom]);
+                return Promise.allSettled([U.query.index.insertOne(mongoData)]);
             }).catch(errorCatch);
         }
 
@@ -337,73 +384,13 @@ export default async function(server, reqx){
         }
         wstream.write(curData);
 
-        if (currentMultipartUpload) {
-            currentMultipartUpload.prom.then(() => {
-                //console.log("has currentMultipartUpload");
-                // Copy the curData into the currentMultipartUploadChunk
-                let chunk = currentMultipartUploadChunk;
-                //console.log("chunk, currentMultipartUploadChunkIndex, 0, curDataLen");
-                // buffer ... 950272 0 32768;
-                curData.copy(chunk, currentMultipartUploadChunkIndex, 0, curDataLen);
-                currentMultipartUploadChunkIndex += curDataLen;
-                if(currentMultipartUploadChunkIndex > minChunkSize || slice) {
-                    let newPartNum = currentMultipartUpload.Parts.length + 1;
-                    // Now start uploading parts
-                    console.log("starting multipart part");
-                    //let res = U.s3_client.send(new UploadPartCommand)
-                    U.s3_client.send(new UploadPartCommand({
-                        Bucket: process.env.BUCKET,
-                        Key: `${process.env.FOLDER}/${url}`,
-                        ContentLength: currentMultipartUploadChunkIndex,
-                        Body: chunk.slice(0, currentMultipartUploadChunkIndex),
-                        UploadId: currentMultipartUpload.UploadId,
-                        PartNumber: newPartNum,
-                    })).then(res => {
-
-                        currentMultipartUpload.Parts.push({
-                            ETag: res.ETag,
-                            PartNumber: newPartNum,
-                        });
-
-                        currentMultipartUploadChunkIndex = 0;
-
-                        if(slice) {
-                            console.log("multipart done", currentMultipartUpload.Parts);
-                            // We are done: finish the upload
-                            U.s3_client.send(new CompleteMultipartUploadCommand({
-                                Bucket: process.env.BUCKET,
-                                Key: `${process.env.FOLDER}/${url}`,
-                                UploadId: currentMultipartUpload.UploadId,
-                                MultipartUpload: {
-                                    Parts: currentMultipartUpload.Parts,
-                                }
-                            })).then(res2 => {
-                                // res2 => {
-                                //   '$metadata': {
-                                //     httpStatusCode: 200,
-                                //     requestId: 'tx000007c48809e86c8110a-0066fb427c-148abbdc-nyc3d',
-                                //     extendedRequestId: undefined,
-                                //     cfId: undefined,
-                                //     attempts: 1,
-                                //     totalRetryDelay: 0
-                                //   },
-                                //   Bucket: 'imagehost-files',
-                                //   ETag: '0bb64710e6054c644f1ee581734ca2f4-1',
-                                //   Key: 'public-prod/YTUS',
-                                //   Location: 'nyc3.digitaloceanspaces.com/imagehost-files/public-prod/YTUS'
-                                // }
-                                U.query.index.updateOne({_id: url}, {$set: {
-                                    cdn: `https://${res2.Location}`,
-                                }}).then(() => {
-                                    console.log("updated cdn");
-                                });
-                            });
-                        }
-                    });
-                }
-            });
+        if (slice) {
+            wstream.end();
+            if(U.s3_client) {
+                // async
+                uploadToS3(url, headers.mimetype);
+            }
         }
-
     });
 
     return returnPromise.promise;
