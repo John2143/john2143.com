@@ -116,7 +116,6 @@ export async function uploadToS3(url: string, mimeType: string, numTry: number =
 }
 
 export async function beginS3Upload(key: string, mimeType: string): Promise<CreateMultipartUploadCommandOutput> {
-    console.log("has s3 client: starting multipart");
     return await U.s3_client.send(new CreateMultipartUploadCommand({
         Bucket: process.env.BUCKET,
         Key: key,
@@ -134,7 +133,7 @@ interface UploadPartParams {
 
 export async function uploadPart(key: string, partParams: UploadPartParams, numTry: number = 0): Promise<UploadPartCommandOutput>{
     try {
-        console.log(`uploading part ${partParams.partNumber}`);
+        //console.log(`uploading part ${partParams.partNumber}`);
         let uploadCommand = U.s3_client.send(new UploadPartCommand({
             Bucket: process.env.BUCKET,
             Key: key,
@@ -145,10 +144,11 @@ export async function uploadPart(key: string, partParams: UploadPartParams, numT
         }));
 
         //10 second timeout
+        const secs = 10;
         let timeout = new Promise((resolve, reject) => {
             setTimeout(() => {
                 reject("Timeout");
-            }, 5000);
+            }, secs * 1000);
         });
 
         // Wait for either to finish
@@ -159,16 +159,16 @@ export async function uploadPart(key: string, partParams: UploadPartParams, numT
         // Must be the upload command
         return await uploadCommand;
     } catch (e) {
-        console.error(`Failed to upload part ${partParams.partNumber} to ${key}`);
-        console.error(e["$response"]);
+        //console.error(`Failed to upload part ${partParams.partNumber} to ${key}`);
+        //console.error(e["$response"]);
 
-        const maxTries = 6;
+        const maxTries = 3;
         if (numTry < maxTries) {
-            console.error(`Retrying part ${partParams.partNumber} to ${key} try ${numTry + 1}/${maxTries}`);
+            //console.error(`Retrying part ${partParams.partNumber} to ${key} try ${numTry + 1}/${maxTries}`);
 
             try {
                 // sleep for a timeout with backoff
-                await new Promise(r => setTimeout(r, 2000 * numTry));
+                //await new Promise(r => setTimeout(r, 2000));
                 return await uploadPart(key, partParams, numTry + 1);
             } catch (e) {
                 console.error(`Failed retry internal stack: part ${partParams.partNumber} to ${key} try ${numTry + 1}/${maxTries}`);
@@ -190,6 +190,7 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
     let proms = []
 
     let currentPart = 1;
+    let numLocalConnections = 0;
     for(let i = 0; i < size; i += normalChunkSize) {
         let p = {
             start: i,
@@ -205,13 +206,14 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
             partNumber: currentPart,
         };
 
-        //while(numTotalConnections > 4) {
-            ////console.log("...");
-            //await new Promise(r => setTimeout(r, 2000));
-        //}
+        while(numTotalConnections > 15) {
+            //console.log("...");
+            await new Promise(r => setTimeout(r, 2000));
+        }
         //console.log(uc);
         numTotalConnections++;
-        console.log(`multipart_part for ${url} (nc ${numTotalConnections}): ${currentPart}/${numParts}: ${p.start}-${p.end} (${humanFileSize(contentLength)})`);
+        numLocalConnections++;
+        //console.log(`multipart_part for ${url} (nc ${numTotalConnections}): ${currentPart}/${numParts}: ${p.start}-${p.end} (${humanFileSize(contentLength)})`);
         let res_a = uploadPart(key, uc);
         let part = currentPart;
 
@@ -220,11 +222,13 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
             try {
                 res = await res_a;
                 numTotalConnections--;
+                numLocalConnections--;
             } catch (e) {
                 numTotalConnections--;
+                numLocalConnections--;
                 throw e;
             }
-            console.log(`multipart_part_done for ${url}: ${res.ETag} ${part}/${numParts}`);
+            //console.log(`multipart_part_done for ${url}: ${res.ETag} ${part}/${numParts}`);
             return {
                 ETag: JSON.parse(res.ETag),
                 PartNumber: part,
@@ -234,19 +238,23 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
         currentPart++;
     }
 
-    let parts = await Promise.allSettled(proms.map(p => p()));
+    let parts = await Promise.all(proms.map(p => p())).catch(failed => {
+        console.error("Failed parts: ", failed);
+        for(let p of proms) {
+            if(p.abort && typeof p.abort === "function") {
+                p.abort();
+            }
+        }
+        // TODO: is this double counting?
+        numTotalConnections -= numLocalConnections;
+        throw new Error("Failed parts");
+    });
     // sleep for 500ms
     await new Promise(r => setTimeout(r, 500));
     // sort into completed and failed
-    let failedParts = parts.filter(p => p.status === "rejected").map(p => p.reason);
-    if (failedParts.length > 0) {
-        console.error("Failed parts: ", failedParts);
-        throw new Error("Failed parts");
-    }
-    parts = parts.filter(p => p.status === "fulfilled").map(p => p.value);
     parts.sort((a, b) => a.PartNumber - b.PartNumber);
 
-    console.log(`Multipart upload for ${url} done`);
+    //console.log(`Multipart upload for ${url} done`);
     // We are done: finish the upload
     // try up to 3 times:
     let res2;
@@ -263,7 +271,10 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
             }));
             break;
         } catch (e) {
-            console.error("Failed to complete multipart upload", e);
+            if(i == 2) {
+                console.error("Failed to complete multipart upload", e);
+                throw e;
+            }
             //console.error(e["$response"]);
         }
     }
