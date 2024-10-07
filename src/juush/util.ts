@@ -1,7 +1,7 @@
 "use strict";
 
 import { MongoClient } from "mongodb";
-import { S3Client, PutObjectCommand, UploadPartCommand, CreateMultipartUploadCommand, CompleteMultipartUploadCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, UploadPartCommand, CreateMultipartUploadCommand, CompleteMultipartUploadCommand, ListMultipartUploadsCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
 
 export let mongoclient = new MongoClient(serverConst.dbstring);
 export let query;
@@ -9,20 +9,49 @@ export let query;
 export let db_index;
 export let db_keys;
 
-export let s3_client;
+export let s3_client: S3Client;
+export let fake_s3_client: S3Client;
 
 export async function test_uploads() {
     console.log("Uploading test file to s3");
     let res = await s3_client.send(new PutObjectCommand({
         Bucket: process.env.BUCKET,
-        Key: "a/test",
+        Key: "test/access_upload_test",
         Body: "Hello, World!",
-        ACL: "public-read",
-        //Metadata: { // Defines metadata tags.
-            //"x-amz-meta-my-key": "your-value"
-        //}
+        ACL: "private",
     }));
     console.log("Uploaded test file to s3");
+
+    let tr = await s3_client.send(new ListMultipartUploadsCommand({
+        Bucket: process.env.BUCKET,
+        MaxUploads: 10,
+    }));
+
+    console.log("Checking multipart uploads");
+
+    // Uploads: [
+    // {
+    //   UploadId: '2~_Z9dKoL7ZgqlIEAij8sVkF1Htke9H84',
+    //   Key: 'dev/abcd',
+    //   Initiated: 2024-10-06T21:46:07.328Z,
+    //   StorageClass: 'STANDARD',
+    //   Owner: [Object],
+    //   Initiator: [Object]
+    // },
+    for(let upload of tr.Uploads || []) {
+        let upload_age_seconds = (new Date().getTime() - upload.Initiated.getTime()) / 1000;
+        if(!upload.Key.startsWith(process.env.FOLDER + "/")){
+            continue;
+        }
+        if(upload_age_seconds > 60){
+            console.log("Aborting upload: ", upload.UploadId);
+            await s3_client.send(new AbortMultipartUploadCommand({
+                Bucket: process.env.BUCKET,
+                Key: upload.Key,
+                UploadId: upload.UploadId,
+            }));
+        }
+    }
 }
 
 export async function test_multipart_uploads() {
@@ -30,7 +59,7 @@ export async function test_multipart_uploads() {
     // Create multipart upload
     let mpu = await s3_client.send(new CreateMultipartUploadCommand({
         Bucket: process.env.BUCKET,
-        Key: "a/test3",
+        Key: "test/access_upload_test",
         ACL: "public-read",
     }));
 
@@ -40,7 +69,7 @@ export async function test_multipart_uploads() {
         // Now start uploading parts
         let res = await s3_client.send(new UploadPartCommand({
             Bucket: "imagehost-files",
-            Key: "a/test3",
+            Key: "test/access_upload_test",
             ContentLength: 1024 * 1024 * 7,
             Body: Array(1024 * 1024 * 7).fill(32),
             UploadId: mpu.UploadId,
@@ -74,6 +103,7 @@ export async function startdb() {
             endpoint: `${process.env.S3_ENDPOINT_URL}`,
             forcePathStyle: false,
             region: "us-east-1",
+            maxAttempts: 5,
             credentials: {
                 accessKeyId: process.env.S3_ACCESS_KEY,
                 secretAccessKey: process.env.S3_SECRET_KEY,

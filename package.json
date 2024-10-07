@@ -11,7 +11,7 @@
   "devDependencies": {
     "@aws-sdk/types": "^3.649.0",
     "@types/jest": "^29.5.13",
-    "@types/node": "^22.5.5",
+    "@types/node": "^22.7.4",
     "chai": "^3.5.0",
     "chai-as-promised": "^6.0.0",
     "chai-http": "^3.0.0",
@@ -27,7 +27,7 @@
   },
   "scripts": {
     "docker": "docker build -t imagehost:latest .",
-    "kind": "TAG=$(date +%s); npm run docker -- -t imagehost:$TAG; kind load docker-image imagehost:$TAG; kubectl set image deployment/john2143-com john2143-com=imagehost:$TAG",
+    "kind": "TAG=$(date +%s); npm run docker -- -t imagehost:$TAG; kind load docker-image imagehost:$TAG --name john2143; kubectl set image deployment/john2143-com john2143-com=imagehost:$TAG",
     "deploy": "npm run docker && npm run kind",
     "test": "mocha c/test.js -c",
     "start": "node c --enable-source-maps --color=always",
@@ -39,7 +39,8 @@
     "clean": "rm -r c coverage",
     "lint": "eslint src --color || exit 0",
     "test1": "fish -c 'curl \"http://localhost:3000/f/\"(curl \"https://john2143.com/juush/uploads/1/\"(random 100 200) | jq .[]._id -r | head -n (random 1 20) | head -n 1)\".png\" -o test.png ; timg test.png; rm test.png'",
-    "test2": "fish -c 'dd if=/dev/urandom of=test1.bin bs=1M count=1; set url (juush -a -r localhost:3000/uf test1.bin); sleep 1; curl $url > test2.bin; shasum test*.bin; rm test*.bin'"
+    "test2": "fish -c 'set a (random 1 10000); set b (math $a\" + 1\"); dd if=/dev/urandom of=test$a.bin bs=10M count=1; set url (juush -a -r localhost:3000/uf test$a.bin); sleep 1; curl -L $url > test$b.bin; shasum test$a.bin test$b.bin; rm test$a.bin test$b.bin'",
+    "test3": "fish -c 'set a (random 1 10000); set b (math $a\" + 1\"); dd if=/dev/urandom of=test$a.bin bs=90M count=1; set url (juush -a -r localhost:3000/uf test$a.bin); sleep 1; curl -L $url > test$b.bin; shasum test$a.bin test$b.bin; rm test$a.bin test$b.bin'"
   },
   "repository": {
     "type": "git",

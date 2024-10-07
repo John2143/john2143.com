@@ -96,6 +96,9 @@ const shouldInline = function(__filedata, __mime){
 let curDownloading = {};
 
 async function getFromBackup(uploadID: string, filepath: string) {
+    if(process.env.IS_HOME) {
+        throw new Error("Cannot download from backup in home mode");
+    }
     if(curDownloading[uploadID]) {
         let res = await curDownloading[uploadID];
         return [res, 1];
@@ -143,6 +146,20 @@ const processDownload = async function(reqx, data, disposition){
     const uploadID = data._id;
     const filepath = U.getFilename(uploadID);
 
+    let fff = await U.query.index.findOne({_id: uploadID});
+    if(fff.cdn && disposition == "cdn") {
+        // Modify extraLog
+        reqx.extraLog = "CDN redirect".yellow;
+
+        // Permanent redirect = 301
+        // Temp redirect = 302
+        reqx.res.writeHead(302, {
+            "Location": fff.cdn,
+        });
+        reqx.res.end();
+        return ;
+    }
+
     if(data.mimetype === "deleted"){
         reqx.doHTML("This file has been deleted.", 410);
         return;
@@ -153,15 +170,24 @@ const processDownload = async function(reqx, data, disposition){
     try{
         stat = await fs.stat(filepath);
     }catch(e){
-        let startTime = performance.now();
-        let [s, isDup] = await getFromBackup(uploadID, filepath);
-        stat = s;
-        let endTime = performance.now();
-        let diff = Math.floor(endTime - startTime);
-        reqx.extraLog = `Cache miss, +${diff}ms`.yellow;
-        if(isDup){
-            reqx.extraLog += " (duplicate request)";
+        try {
+            let startTime = performance.now();
+            let [s, isDup] = await getFromBackup(uploadID, filepath);
+            stat = s;
+            let endTime = performance.now();
+            let diff = Math.floor(endTime - startTime);
+            reqx.extraLog = `Cache miss, +${diff}ms`.yellow;
+            if(isDup){
+                reqx.extraLog += " (duplicate request)";
+            }
+        } catch(e) {
+            stat = null;
         }
+    }
+
+    if (!stat) {
+        reqx.doHTML("This file does not exist", 404);
+        return;
     }
 
     //Do the database call to increment downloads
@@ -169,6 +195,8 @@ const processDownload = async function(reqx, data, disposition){
     //What to do with the content:
     //  inline, attachment (download)
     let codisp = "inline";
+
+    let skipresponse = false;
 
     //dl for download
     if(disposition === "dl"){
@@ -196,6 +224,10 @@ const processDownload = async function(reqx, data, disposition){
         }).catch(err => {
             serverLog("Error when incrementing download. " + uploadID, err);
         });
+    }
+
+    if(skipresponse) {
+        return;
     }
 
     reqx.res.writeHead(200, {
