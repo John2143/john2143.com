@@ -1,7 +1,7 @@
 
 import * as U from "./util.js";
 import fs from "node:fs/promises";
-import { PutObjectCommand, UploadPartCommand, CreateMultipartUploadCommand, CompleteMultipartUploadCommand, CreateMultipartUploadCommandOutput, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand, UploadPartCommand, CreateMultipartUploadCommand, CompleteMultipartUploadCommand, CreateMultipartUploadCommandOutput, AbortMultipartUploadCommand, UploadPartCommandOutput } from "@aws-sdk/client-s3";
 import { createReadStream } from "node:fs";
 import { error } from "node:console";
 
@@ -100,7 +100,12 @@ export async function uploadToS3(url: string, mimeType: string, numTry: number =
         const maxTries = 3;
         if (numTry < maxTries) {
             console.error(`Retrying : ${key} ${numTry + 1}/${maxTries}`);
-            return await uploadToS3(url, mimeType, numTry + 1);
+
+            try {
+                uploadToS3(url, mimeType, numTry + 1);
+            } catch (e) {
+                console.error(`Failed retry internal stack: ${key} ${numTry + 1}/${maxTries}`);
+            }
         } else {
             console.error("====Failed to upload to s3 after 3 tries====");
             await U.query.index.updateOne({_id: url}, {$set: {
@@ -120,6 +125,61 @@ export async function beginS3Upload(key: string, mimeType: string): Promise<Crea
     }));
 }
 
+interface UploadPartParams {
+    contentLength: number;
+    body: any;
+    uploadId: string;
+    partNumber: number;
+}
+
+export async function uploadPart(key: string, partParams: UploadPartParams, numTry: number = 0): Promise<UploadPartCommandOutput>{
+    try {
+        console.log(`uploading part ${partParams.partNumber}`);
+        let uploadCommand = U.s3_client.send(new UploadPartCommand({
+            Bucket: process.env.BUCKET,
+            Key: key,
+            ContentLength: partParams.contentLength,
+            Body: partParams.body,
+            UploadId: partParams.uploadId,
+            PartNumber: partParams.partNumber,
+        }));
+
+        //10 second timeout
+        let timeout = new Promise((resolve, reject) => {
+            setTimeout(() => {
+                reject("Timeout");
+            }, 5000);
+        });
+
+        // Wait for either to finish
+        let res = await Promise.any([uploadCommand, timeout]);
+        if (res === timeout) {
+            throw new Error("Timeout");
+        }
+        // Must be the upload command
+        return await uploadCommand;
+    } catch (e) {
+        console.error(`Failed to upload part ${partParams.partNumber} to ${key}`);
+        console.error(e["$response"]);
+
+        const maxTries = 6;
+        if (numTry < maxTries) {
+            console.error(`Retrying part ${partParams.partNumber} to ${key} try ${numTry + 1}/${maxTries}`);
+
+            try {
+                // sleep for a timeout with backoff
+                await new Promise(r => setTimeout(r, 2000 * numTry));
+                return await uploadPart(key, partParams, numTry + 1);
+            } catch (e) {
+                console.error(`Failed retry internal stack: part ${partParams.partNumber} to ${key} try ${numTry + 1}/${maxTries}`);
+            }
+        } else {
+            console.error(`====Failed to upload part ${partParams.partNumber} to ${key} after ${maxTries} tries====`);
+            throw new Error(`Failed to upload part ${partParams.partNumber} to ${key} after ${maxTries} tries`);
+        }
+    }
+}
+
 export async function uploadToS3Inner(url: string, key: string, mimeType: string, currentMultipartUpload: CreateMultipartUploadCommandOutput) {
     const filepath = U.getFilename(url);
     let st = await fs.stat(filepath);
@@ -137,25 +197,23 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
         };
         let currentChunk = createReadStream(filepath, p);
         let contentLength = Math.min(normalChunkSize, size - i);
-        console.log(`multipart_part: ${currentPart}/${numParts}: ${p.start}-${p.end} (${humanFileSize(contentLength)})`);
 
-        let uc = new UploadPartCommand({
-            Bucket: process.env.BUCKET,
-            Key: key,
-            ContentLength: contentLength,
-            Body: currentChunk,
-            UploadId: currentMultipartUpload.UploadId,
-            PartNumber: currentPart,
-        });
-        while(numTotalConnections > 4) {
-            //console.log("...");
-            await new Promise(r => setTimeout(r, 2000));
-        }
+        let uc = {
+            contentLength,
+            body: currentChunk,
+            uploadId: currentMultipartUpload.UploadId,
+            partNumber: currentPart,
+        };
+
+        //while(numTotalConnections > 4) {
+            ////console.log("...");
+            //await new Promise(r => setTimeout(r, 2000));
+        //}
         //console.log(uc);
         numTotalConnections++;
-        let res_a = U.s3_client.send(uc);
+        console.log(`multipart_part for ${url} (nc ${numTotalConnections}): ${currentPart}/${numParts}: ${p.start}-${p.end} (${humanFileSize(contentLength)})`);
+        let res_a = uploadPart(key, uc);
         let part = currentPart;
-
 
         proms.push(async () => {
             let res;
@@ -166,7 +224,7 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
                 numTotalConnections--;
                 throw e;
             }
-            console.log(`multipart_part_done: ${res.ETag} ${part}/${numParts}`);
+            console.log(`multipart_part_done for ${url}: ${res.ETag} ${part}/${numParts}`);
             return {
                 ETag: JSON.parse(res.ETag),
                 PartNumber: part,
@@ -176,9 +234,16 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
         currentPart++;
     }
 
-    let parts = await Promise.all(proms.map(p => p()));
+    let parts = await Promise.allSettled(proms.map(p => p()));
     // sleep for 500ms
     await new Promise(r => setTimeout(r, 500));
+    // sort into completed and failed
+    let failedParts = parts.filter(p => p.status === "rejected").map(p => p.reason);
+    if (failedParts.length > 0) {
+        console.error("Failed parts: ", failedParts);
+        throw new Error("Failed parts");
+    }
+    parts = parts.filter(p => p.status === "fulfilled").map(p => p.value);
     parts.sort((a, b) => a.PartNumber - b.PartNumber);
 
     console.log(`Multipart upload for ${url} done`);
@@ -217,7 +282,11 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
     //   Location: 'nyc3.digitaloceanspaces.com/imagehost-files/public-prod/YTUS'
     // }
 
-    let cdn = `https://${res2.Location}`;
+    // https://nyc3.digitaloceanspaces.com/imagehost-files/dev/ABCD
+    let baseLocation = `https://${res2.Location}`;
+    // https://imagehost-files.nyc3.cdn.digitaloceanspaces.com/dev/ABCD
+    let locationStart = /[^.+]+/.exec(res2.Location)[0];
+    let cdn = `https://${res2.Bucket}.${locationStart}.cdn.digitaloceanspaces.com/${key}`;
     U.query.index.updateOne({_id: url}, {$set: {
         cdn,
     }}).then(() => {
