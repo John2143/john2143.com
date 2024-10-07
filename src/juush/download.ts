@@ -96,6 +96,9 @@ const shouldInline = function(__filedata, __mime){
 let curDownloading = {};
 
 async function getFromBackup(uploadID: string, filepath: string) {
+    if(process.env.IS_HOME) {
+        throw new Error("Cannot download from backup in home mode");
+    }
     if(curDownloading[uploadID]) {
         let res = await curDownloading[uploadID];
         return [res, 1];
@@ -167,15 +170,24 @@ const processDownload = async function(reqx, data, disposition){
     try{
         stat = await fs.stat(filepath);
     }catch(e){
-        let startTime = performance.now();
-        let [s, isDup] = await getFromBackup(uploadID, filepath);
-        stat = s;
-        let endTime = performance.now();
-        let diff = Math.floor(endTime - startTime);
-        reqx.extraLog = `Cache miss, +${diff}ms`.yellow;
-        if(isDup){
-            reqx.extraLog += " (duplicate request)";
+        try {
+            let startTime = performance.now();
+            let [s, isDup] = await getFromBackup(uploadID, filepath);
+            stat = s;
+            let endTime = performance.now();
+            let diff = Math.floor(endTime - startTime);
+            reqx.extraLog = `Cache miss, +${diff}ms`.yellow;
+            if(isDup){
+                reqx.extraLog += " (duplicate request)";
+            }
+        } catch(e) {
+            stat = null;
         }
+    }
+
+    if (!stat) {
+        reqx.doHTML("This file does not exist", 404);
+        return;
     }
 
     //Do the database call to increment downloads
