@@ -60,9 +60,8 @@ const parseHeadersFromUpload = function(data, reqHeaders){
 };
 // 5 mb
 const minChunkSize = 1024 * 1024 * 5;
-// actually 5 gb, but we'll cap it at 25 mb
-//const normalChunkSize = 1024 * 1024 * 25;
-const normalChunkSize = 1024 * 1024 * 7;
+const normalChunkSize = 1024 * 1024 * Number(process.env.S3_CHUNK_SIZE || 15);
+const maxChunkSize = 1024 * 1024 * 100;
 
 // Convert bytes to human readable string like 20.0MB, 1.0GB, 100KB
 function humanFileSize(size) {
@@ -133,7 +132,7 @@ interface UploadPartParams {
 
 export async function uploadPart(key: string, partParams: UploadPartParams, numTry: number = 0): Promise<UploadPartCommandOutput>{
     try {
-        //console.log(`uploading part ${partParams.partNumber}`);
+        console.log(`uploading part ${partParams.partNumber}`);
         let uploadCommand = U.s3_client.send(new UploadPartCommand({
             Bucket: process.env.BUCKET,
             Key: key,
@@ -144,23 +143,31 @@ export async function uploadPart(key: string, partParams: UploadPartParams, numT
         }));
 
         //10 second timeout
-        const secs = 10;
+        const secs = Number(process.env.S3_CHUNK_TIMEOUT || 45);
+        let too;
         let timeout = new Promise((resolve, reject) => {
-            setTimeout(() => {
-                reject("Timeout");
+            too = setTimeout(() => {
+                console.log(`Timeout: ${partParams.partNumber} on ${key}`);
+                resolve("timeout");
             }, secs * 1000);
         });
 
         // Wait for either to finish
         let res = await Promise.any([uploadCommand, timeout]);
-        if (res === timeout) {
+        if (res === "timeout") {
+            console.log(`Timeout: ${partParams.partNumber} on ${key}`);
             throw new Error("Timeout");
         }
+        clearInterval(too);
+        console.log(`Uploaded part ${partParams.partNumber} to ${key}`);
+        //console.log(res);
         // Must be the upload command
-        return await uploadCommand;
+        return await res;
     } catch (e) {
-        //console.error(`Failed to upload part ${partParams.partNumber} to ${key}`);
-        //console.error(e["$response"]);
+        console.error(`Failed to upload part ${partParams.partNumber} to ${key}`);
+        console.log(e);
+        console.log(e["$metadata"]);
+        console.error(e["$response"]);
 
         const maxTries = 3;
         if (numTry < maxTries) {
@@ -180,24 +187,46 @@ export async function uploadPart(key: string, partParams: UploadPartParams, numT
     }
 }
 
+let pendingQueue = [];
+
+function runNextInQueue() {
+    if (pendingQueue.length > 0) {
+        console.log(`Running next in queue: ${pendingQueue.length} pending`);
+        let next = pendingQueue.shift();
+        if (next && typeof next === "function") {
+            next();
+        }
+    }
+}
+
+setInterval(() => {
+    runNextInQueue();
+}, 10_000);
+
 export async function uploadToS3Inner(url: string, key: string, mimeType: string, currentMultipartUpload: CreateMultipartUploadCommandOutput) {
     const filepath = U.getFilename(url);
     let st = await fs.stat(filepath);
     let size = st.size;
 
-    let numParts = Math.ceil(size / normalChunkSize);
-    console.log(`Starting multipart upload for ${url} with ${numParts} parts`);
-    let proms = []
+    let chunkSize = normalChunkSize;
+    let numParts = Math.ceil(size / chunkSize);
+    while(numParts > 15){
+        chunkSize *= 2;
+        numParts = Math.ceil(size / chunkSize);
+    }
+    console.log(`Starting multipart upload for ${url} with ${numParts} parts. ${numTotalConnections} connections active at start. Chunksize ${humanFileSize(chunkSize)}`);
+    let proms = [];
 
     let currentPart = 1;
     let numLocalConnections = 0;
-    for(let i = 0; i < size; i += normalChunkSize) {
+    let doneParts = Array(numParts).fill(false);
+    for(let i = 0; i < size; i += chunkSize) {
         let p = {
             start: i,
-            end: Math.min(i + normalChunkSize, size),
+            end: Math.min(i + chunkSize, size),
         };
         let currentChunk = createReadStream(filepath, p);
-        let contentLength = Math.min(normalChunkSize, size - i);
+        let contentLength = Math.min(chunkSize, size - i);
 
         let uc = {
             contentLength,
@@ -206,29 +235,35 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
             partNumber: currentPart,
         };
 
-        while(numTotalConnections > 15) {
-            //console.log("...");
-            await new Promise(r => setTimeout(r, 2000));
+        while(numTotalConnections > 1 && numLocalConnections > 1) {
+            await new Promise(r => pendingQueue.push(r));
         }
+
         //console.log(uc);
         numTotalConnections++;
         numLocalConnections++;
-        //console.log(`multipart_part for ${url} (nc ${numTotalConnections}): ${currentPart}/${numParts}: ${p.start}-${p.end} (${humanFileSize(contentLength)})`);
-        let res_a = uploadPart(key, uc);
+        console.log(`multipart_part for ${url} (nc ${numTotalConnections}): ${currentPart}/${numParts}: ${p.start}-${p.end} (${humanFileSize(contentLength)})`);
         let part = currentPart;
+        let res_a = uploadPart(key, uc).then(res => {
+            doneParts[part - 1] = true;
+            numTotalConnections--;
+            numLocalConnections--;
+            runNextInQueue();
+            return res;
+        }).catch(e => {
+            numTotalConnections--;
+            numLocalConnections--;
+            runNextInQueue();
+            console.log(`multipart_part_failed for ${url} ${part}/${numParts}`);
+            throw e;
+        });
 
         proms.push(async () => {
-            let res;
-            try {
-                res = await res_a;
-                numTotalConnections--;
-                numLocalConnections--;
-            } catch (e) {
-                numTotalConnections--;
-                numLocalConnections--;
-                throw e;
-            }
-            //console.log(`multipart_part_done for ${url}: ${res.ETag} ${part}/${numParts}`);
+            let res = await res_a;
+
+            //make a string like (XXXXXXXX.XX..........) consisting of doneParts values
+            let doneStr = doneParts.map(d => d ? "X" : ".").join("");
+            console.log(`multipart_part_done for ${url}: ${res.ETag} ${part}/${numParts}: ${doneStr}`);
             return {
                 ETag: JSON.parse(res.ETag),
                 PartNumber: part,
@@ -259,6 +294,7 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
     // try up to 3 times:
     let res2;
 
+    console.log(`All parts are done! ${parts.length} parts for ${url}`);
     for(let i = 0; i < 3; i++) {
         try {
             res2 = await U.s3_client.send(new CompleteMultipartUploadCommand({
@@ -340,7 +376,11 @@ export default async function(server, reqx){
 
     //Genertic error function to safely abort a broken connection
     let isError = false;
+    let hasErrored = false;
     const error = async function(errt = "Generic error", errc = 500){
+        if(hasErrored) return;
+        hasErrored = true;
+
         reqx.extraLog = url.green;
         returnPromise.resolve();
 
@@ -352,8 +392,12 @@ export default async function(server, reqx){
 
         if(!wstream.finished) wstream.end();
         if(!reqx.res.finished){
-            reqx.res.writeHead(errc, {});
-            reqx.res.end(errt);
+            try{
+                reqx.res.writeHead(errc, {});
+                reqx.res.end(errt);
+            } catch(e){
+                // We don't care if the client gets this message, really
+            }
         }
 
         //Delete file
@@ -381,6 +425,14 @@ export default async function(server, reqx){
         if(isError) return;
         if(!headers) return error("Bad headers", 400);
 
+        const filepath = U.getFilename(url);
+        let st = await fs.stat(filepath);
+        let size = st.size;
+        if (Math.abs(size - (headers.contentLength - headers.headersSize)) > 10) {
+            error(`Size mismatch for header Content-Length (${ headers.contentLength }) and body size (${size - headers.headersSize}) is too large (> approx boundary x2)`, 400);
+            return;
+        }
+
         //Try to guess a file extension (for posting to reddit and stuff)
         let fileExtension = U.guessFileExtension(headers.filename);
 
@@ -402,6 +454,12 @@ export default async function(server, reqx){
         if(fileExtension) path += "." + fileExtension;
 
         reqx.res.end(path);
+
+        if(U.s3_client) {
+            // async
+            await new Promise(r => setTimeout(r, 2000));
+            uploadToS3(url, headers.mimetype);
+        }
     });
 
     //Arbirary
@@ -552,10 +610,6 @@ export default async function(server, reqx){
 
         if (slice) {
             wstream.end();
-            if(U.s3_client) {
-                // async
-                uploadToS3(url, headers.mimetype);
-            }
         }
     });
 

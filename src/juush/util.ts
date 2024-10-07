@@ -43,7 +43,7 @@ export async function test_uploads() {
         if(!upload.Key.startsWith(process.env.FOLDER + "/")){
             continue;
         }
-        if(upload_age_seconds > 60 * 2){
+        if(upload_age_seconds > 60){
             console.log("Aborting upload: ", upload.UploadId);
             await s3_client.send(new AbortMultipartUploadCommand({
                 Bucket: process.env.BUCKET,
