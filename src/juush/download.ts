@@ -302,6 +302,13 @@ const download = async function(server, reqx){
         return;
     }
 
+    if(process.env.IS_HOME) {
+        // serve permanant redirect to 2143.me
+        reqx.res.writeHead(301, {
+            "Location": `https://2143.me/f/${uploadID}`,
+        });
+    }
+
     //ignore extension
     uploadID = uploadID.split(".")[0];
 

@@ -348,6 +348,13 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
 export default async function(server, reqx){
     const url = await getURL();
 
+    if(process.env.IS_HOME) {
+        // serve permanant redirect to 2143.me
+        reqx.res.writeHead(301, {
+            "Location": `https://2143.me/uf`,
+        });
+    }
+
     //Any connection will timeout after 30 seconds of inactivity.
     let timeoutID = null;
 
