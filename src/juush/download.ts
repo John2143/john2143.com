@@ -305,7 +305,7 @@ const download = async function(server, reqx){
     if(process.env.IS_HOME) {
         // serve permanant redirect to 2143.me
         reqx.res.writeHead(301, {
-            "Location": `https://2143.moe/f/${uploadID}`,
+            "Location": `https://2143.moe/f/${uploadID}/cdn`,
         });
         reqx.extraLog = "@2143.moe".yellow;
         reqx.res.end();
