@@ -307,6 +307,8 @@ const download = async function(server, reqx){
         reqx.res.writeHead(301, {
             "Location": `https://2143.me/f/${uploadID}`,
         });
+        reqx.res.end();
+        return;
     }
 
     //ignore extension
