@@ -1,9 +1,10 @@
 
-import { createWriteStream, Stats } from "node:fs";
+import { createReadStream, createWriteStream, Stats } from "node:fs";
 import * as U from "./util.js";
 import fs from "node:fs/promises";
 import {pipeline} from "node:stream";
 import { GetObjectCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { createHash } from "node:crypto";
 
 
 //You will get a referer and range if you are trying to stream an audio/video
@@ -101,6 +102,7 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
         Bucket: process.env.BUCKET,
         Key: uploadID,
     });
+    console.log("trying, Key s3 head request", uploadID);
 
     let s3HeadRequest = await s3Client.send(hoc);
 
@@ -125,10 +127,14 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
 
     console.log("Writing to local cache", uploadID);
 
-    await pipeline(s3GetRequest.Body, writeStream);
+    await s3GetRequest.Body.pipe(writeStream);
+    // sleep for 100ms to allow the write to complete
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    console.log("Local cache write complete", uploadID);
 }
 
-async function tryGetBackups(uploadID: string, filepath: string, reqx: any) {
+async function tryGetBackups(uploadID: string, filepath: string, reqx: any): Stats {
     let curWriteStream = createWriteStream(filepath);
     // only allow one person to claim a file handle
     let getWriteStream = () => {
@@ -147,10 +153,27 @@ async function tryGetBackups(uploadID: string, filepath: string, reqx: any) {
     let endTime = performance.now();
     let diff = Math.floor(endTime - startTime);
     reqx.extraLog = `Cache miss, +${diff}ms`.yellow;
+    curDownloading[uploadID] = null;
 
-    return await fs.stat(filepath);
+    // calculate checksum
+    const hash = createHash("sha256");
+    const input = createReadStream(filepath);
+
+    input.on("data", chunk => {
+        hash.update(chunk);
+    });
+
+    let stat = await fs.stat(filepath);
+
+    return new Promise(resolve => {
+        input.on("end", () => {
+            const checksum = hash.digest("hex");
+            console.log(checksum);
+
+            resolve(stat);
+        });
+    });
 }
-
 
 const processDownload = async function(reqx, data, disposition){
     const uploadID = data._id;
@@ -177,14 +200,19 @@ const processDownload = async function(reqx, data, disposition){
     //Try to get file details
     let stat: Stats;
     try{
+        throw new Error();
         stat = await fs.stat(filepath);
     }catch(e){
         try {
-
+            console.log("Asset not found");
             if(curDownloading[uploadID]) {
+                console.log("Has curDownloading Entry");
                 stat = await curDownloading[uploadID];
             } else {
-                stat = curDownloading[uploadID] = await tryGetBackups(uploadID, filepath, reqx);
+                console.log("Getting backup result,");
+                let prom = tryGetBackups(uploadID, filepath, reqx);
+                // curDownloading[uploadID] = prom;
+                stat = await prom;
             }
         } catch(e) {
             stat = null;
