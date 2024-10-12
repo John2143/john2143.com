@@ -306,7 +306,7 @@ const download = async function(server, reqx){
         console.log("Redirecting to 2143.me");
         // serve permanant redirect to 2143.me
         reqx.res.writeHead(301, {
-            "Location": `https://2143.me/f/${uploadID}`,
+            "Location": `https://2143.moe/f/${uploadID}`,
         });
         reqx.res.end();
         return;
