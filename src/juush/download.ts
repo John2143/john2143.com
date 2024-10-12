@@ -200,7 +200,6 @@ const processDownload = async function(reqx, data, disposition){
     //Try to get file details
     let stat: Stats;
     try{
-        throw new Error();
         stat = await fs.stat(filepath);
     }catch(e){
         try {
@@ -211,7 +210,7 @@ const processDownload = async function(reqx, data, disposition){
             } else {
                 console.log("Getting backup result,");
                 let prom = tryGetBackups(uploadID, filepath, reqx);
-                // curDownloading[uploadID] = prom;
+                 curDownloading[uploadID] = prom;
                 stat = await prom;
             }
         } catch(e) {
