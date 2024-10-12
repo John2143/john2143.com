@@ -307,7 +307,7 @@ const download = async function(server, reqx){
         reqx.res.writeHead(301, {
             "Location": `https://2143.moe/f/${uploadID}`,
         });
-        reqs.extraLog = "@2143.moe".yellow;
+        reqx.extraLog = "@2143.moe".yellow;
         reqx.res.end();
         return;
     }
