@@ -1,7 +1,7 @@
 "use strict";
 
 import { MongoClient } from "mongodb";
-import { S3Client, PutObjectCommand, UploadPartCommand, CreateMultipartUploadCommand, CompleteMultipartUploadCommand, ListMultipartUploadsCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, UploadPartCommand, CreateMultipartUploadCommand, CompleteMultipartUploadCommand, ListMultipartUploadsCommand, AbortMultipartUploadCommand, HeadObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 
 export let mongoclient = new MongoClient(serverConst.dbstring);
 export let query;
@@ -10,7 +10,24 @@ export let db_index;
 export let db_keys;
 
 export let s3_client: S3Client;
-export let fake_s3_client: S3Client;
+export let minio_client: S3Client;
+
+async function test_minio() {
+    let res = await minio_client.send(new HeadObjectCommand({
+        Bucket: process.env.BUCKET,
+        Key: "063I",
+    }));
+    console.log("Got object: ", res.ContentLength);
+
+    let res2 = await minio_client.send(new GetObjectCommand({
+        Bucket: process.env.BUCKET,
+        Key: "063I",
+    }));
+
+    // Read the body to a buffer
+    let bytes = await res2.Body?.transformToByteArray();
+    console.log("Got object: ", bytes.length);
+}
 
 export async function test_uploads() {
     console.log("Uploading test file to s3");
@@ -111,6 +128,21 @@ export async function startdb() {
         });
 
         await test_uploads();
+    }
+    if(process.env.MINIO_ENDPOINT_URL){
+        console.log("setting up minio connection");
+        minio_client = new S3Client({
+            endpoint: `${process.env.MINIO_ENDPOINT_URL}`,
+            forcePathStyle: true,
+            region: "us-east-1",
+            maxAttempts: 3,
+            credentials: {
+                accessKeyId: process.env.MINIO_ACCESS_KEY,
+                secretAccessKey: process.env.MINIO_SECRET_KEY,
+            },
+        });
+
+        await test_minio();
     }
 
     console.log("Connecting to database...");

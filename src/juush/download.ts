@@ -1,8 +1,9 @@
 
-import { Stats } from "node:fs";
+import { createWriteStream, Stats } from "node:fs";
 import * as U from "./util.js";
 import fs from "node:fs/promises";
 import {pipeline} from "node:stream";
+import { GetObjectCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 
 //You will get a referer and range if you are trying to stream an audio/video
@@ -95,66 +96,74 @@ const shouldInline = function(__filedata, __mime){
 
 let curDownloading = {};
 
-async function getFromBackup(uploadID: string, filepath: string) {
-    if(process.env.IS_HOME) {
-        throw new Error("Cannot download from backup in home mode");
-    }
-    if(curDownloading[uploadID]) {
-        let res = await curDownloading[uploadID];
-        return [res, 1];
-    }
-
-    let response = await fetch(
-        // TODO: change to home-endpoint
-        `https://2143.me/f/${uploadID}.cache`,
-        //{
-            //agent: httpsAgent,
-        //}
-    );
-
-    if(!response.ok) {
-        throw new Error(`upstream HTTP error! status: ${response.status}`);
-    }
-
-    let p = new Promise((resolve, reject) => {
-        let stream = response.body;
-
-        if(!stream) {
-            reject(new Error("Response body is undefined"));
-        }
-
-        // Now, write it to file as local cache
-        let file = require("fs").createWriteStream(filepath);
-        // Pipe the response to the file
-        pipeline(stream!, file, err => {
-            if(err) {
-                reject(err);
-            } else {
-                fs.stat(filepath)
-                    .then(resolve)
-                    .catch(reject);
-            }
-        });
+async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWriteStream) {
+    let hoc = new HeadObjectCommand({
+        Bucket: process.env.BUCKET,
+        Key: uploadID,
     });
 
-    curDownloading[uploadID] = p;
-    let res = await p;
-    return [res, 0];
+    let s3HeadRequest = await s3Client.send(hoc);
+
+    if(!s3HeadRequest) {
+        throw new Error("S3 head request failed");
+    }
+
+    let s3Size = s3HeadRequest.ContentLength;
+    console.log(s3Size);
+    let getObject = new GetObjectCommand({
+        Bucket: process.env.BUCKET,
+        Key: uploadID,
+    });
+
+    let s3GetRequest = await s3Client.send(getObject);
+
+    // Now, write it to file as local cache
+    let writeStream = getWriteStream();
+    if(!writeStream) {
+        return;
+    }
+
+    console.log("Writing to local cache", uploadID);
+
+    await pipeline(s3GetRequest.Body, writeStream);
 }
+
+async function tryGetBackups(uploadID: string, filepath: string, reqx: any) {
+    let curWriteStream = createWriteStream(filepath);
+    // only allow one person to claim a file handle
+    let getWriteStream = () => {
+        let ws = curWriteStream;
+        curWriteStream = null;
+        return ws;
+    };
+    let s3UploadId = `${process.env.FOLDER}/${uploadID}`;
+
+    let startTime = performance.now();
+    await Promise.any([
+        makeS3BackupRequest(s3UploadId, U.s3_client, getWriteStream),
+        makeS3BackupRequest(uploadID, U.minio_client, getWriteStream),
+    ]);
+
+    let endTime = performance.now();
+    let diff = Math.floor(endTime - startTime);
+    reqx.extraLog = `Cache miss, +${diff}ms`.yellow;
+
+    return await fs.stat(filepath);
+}
+
 
 const processDownload = async function(reqx, data, disposition){
     const uploadID = data._id;
     const filepath = U.getFilename(uploadID);
 
-    let fff = await U.query.index.findOne({_id: uploadID});
-    if(fff.cdn && disposition == "cdn") {
+    if(data.cdn && disposition == "cdn") {
         // Modify extraLog
         reqx.extraLog = "CDN redirect".yellow;
 
         // Permanent redirect = 301
         // Temp redirect = 302
         reqx.res.writeHead(302, {
-            "Location": fff.cdn,
+            "Location": data.cdn,
         });
         reqx.res.end();
         return ;
@@ -171,14 +180,11 @@ const processDownload = async function(reqx, data, disposition){
         stat = await fs.stat(filepath);
     }catch(e){
         try {
-            let startTime = performance.now();
-            let [s, isDup] = await getFromBackup(uploadID, filepath);
-            stat = s;
-            let endTime = performance.now();
-            let diff = Math.floor(endTime - startTime);
-            reqx.extraLog = `Cache miss, +${diff}ms`.yellow;
-            if(isDup){
-                reqx.extraLog += " (duplicate request)";
+
+            if(curDownloading[uploadID]) {
+                stat = await curDownloading[uploadID];
+            } else {
+                stat = curDownloading[uploadID] = await tryGetBackups(uploadID, filepath, reqx);
             }
         } catch(e) {
             stat = null;
