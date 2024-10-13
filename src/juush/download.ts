@@ -327,6 +327,11 @@ const download = async function(server, reqx){
         // Modify extraLog
         reqx.extraLog = "CDN redirect".yellow;
 
+        await U.query.index.updateOne({_id: uploadID}, {
+            $inc: {downloads: 1},
+            $set: {lastdownload: new Date()},
+        })
+
         // Permanent redirect = 301
         // Temp redirect = 302
         reqx.res.writeHead(302, {
