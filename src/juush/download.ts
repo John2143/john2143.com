@@ -112,10 +112,10 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
 
     if(!data.cdn && s3Client === U.s3_client) {
         let cdn = `https://${process.env.BUCKET}.nyc3.cdn.digitaloceanspaces.com/${process.env.FOLDER}/${uploadID}`;
-        await U.query.index.updateOne({_id: uploadID}, {
-            $set: {cdn},
-        });
-        console.log("CDN set to", cdn);
+        //await U.query.index.updateOne({_id: uploadID}, {
+            //$set: {cdn},
+        //});
+        console.log("Want to update CDN set to", cdn);
     }
 
     let s3Size = s3HeadRequest.ContentLength;
