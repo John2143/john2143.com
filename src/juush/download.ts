@@ -97,7 +97,7 @@ const shouldInline = function(__filedata, __mime){
 
 let curDownloading = {};
 
-async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWriteStream) {
+async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWriteStream, data) {
     let hoc = new HeadObjectCommand({
         Bucket: process.env.BUCKET,
         Key: uploadID,
@@ -108,6 +108,14 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
 
     if(!s3HeadRequest) {
         throw new Error("S3 head request failed");
+    }
+
+    if(!data.cdn && s3Client === U.s3_client) {
+        let cdn = `https://${process.env.BUCKET}.nyc3.cdn.digitaloceanspaces.com/${process.env.FOLDER}/${uploadID}`;
+        await U.query.index.updateOne({_id: uploadID}, {
+            $set: {cdn},
+        });
+        console.log("CDN set to", cdn);
     }
 
     let s3Size = s3HeadRequest.ContentLength;
@@ -134,7 +142,7 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
     console.log("Local cache write complete", uploadID);
 }
 
-async function tryGetBackups(uploadID: string, filepath: string, reqx: any): Stats {
+async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data): Stats {
     let curWriteStream = createWriteStream(filepath);
     // only allow one person to claim a file handle
     let getWriteStream = () => {
@@ -145,10 +153,13 @@ async function tryGetBackups(uploadID: string, filepath: string, reqx: any): Sta
     let s3UploadId = `${process.env.FOLDER}/${uploadID}`;
 
     let startTime = performance.now();
-    await Promise.any([
-        makeS3BackupRequest(s3UploadId, U.s3_client, getWriteStream),
-        makeS3BackupRequest(uploadID, U.minio_client, getWriteStream),
-    ]);
+    let promises = [
+        makeS3BackupRequest(s3UploadId, U.s3_client, getWriteStream, data),
+    ];
+    if(!data.cdn) {
+        promises.push(makeS3BackupRequest(uploadID, U.minio_client, getWriteStream, data));
+    }
+    await Promise.any(promises);
 
     let endTime = performance.now();
     let diff = Math.floor(endTime - startTime);
@@ -209,7 +220,7 @@ const processDownload = async function(reqx, data, disposition){
                 stat = await curDownloading[uploadID];
             } else {
                 console.log("Getting backup result,");
-                let prom = tryGetBackups(uploadID, filepath, reqx);
+                let prom = tryGetBackups(uploadID, filepath, reqx, data);
                  curDownloading[uploadID] = prom;
                 stat = await prom;
             }
