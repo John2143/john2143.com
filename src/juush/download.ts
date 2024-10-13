@@ -142,7 +142,10 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
     await s3GetRequest.Body.pipe(writeStream);
     // sleep for 100ms to allow the write to complete
     await new Promise((resolve, reject) => {
-        s3GetRequest.Body.on("end", resolve);
+        s3GetRequest.Body.on("end", () => {
+            writeStream.end();
+            resolve()
+        });
         s3GetRequest.Body.on("error", reject);
     });
 
@@ -175,16 +178,16 @@ async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data
     reqx.extraLog = `Cache miss, +${diff}ms`.yellow;
     curDownloading[uploadID] = null;
 
+    // Move it to the non-dl file
+    await fs.rename(filepath, origFilepath);
+
     // calculate checksum
     const hash = createHash("sha256");
-    const input = createReadStream(filepath);
+    const input = createReadStream(origFilepath);
 
     input.on("data", chunk => {
         hash.update(chunk);
     });
-
-    // Move it to the non-dl file
-    await fs.rename(filepath, origFilepath);
 
     let stat = await fs.stat(origFilepath);
 
@@ -220,7 +223,7 @@ const processDownload = async function(reqx, data, disposition){
             } else {
                 console.log("Getting backup result,");
                 let prom = tryGetBackups(uploadID, filepath, reqx, data);
-                 curDownloading[uploadID] = prom;
+                curDownloading[uploadID] = prom;
                 stat = await prom;
             }
         } catch(e) {
