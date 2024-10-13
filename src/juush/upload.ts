@@ -365,7 +365,7 @@ export default async function(server, reqx){
         //serverLog("added timeout", timeoutID);
     };
 
-    const filepath = U.getFilename(url);
+    const filepath = U.getFilename(url) + ".dl";
     let f = await fs.open(filepath, "w");
     const wstream = f.createWriteStream({
         encoding: "binary",
@@ -432,13 +432,15 @@ export default async function(server, reqx){
         if(isError) return;
         if(!headers) return error("Bad headers", 400);
 
-        const filepath = U.getFilename(url);
         let st = await fs.stat(filepath);
         let size = st.size;
         if (Math.abs(size - (headers.contentLength - headers.headersSize)) > 10) {
             error(`Size mismatch for header Content-Length (${ headers.contentLength }) and body size (${size - headers.headersSize}) is too large (> approx boundary x2)`, 400);
             return;
         }
+
+        //Move the .dl file to the correct location
+        await fs.rename(filepath, U.getFilename(url));
 
         //Try to guess a file extension (for posting to reddit and stuff)
         let fileExtension = U.guessFileExtension(headers.filename);
