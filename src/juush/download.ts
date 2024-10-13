@@ -190,19 +190,6 @@ const processDownload = async function(reqx, data, disposition){
     const uploadID = data._id;
     const filepath = U.getFilename(uploadID);
 
-    if(data.cdn && disposition == "cdn") {
-        // Modify extraLog
-        reqx.extraLog = "CDN redirect".yellow;
-
-        // Permanent redirect = 301
-        // Temp redirect = 302
-        reqx.res.writeHead(302, {
-            "Location": data.cdn,
-        });
-        reqx.res.end();
-        return ;
-    }
-
     if(data.mimetype === "deleted"){
         reqx.doHTML("This file has been deleted.", 410);
         return;
@@ -326,8 +313,29 @@ const download = async function(server, reqx){
     //ignore extension
     uploadID = uploadID.split(".")[0];
 
+    const result = await U.query.index.findOne({_id: uploadID},
+        {mimetype: 1, filename: 1, id: 1}
+    );
+    if(!result){
+        reqx.doHTML("This upload does not exist", 404);
+        return;
+    }
+
     //What the user wants to do with the file
     const disposition = reqx.urldata.path[2];
+    if(result.cdn && disposition == "cdn") {
+        // Modify extraLog
+        reqx.extraLog = "CDN redirect".yellow;
+
+        // Permanent redirect = 301
+        // Temp redirect = 302
+        reqx.res.writeHead(302, {
+            "Location": result.cdn,
+        });
+        reqx.res.end();
+        return ;
+    }
+
 
     if(isStreamRequest(reqx.req)){
         return serveStreamRequest(reqx, U.getFilename(uploadID));
@@ -389,13 +397,6 @@ const download = async function(server, reqx){
         await U.setModifier(uploadID, "hidden", undefined);
         reqx.res.end("unhidden");
     }else{
-        const result = await U.query.index.findOne({_id: uploadID},
-            {mimetype: 1, filename: 1, id: 1}
-        );
-        if(!result){
-            reqx.doHTML("This upload does not exist", 404);
-            return;
-        }
         await processDownload(reqx, result, disposition);
     }
 };
