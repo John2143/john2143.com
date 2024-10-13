@@ -19,6 +19,7 @@ const serveStreamRequest = async function(reqx, uploadID, filepath){
     let stat;
     try{
         if(curDownloading[uploadID]){
+            console.log("Waiting for download to finish... ", uploadID);
             await curDownloading[uploadID];
         } else {
             //statSync fails if filepath does not exist
