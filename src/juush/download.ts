@@ -6,19 +6,24 @@ import {pipeline} from "node:stream";
 import { GetObjectCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createHash } from "node:crypto";
 
+let curDownloading = {};
 
 //You will get a referer and range if you are trying to stream an audio/video
 const isStreamRequest = req => req.headers.referer && req.headers.range;
 
 //This will serve a stream request. It does no kind of validation to see
 //if the user can actually access that content.
-const serveStreamRequest = async function(reqx, filepath){
+const serveStreamRequest = async function(reqx, uploadID, filepath){
     const rangeRequestRegex = /bytes=(\d*)-(\d*)/;
-    let stat;
 
+    let stat;
     try{
-        //statSync fails if filepath does not exist
-        stat = await fs.stat(filepath);
+        if(curDownloading[uploadID]){
+            await curDownloading[uploadID];
+        } else {
+            //statSync fails if filepath does not exist
+            stat = await fs.stat(filepath);
+        }
     }catch(e){
         reqx.res.writeHead(400, {});
         reqx.res.end();
@@ -94,8 +99,6 @@ const shouldInline = function(__filedata, __mime){
 //const httpsAgent = new https.Agent({
     //rejectUnauthorized: false,
 //});
-
-let curDownloading = {};
 
 async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWriteStream, data) {
     let hoc = new HeadObjectCommand({
@@ -343,7 +346,7 @@ const download = async function(server, reqx){
 
 
     if(isStreamRequest(reqx.req)){
-        return serveStreamRequest(reqx, U.getFilename(uploadID));
+        return serveStreamRequest(reqx, uploadID, U.getFilename(uploadID));
     }
 
     if(disposition === "delete"){
