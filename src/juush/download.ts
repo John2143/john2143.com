@@ -140,14 +140,15 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
     console.log("Writing to local cache", uploadID);
 
     await s3GetRequest.Body.pipe(writeStream);
-    // sleep for 100ms to allow the write to complete
     await new Promise((resolve, reject) => {
         s3GetRequest.Body.on("end", () => {
             writeStream.end();
-            resolve()
+            resolve();
         });
         s3GetRequest.Body.on("error", reject);
     });
+    // sleep for 100ms to allow the write to complete
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     console.log("Local cache write complete", uploadID);
 }
@@ -177,6 +178,8 @@ async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data
     let diff = Math.floor(endTime - startTime);
     reqx.extraLog = `Cache miss, +${diff}ms`.yellow;
     curDownloading[uploadID] = null;
+
+    console.log(`Renaming ${filepath} to ${origFilepath}`);
 
     // Move it to the non-dl file
     await fs.rename(filepath, origFilepath);
