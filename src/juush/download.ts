@@ -146,6 +146,8 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
 }
 
 async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data): Stats {
+    let origFilepath = filepath;
+    filepath = filepath + ".dl";
     let curWriteStream = createWriteStream(filepath);
     // only allow one person to claim a file handle
     let getWriteStream = () => {
@@ -177,7 +179,10 @@ async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data
         hash.update(chunk);
     });
 
-    let stat = await fs.stat(filepath);
+    // Move it to the non-dl file
+    await fs.rename(filepath, origFilepath);
+
+    let stat = await fs.stat(origFilepath);
 
     return new Promise(resolve => {
         input.on("end", () => {
