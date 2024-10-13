@@ -168,10 +168,8 @@ async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data
     let startTime = performance.now();
     let promises = [
         makeS3BackupRequest(s3UploadId, U.s3_client, getWriteStream, data),
+        makeS3BackupRequest(uploadID, U.minio_client, getWriteStream, data),
     ];
-    if(!data.cdn) {
-        promises.push(makeS3BackupRequest(uploadID, U.minio_client, getWriteStream, data));
-    }
     await Promise.any(promises);
 
     let endTime = performance.now();
