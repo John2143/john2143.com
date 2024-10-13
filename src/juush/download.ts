@@ -141,7 +141,10 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
 
     await s3GetRequest.Body.pipe(writeStream);
     // sleep for 100ms to allow the write to complete
-    await new Promise(resolve => setTimeout(resolve, 150));
+    await new Promise((resolve, reject) => {
+        s3GetRequest.Body.on("end", resolve);
+        s3GetRequest.Body.on("error", reject);
+    });
 
     console.log("Local cache write complete", uploadID);
 }
