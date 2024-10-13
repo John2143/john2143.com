@@ -314,7 +314,7 @@ const download = async function(server, reqx){
     uploadID = uploadID.split(".")[0];
 
     const result = await U.query.index.findOne({_id: uploadID},
-        {mimetype: 1, filename: 1, id: 1}
+        {mimetype: 1, filename: 1, id: 1, cdn: 1}
     );
     if(!result){
         reqx.doHTML("This upload does not exist", 404);
