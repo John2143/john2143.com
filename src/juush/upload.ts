@@ -64,7 +64,7 @@ const normalChunkSize = 1024 * 1024 * Number(process.env.S3_CHUNK_SIZE || 15);
 const maxChunkSize = 1024 * 1024 * 100;
 
 // Convert bytes to human readable string like 20.0MB, 1.0GB, 100KB
-function humanFileSize(size) {
+export function humanFileSize(size) {
     size = Number(size);
     const i = Math.floor(Math.log(size) / Math.log(1024));
     return (size / Math.pow(1024, i)).toFixed(1) + ["B", "KB", "MB", "GB", "TB"][i];

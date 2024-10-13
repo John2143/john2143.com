@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 import {pipeline} from "node:stream";
 import { GetObjectCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createHash } from "node:crypto";
+import { humanFileSize } from "./upload.js";
 
 let curDownloading = {};
 
@@ -123,7 +124,6 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
     }
 
     let s3Size = s3HeadRequest.ContentLength;
-    console.log(s3Size);
     let getObject = new GetObjectCommand({
         Bucket: process.env.BUCKET,
         Key: uploadID,
@@ -137,7 +137,7 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
         return;
     }
 
-    console.log("Writing to local cache", uploadID);
+    console.log(`Writing to local cache : ${uploadID} ${humanFileSize(s3Size)}`);
 
     await s3GetRequest.Body.pipe(writeStream);
     await new Promise((resolve, reject) => {
@@ -147,8 +147,8 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
         });
         s3GetRequest.Body.on("error", reject);
     });
-    // sleep for 100ms to allow the write to complete
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // sleep for 10ms to allow the write to complete
+    await new Promise(resolve => setTimeout(resolve, 10));
 
     console.log("Local cache write complete", uploadID);
 }
