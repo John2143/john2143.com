@@ -16,13 +16,13 @@ async function test_minio() {
     console.log("Uploading test file to minio");
     let res = await minio_client.send(new HeadObjectCommand({
         Bucket: process.env.BUCKET,
-        Key: "063I",
+        Key: "test/access_upload_test",
     }));
     console.log("Got object: ", res.ContentLength);
 
     let res2 = await minio_client.send(new GetObjectCommand({
         Bucket: process.env.BUCKET,
-        Key: "063I",
+        Key: "test/access_upload_test",
     }));
 
     // Read the body to a buffer
@@ -143,7 +143,7 @@ export async function startdb() {
             },
         });
 
-        await test_minio();
+        //await test_minio();
     }
 
     console.log("Connecting to database...");
