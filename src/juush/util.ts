@@ -136,7 +136,7 @@ export async function startdb() {
             endpoint: `${process.env.MINIO_ENDPOINT_URL}`,
             forcePathStyle: true,
             region: "us-east-1",
-            maxAttempts: 3,
+            maxAttempts: 2,
             credentials: {
                 accessKeyId: process.env.MINIO_ACCESS_KEY,
                 secretAccessKey: process.env.MINIO_SECRET_KEY,

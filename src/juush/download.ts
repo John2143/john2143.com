@@ -109,9 +109,12 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
     });
     console.log("trying, Key s3 head request", uploadID);
 
-    let s3HeadRequest = await s3Client.send(hoc);
+    let s3HeadRequest = await s3Client.send(hoc, {
+        requestTimeout: 3000,
+    });
 
     if(!s3HeadRequest) {
+        console.log(`Not found in ${uploadID}`);
         throw new Error("S3 head request failed");
     }
 
@@ -217,12 +220,11 @@ const processDownload = async function(reqx, data, disposition){
         stat = await fs.stat(filepath);
     }catch(e){
         try {
-            console.log("Asset not found");
             if(curDownloading[uploadID]) {
-                console.log("Has curDownloading Entry");
+                console.log("Asset not found: Has curDownloading Entry");
                 stat = await curDownloading[uploadID];
             } else {
-                console.log("Getting backup result,");
+                console.log("Asset not fouund: Getting backup result,");
                 let prom = tryGetBackups(uploadID, filepath, reqx, data);
                 curDownloading[uploadID] = prom;
                 stat = await prom;
