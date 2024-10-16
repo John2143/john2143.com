@@ -13,6 +13,7 @@ export let s3_client: S3Client;
 export let minio_client: S3Client;
 
 async function test_minio() {
+    console.log("Uploading test file to minio");
     let res = await minio_client.send(new HeadObjectCommand({
         Bucket: process.env.BUCKET,
         Key: "063I",
