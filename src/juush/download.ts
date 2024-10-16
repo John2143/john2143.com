@@ -173,12 +173,13 @@ async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data
         makeS3BackupRequest(s3UploadId, U.s3_client, getWriteStream, data),
         makeS3BackupRequest(uploadID, U.minio_client, getWriteStream, data),
     ];
-    await Promise.any(promises);
+    await Promise.any(promises).finally(() => {
+        curDownloading[uploadID] = null;
+    });
 
     let endTime = performance.now();
     let diff = Math.floor(endTime - startTime);
     reqx.extraLog = `Cache miss, +${diff}ms`.yellow;
-    curDownloading[uploadID] = null;
 
     console.log(`Renaming ${filepath} to ${origFilepath}`);
 
