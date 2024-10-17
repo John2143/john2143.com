@@ -107,10 +107,10 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
         Bucket: process.env.BUCKET,
         Key: uploadID,
     });
-    console.log("trying, Key s3 head request", uploadID);
+    console.log(`trying, ${uploadID} s3 head request`, uploadID);
 
     let s3HeadRequest = await s3Client.send(hoc, {
-        requestTimeout: 3000,
+        requestTimeout: 2000,
     });
 
     if(!s3HeadRequest) {
