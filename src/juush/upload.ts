@@ -64,7 +64,7 @@ const normalChunkSize = 1024 * 1024 * Number(process.env.S3_CHUNK_SIZE || 15);
 const maxChunkSize = 1024 * 1024 * 100;
 
 // Convert bytes to human readable string like 20.0MB, 1.0GB, 100KB
-function humanFileSize(size) {
+export function humanFileSize(size) {
     size = Number(size);
     const i = Math.floor(Math.log(size) / Math.log(1024));
     return (size / Math.pow(1024, i)).toFixed(1) + ["B", "KB", "MB", "GB", "TB"][i];
@@ -348,6 +348,13 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
 export default async function(server, reqx){
     const url = await getURL();
 
+    if(process.env.IS_HOME) {
+        // serve permanant redirect to 2143.me
+        reqx.res.writeHead(301, {
+            "Location": `https://2143.me/uf`,
+        });
+    }
+
     //Any connection will timeout after 30 seconds of inactivity.
     let timeoutID = null;
 
@@ -358,7 +365,7 @@ export default async function(server, reqx){
         //serverLog("added timeout", timeoutID);
     };
 
-    const filepath = U.getFilename(url);
+    const filepath = U.getFilename(url) + ".dl";
     let f = await fs.open(filepath, "w");
     const wstream = f.createWriteStream({
         encoding: "binary",
@@ -425,13 +432,15 @@ export default async function(server, reqx){
         if(isError) return;
         if(!headers) return error("Bad headers", 400);
 
-        const filepath = U.getFilename(url);
         let st = await fs.stat(filepath);
         let size = st.size;
         if (Math.abs(size - (headers.contentLength - headers.headersSize)) > 10) {
             error(`Size mismatch for header Content-Length (${ headers.contentLength }) and body size (${size - headers.headersSize}) is too large (> approx boundary x2)`, 400);
             return;
         }
+
+        //Move the .dl file to the correct location
+        await fs.rename(filepath, U.getFilename(url));
 
         //Try to guess a file extension (for posting to reddit and stuff)
         let fileExtension = U.guessFileExtension(headers.filename);

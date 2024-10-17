@@ -1,22 +1,31 @@
 
-import { Stats } from "node:fs";
+import { createReadStream, createWriteStream, Stats } from "node:fs";
 import * as U from "./util.js";
 import fs from "node:fs/promises";
 import {pipeline} from "node:stream";
+import { GetObjectCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { createHash } from "node:crypto";
+import { humanFileSize } from "./upload.js";
 
+let curDownloading = {};
 
 //You will get a referer and range if you are trying to stream an audio/video
 const isStreamRequest = req => req.headers.referer && req.headers.range;
 
 //This will serve a stream request. It does no kind of validation to see
 //if the user can actually access that content.
-const serveStreamRequest = async function(reqx, filepath){
+const serveStreamRequest = async function(reqx, uploadID, filepath){
     const rangeRequestRegex = /bytes=(\d*)-(\d*)/;
-    let stat;
 
+    let stat;
     try{
-        //statSync fails if filepath does not exist
-        stat = await fs.stat(filepath);
+        if(curDownloading[uploadID]){
+            console.log("Waiting for download to finish... ", uploadID);
+            await curDownloading[uploadID];
+        } else {
+            //statSync fails if filepath does not exist
+            stat = await fs.stat(filepath);
+        }
     }catch(e){
         reqx.res.writeHead(400, {});
         reqx.res.end();
@@ -93,72 +102,113 @@ const shouldInline = function(__filedata, __mime){
     //rejectUnauthorized: false,
 //});
 
-let curDownloading = {};
+async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWriteStream, data) {
+    let hoc = new HeadObjectCommand({
+        Bucket: process.env.BUCKET,
+        Key: uploadID,
+    });
+    console.log(`trying, ${uploadID} s3 head request`, uploadID);
 
-async function getFromBackup(uploadID: string, filepath: string) {
-    if(process.env.IS_HOME) {
-        throw new Error("Cannot download from backup in home mode");
-    }
-    if(curDownloading[uploadID]) {
-        let res = await curDownloading[uploadID];
-        return [res, 1];
-    }
-
-    let response = await fetch(
-        // TODO: change to home-endpoint
-        `https://2143.me/f/${uploadID}.cache`,
-        //{
-            //agent: httpsAgent,
-        //}
-    );
-
-    if(!response.ok) {
-        throw new Error(`upstream HTTP error! status: ${response.status}`);
-    }
-
-    let p = new Promise((resolve, reject) => {
-        let stream = response.body;
-
-        if(!stream) {
-            reject(new Error("Response body is undefined"));
-        }
-
-        // Now, write it to file as local cache
-        let file = require("fs").createWriteStream(filepath);
-        // Pipe the response to the file
-        pipeline(stream!, file, err => {
-            if(err) {
-                reject(err);
-            } else {
-                fs.stat(filepath)
-                    .then(resolve)
-                    .catch(reject);
-            }
-        });
+    let s3HeadRequest = await s3Client.send(hoc, {
+        requestTimeout: 2000,
     });
 
-    curDownloading[uploadID] = p;
-    let res = await p;
-    return [res, 0];
+    if(!s3HeadRequest) {
+        console.log(`Not found in ${uploadID}`);
+        throw new Error("S3 head request failed");
+    }
+
+    if(!data.cdn && s3Client === U.s3_client) {
+        let cdn = `https://${process.env.BUCKET}.nyc3.cdn.digitaloceanspaces.com/${process.env.FOLDER}/${uploadID}`;
+        //await U.query.index.updateOne({_id: uploadID}, {
+            //$set: {cdn},
+        //});
+        console.log("Want to update CDN set to", cdn);
+    }
+
+    let s3Size = s3HeadRequest.ContentLength;
+    let getObject = new GetObjectCommand({
+        Bucket: process.env.BUCKET,
+        Key: uploadID,
+    });
+
+    let s3GetRequest = await s3Client.send(getObject);
+
+    // Now, write it to file as local cache
+    let writeStream = getWriteStream();
+    if(!writeStream) {
+        return;
+    }
+
+    console.log(`Writing to local cache : ${uploadID} ${humanFileSize(s3Size)}`);
+
+    await s3GetRequest.Body.pipe(writeStream);
+    await new Promise((resolve, reject) => {
+        s3GetRequest.Body.on("end", () => {
+            writeStream.end();
+            resolve();
+        });
+        s3GetRequest.Body.on("error", reject);
+    });
+    // sleep for 10ms to allow the write to complete
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    console.log("Local cache write complete", uploadID);
+}
+
+async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data): Stats {
+    let origFilepath = filepath;
+    filepath = filepath + ".dl";
+    let curWriteStream = createWriteStream(filepath);
+    // only allow one person to claim a file handle
+    let getWriteStream = () => {
+        let ws = curWriteStream;
+        curWriteStream = null;
+        return ws;
+    };
+    let s3UploadId = `${process.env.FOLDER}/${uploadID}`;
+
+    let startTime = performance.now();
+    let promises = [
+        makeS3BackupRequest(s3UploadId, U.s3_client, getWriteStream, data),
+        makeS3BackupRequest(uploadID, U.minio_client, getWriteStream, data),
+    ];
+    await Promise.any(promises).finally(() => {
+        curDownloading[uploadID] = null;
+    });
+
+    let endTime = performance.now();
+    let diff = Math.floor(endTime - startTime);
+    reqx.extraLog = `Cache miss, +${diff}ms`.yellow;
+
+    console.log(`Renaming ${filepath} to ${origFilepath}`);
+
+    // Move it to the non-dl file
+    await fs.rename(filepath, origFilepath);
+
+    // calculate checksum
+    const hash = createHash("sha256");
+    const input = createReadStream(origFilepath);
+
+    input.on("data", chunk => {
+        hash.update(chunk);
+    });
+
+    let stat = await fs.stat(origFilepath);
+
+    return new Promise(resolve => {
+        input.on("end", () => {
+            const checksum = hash.digest("hex");
+            console.log(checksum);
+
+            resolve(stat);
+        });
+    });
 }
 
 const processDownload = async function(reqx, data, disposition){
     const uploadID = data._id;
     const filepath = U.getFilename(uploadID);
-
-    let fff = await U.query.index.findOne({_id: uploadID});
-    if(fff.cdn && disposition == "cdn") {
-        // Modify extraLog
-        reqx.extraLog = "CDN redirect".yellow;
-
-        // Permanent redirect = 301
-        // Temp redirect = 302
-        reqx.res.writeHead(302, {
-            "Location": fff.cdn,
-        });
-        reqx.res.end();
-        return ;
-    }
 
     if(data.mimetype === "deleted"){
         reqx.doHTML("This file has been deleted.", 410);
@@ -171,14 +221,14 @@ const processDownload = async function(reqx, data, disposition){
         stat = await fs.stat(filepath);
     }catch(e){
         try {
-            let startTime = performance.now();
-            let [s, isDup] = await getFromBackup(uploadID, filepath);
-            stat = s;
-            let endTime = performance.now();
-            let diff = Math.floor(endTime - startTime);
-            reqx.extraLog = `Cache miss, +${diff}ms`.yellow;
-            if(isDup){
-                reqx.extraLog += " (duplicate request)";
+            if(curDownloading[uploadID]) {
+                console.log("Asset not found: Has curDownloading Entry");
+                stat = await curDownloading[uploadID];
+            } else {
+                console.log("Asset not fouund: Getting backup result,");
+                let prom = tryGetBackups(uploadID, filepath, reqx, data);
+                curDownloading[uploadID] = prom;
+                stat = await prom;
             }
         } catch(e) {
             stat = null;
@@ -269,14 +319,50 @@ const download = async function(server, reqx){
         return;
     }
 
+    if(process.env.IS_HOME) {
+        // serve permanant redirect to 2143.me
+        reqx.res.writeHead(301, {
+            "Location": `https://2143.moe/f/${uploadID}/cdn`,
+        });
+        reqx.extraLog = "@2143.moe".yellow;
+        reqx.res.end();
+        return;
+    }
+
     //ignore extension
     uploadID = uploadID.split(".")[0];
 
+    const result = await U.query.index.findOne({_id: uploadID},
+        {mimetype: 1, filename: 1, id: 1, cdn: 1}
+    );
+    if(!result){
+        reqx.doHTML("This upload does not exist", 404);
+        return;
+    }
+
     //What the user wants to do with the file
     const disposition = reqx.urldata.path[2];
+    if(result.cdn && disposition == "cdn") {
+        // Modify extraLog
+        reqx.extraLog = "CDN redirect".yellow;
+
+        await U.query.index.updateOne({_id: uploadID}, {
+            $inc: {downloads: 1},
+            $set: {lastdownload: new Date()},
+        })
+
+        // Permanent redirect = 301
+        // Temp redirect = 302
+        reqx.res.writeHead(302, {
+            "Location": result.cdn,
+        });
+        reqx.res.end();
+        return ;
+    }
+
 
     if(isStreamRequest(reqx.req)){
-        return serveStreamRequest(reqx, U.getFilename(uploadID));
+        return serveStreamRequest(reqx, uploadID, U.getFilename(uploadID));
     }
 
     if(disposition === "delete"){
@@ -335,13 +421,6 @@ const download = async function(server, reqx){
         await U.setModifier(uploadID, "hidden", undefined);
         reqx.res.end("unhidden");
     }else{
-        const result = await U.query.index.findOne({_id: uploadID},
-            {mimetype: 1, filename: 1, id: 1}
-        );
-        if(!result){
-            reqx.doHTML("This upload does not exist", 404);
-            return;
-        }
         await processDownload(reqx, result, disposition);
     }
 };
