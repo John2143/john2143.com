@@ -73,11 +73,19 @@ export function humanFileSize(size) {
 let numTotalConnections = 0;
 
 export async function uploadToS3(url: string, mimeType: string, numTry: number = 0) {
+    const filepath = U.getFilename(url);
+    let st = await fs.stat(filepath);
+    if(st.size > 1024 * 1024 * 25) {
+        console.error(`File too large to upload to s3: ${url} ${st.size}`);
+        return;
+    }
+
     let s;
     let key = `${process.env.FOLDER}/${url}`;
     try {
         s = await beginS3Upload(key, mimeType);
         await uploadToS3Inner(url, key, mimeType, s);
+
     } catch (e) {
         console.error(`===Failed to upload to s3=== : ${key} - ${s?.UploadId}`);
         console.error(e["$response"]);
