@@ -16,13 +16,13 @@ async function test_minio() {
     console.log("Uploading test file to minio");
     let res = await minio_client.send(new HeadObjectCommand({
         Bucket: process.env.BUCKET,
-        Key: "test/access_upload_test",
+        Key: "c8FA",
     }));
     console.log("Got object: ", res.ContentLength);
 
     let res2 = await minio_client.send(new GetObjectCommand({
         Bucket: process.env.BUCKET,
-        Key: "test/access_upload_test",
+        Key: "c8FA",
     }));
 
     // Read the body to a buffer
@@ -131,19 +131,19 @@ export async function startdb() {
         await test_uploads();
     }
     if(process.env.MINIO_ENDPOINT_URL){
-        console.log("setting up minio connection");
+        console.log(`setting up minio connection to ${process.env.MINIO_ENDPOINT_URL}`);
         minio_client = new S3Client({
             endpoint: `${process.env.MINIO_ENDPOINT_URL}`,
             forcePathStyle: true,
             region: "us-east-1",
-            maxAttempts: 2,
+            maxAttempts: 1,
             credentials: {
                 accessKeyId: process.env.MINIO_ACCESS_KEY,
                 secretAccessKey: process.env.MINIO_SECRET_KEY,
             },
         });
 
-        //await test_minio();
+        await test_minio();
     }
 
     console.log("Connecting to database...");

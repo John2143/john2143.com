@@ -103,57 +103,54 @@ const shouldInline = function(__filedata, __mime){
 //});
 
 async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWriteStream, data) {
-    let hoc = new HeadObjectCommand({
-        Bucket: process.env.BUCKET,
-        Key: uploadID,
-    });
-    console.log(`trying, ${uploadID} s3 head request`, uploadID);
-
-    let s3HeadRequest = await s3Client.send(hoc, {
-        requestTimeout: 2000,
-    });
-
-    if(!s3HeadRequest) {
-        console.log(`Not found in ${uploadID}`);
-        throw new Error("S3 head request failed");
-    }
-
-    if(!data.cdn && s3Client === U.s3_client) {
-        let cdn = `https://${process.env.BUCKET}.nyc3.cdn.digitaloceanspaces.com/${process.env.FOLDER}/${uploadID}`;
-        //await U.query.index.updateOne({_id: uploadID}, {
-            //$set: {cdn},
-        //});
-        console.log("Want to update CDN set to", cdn);
-    }
-
-    let s3Size = s3HeadRequest.ContentLength;
+    console.log(`Making S3 backup request for ${uploadID}`);
     let getObject = new GetObjectCommand({
         Bucket: process.env.BUCKET,
         Key: uploadID,
     });
 
-    let s3GetRequest = await s3Client.send(getObject);
+    let s3GetRequestPromise = s3Client.send(getObject);
 
-    // Now, write it to file as local cache
-    let writeStream = getWriteStream();
-    if(!writeStream) {
-        return;
-    }
+    return new Promise(async (resolve, reject) => {
+        let tryTimeout = setTimeout(() => {
+            console.log(`S3 get request timed out for ${uploadID}`);
+            reject("S3 get request timed out");
+        }, 10000);
 
-    console.log(`Writing to local cache : ${uploadID} ${humanFileSize(s3Size)}`);
+        let s3GetRequest = await s3GetRequestPromise.catch(reject);
 
-    await s3GetRequest.Body.pipe(writeStream);
-    await new Promise((resolve, reject) => {
-        s3GetRequest.Body.on("end", () => {
-            writeStream.end();
-            resolve();
-        });
-        s3GetRequest.Body.on("error", reject);
+        clearTimeout(tryTimeout);
+
+        if(!s3GetRequest) {
+            console.log(`Not found in ${uploadID}`);
+            throw new Error("S3 get request failed");
+        }
+
+        let s3Size = s3GetRequest.ContentLength;
+
+        // Now, write it to file as local cache
+        let writeStream = getWriteStream();
+        if(!writeStream) {
+            console.log(`Write stream already claimed for ${uploadID}`);
+            return resolve(null);
+        }
+
+        console.log(`Writing to local cache : ${uploadID} ${humanFileSize(s3Size)}`);
+
+        await s3GetRequest.Body.pipe(writeStream);
+        await new Promise((resolve, reject) => {
+            s3GetRequest.Body.on("end", () => {
+                writeStream.end();
+                resolve(null);
+            });
+            s3GetRequest.Body.on("error", reject);
+        }).catch(reject);
+        // sleep for 10ms to allow the write to complete
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        console.log("Local cache write complete", uploadID);
+        resolve(null);
     });
-    // sleep for 10ms to allow the write to complete
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    console.log("Local cache write complete", uploadID);
 }
 
 async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data): Stats {
@@ -166,11 +163,11 @@ async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data
         curWriteStream = null;
         return ws;
     };
-    //let s3UploadId = `${process.env.FOLDER}/${uploadID}`;
+    let s3UploadId = `${process.env.FOLDER}/${uploadID}`;
 
     let startTime = performance.now();
     let promises = [
-        //makeS3BackupRequest(s3UploadId, U.s3_client, getWriteStream, data),
+        makeS3BackupRequest(s3UploadId, U.s3_client, getWriteStream, data),
         makeS3BackupRequest(uploadID, U.minio_client, getWriteStream, data),
     ];
     await Promise.any(promises).finally(() => {
@@ -187,6 +184,7 @@ async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data
     await fs.rename(filepath, origFilepath);
 
     // calculate checksum
+    // https://john2143.com:9000
     const hash = createHash("sha256");
     const input = createReadStream(origFilepath);
 
@@ -225,7 +223,7 @@ const processDownload = async function(reqx, data, disposition){
                 console.log("Asset not found: Has curDownloading Entry");
                 stat = await curDownloading[uploadID];
             } else {
-                console.log("Asset not fouund: Getting backup result,");
+                console.log("Asset not found: Getting backup result,");
                 let prom = tryGetBackups(uploadID, filepath, reqx, data);
                 curDownloading[uploadID] = prom;
                 stat = await prom;
