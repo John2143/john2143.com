@@ -166,11 +166,11 @@ async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data
         curWriteStream = null;
         return ws;
     };
-    let s3UploadId = `${process.env.FOLDER}/${uploadID}`;
+    //let s3UploadId = `${process.env.FOLDER}/${uploadID}`;
 
     let startTime = performance.now();
     let promises = [
-        makeS3BackupRequest(s3UploadId, U.s3_client, getWriteStream, data),
+        //makeS3BackupRequest(s3UploadId, U.s3_client, getWriteStream, data),
         makeS3BackupRequest(uploadID, U.minio_client, getWriteStream, data),
     ];
     await Promise.any(promises).finally(() => {
