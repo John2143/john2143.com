@@ -123,7 +123,7 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
 
         if(!s3GetRequest) {
             console.log(`Not found in ${uploadID}`);
-            throw new Error("S3 get request failed");
+            return reject("S3 get request failed");
         }
 
         let s3Size = s3GetRequest.ContentLength;
@@ -167,7 +167,7 @@ async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data
 
     let startTime = performance.now();
     let promises = [
-        makeS3BackupRequest(s3UploadId, U.s3_client, getWriteStream, data),
+        //makeS3BackupRequest(s3UploadId, U.s3_client, getWriteStream, data),
         makeS3BackupRequest(uploadID, U.minio_client, getWriteStream, data),
     ];
     await Promise.any(promises).finally(() => {
