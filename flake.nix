@@ -12,8 +12,7 @@
         devShell = pkgs.mkShell {
           name = "node22";
           buildInputs=[
-            pkgs.nodejs_22
-            pkgs.nodePackages.typescript
+            pkgs.deno
             pkgs.nodePackages.typescript-language-server
             pkgs.yq
             pkgs.curl

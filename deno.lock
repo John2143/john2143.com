@@ -1,0 +1,39 @@
+{
+  "version": "3",
+  "packages": {
+    "specifiers": {
+      "npm:typescript@5.6.2": "npm:typescript@5.6.2"
+    },
+    "npm": {
+      "typescript@5.6.2": {
+        "integrity": "sha512-NW8ByodCSNCwZeghjN3o+JX5OFH0Ojg6sadjEKY4huZ52TqbJTJnDo5+Tw98lSy63NZvi4n+ez5m2u5d4PkZyw==",
+        "dependencies": {}
+      }
+    }
+  },
+  "remote": {},
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@aws-sdk/client-s3@^3.651.0",
+        "npm:@aws-sdk/types@^3.649.0",
+        "npm:@types/jest@^29.5.13",
+        "npm:@types/node@^22.7.4",
+        "npm:chai-as-promised@^6.0.0",
+        "npm:chai-http@^3.0.0",
+        "npm:chai@^3.5.0",
+        "npm:colors@^1.1.2",
+        "npm:coveralls@^2.13.0",
+        "npm:eslint@^3.19.0",
+        "npm:istanbul@^0.4.5",
+        "npm:jshint@^2.9.4",
+        "npm:mocha@^3.3.0",
+        "npm:mongodb@^6.6.2",
+        "npm:nyc@^10.2.0",
+        "npm:sinon@^2.1.0",
+        "npm:source-map-support@^0.4.14",
+        "npm:typescript@^5.6.2"
+      ]
+    }
+  }
+}
