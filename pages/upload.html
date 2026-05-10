@@ -1,8 +1,493 @@
-<html>
-	<body>
-		<form action="uf" method="post" enctype="multipart/form-data">
-			<input type="file" name="ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" method="POST">
-			<input type="submit">
-		</form>
-	</body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Upload — john2143.com</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+noscript form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+#app {
+  width: 100%;
+  max-width: 600px;
+  padding: 24px;
+}
+
+h1 {
+  text-align: center;
+  font-size: 1.5rem;
+  margin-bottom: 8px;
+  color: #a0a0c0;
+  font-weight: 400;
+}
+
+.key-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.key-row label {
+  white-space: nowrap;
+  color: #8088a0;
+  font-size: 0.9rem;
+}
+
+.key-row input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background: #16213e;
+  color: #e0e0e0;
+  font-size: 0.9rem;
+  font-family: monospace;
+}
+
+.key-row input:focus {
+  outline: none;
+  border-color: #5a8;
+}
+
+.drop-zone {
+  border: 2px dashed #444;
+  border-radius: 8px;
+  padding: 48px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  margin-bottom: 16px;
+}
+
+.drop-zone:hover {
+  border-color: #666;
+  background: rgba(255,255,255,0.02);
+}
+
+.drop-zone.dragover {
+  border-color: #5a8;
+  background: rgba(80,170,130,0.08);
+}
+
+.drop-zone.uploading {
+  border-color: #5588cc;
+  background: rgba(80,130,200,0.08);
+  cursor: default;
+}
+
+.drop-zone .icon {
+  font-size: 2.5rem;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.drop-zone .label {
+  font-size: 1rem;
+  color: #888;
+}
+
+.drop-zone .sub {
+  font-size: 0.8rem;
+  color: #555;
+  margin-top: 6px;
+}
+
+.progress-bar {
+  height: 4px;
+  background: #333;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 16px;
+  display: none;
+}
+
+.progress-bar.active {
+  display: block;
+}
+
+.progress-bar .fill {
+  height: 100%;
+  background: #5a8;
+  width: 0%;
+  transition: width 0.15s;
+}
+
+.progress-bar.indeterminate .fill {
+  width: 30%;
+  animation: progress-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes progress-slide {
+  0%   { margin-left: 0; }
+  50%  { margin-left: 70%; }
+  100% { margin-left: 0; }
+}
+
+.results {
+  margin-top: 16px;
+}
+
+.result-item {
+  background: #16213e;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.result-item .status {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.result-item .status.ok    { background: #5a8; }
+.result-item .status.error { background: #c55; }
+.result-item .status.busy  {
+  background: #58c;
+  animation: pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+.result-item .info {
+  flex: 1;
+  min-width: 0;
+}
+
+.result-item .fname {
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.result-item .url {
+  font-size: 0.8rem;
+  color: #5a8;
+  word-break: break-all;
+}
+
+.result-item .url a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.result-item .url a:hover {
+  text-decoration: underline;
+}
+
+.result-item .errmsg {
+  font-size: 0.8rem;
+  color: #c55;
+}
+
+.result-item .copy-btn {
+  background: #2a2a4a;
+  border: 1px solid #444;
+  color: #aaa;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.result-item .copy-btn:hover {
+  background: #333;
+  color: #fff;
+}
+
+#fileInput {
+  display: none;
+}
+</style>
+</head>
+<body>
+
+<noscript>
+  <form action="uf" method="post" enctype="multipart/form-data">
+    <p style="margin-bottom:8px">Upload key:</p>
+    <input type="text" name="key_display" value="ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" readonly style="padding:4px 8px;margin-bottom:12px">
+    <input type="file" name="ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ">
+    <input type="submit" value="Upload">
+  </form>
+</noscript>
+
+<div id="app">
+  <h1>Upload files</h1>
+
+  <div class="key-row">
+    <label for="keyInput">Key:</label>
+    <input type="text" id="keyInput" value="ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" placeholder="Your upload key">
+  </div>
+
+  <div class="drop-zone" id="dropZone">
+    <div class="icon">&#8627;</div>
+    <div class="label">Drop files here or click to browse</div>
+    <div class="sub">Images, videos, audio, or any file</div>
+    <div class="progress-bar" id="progressBar">
+      <div class="fill"></div>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" multiple>
+
+  <div class="results" id="results"></div>
+</div>
+
+<script>
+(function(){
+  var dropZone = document.getElementById('dropZone');
+  var fileInput = document.getElementById('fileInput');
+  var keyInput = document.getElementById('keyInput');
+  var progressBar = document.getElementById('progressBar');
+  var progressFill = progressBar.querySelector('.fill');
+  var resultsEl = document.getElementById('results');
+
+  var dragging = 0;
+
+  // ---- Drag events on the drop zone ----
+  dropZone.addEventListener('dragenter', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragging++;
+    dropZone.classList.add('dragover');
+  });
+
+  dropZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  dropZone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragging--;
+    if (dragging <= 0) {
+      dragging = 0;
+      dropZone.classList.remove('dragover');
+    }
+  });
+
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragging = 0;
+    dropZone.classList.remove('dragover');
+    var files = e.dataTransfer.files;
+    if (files && files.length) {
+      handleFiles(files);
+    }
+  });
+
+  // Prevent default on body to allow drops anywhere
+  document.body.addEventListener('dragover', function(e) { e.preventDefault(); });
+  document.body.addEventListener('drop', function(e) { e.preventDefault(); });
+
+  // ---- Click to open file dialog ----
+  dropZone.addEventListener('click', function() {
+    if (dropZone.classList.contains('uploading')) return;
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', function() {
+    if (fileInput.files && fileInput.files.length) {
+      handleFiles(fileInput.files);
+      fileInput.value = '';
+    }
+  });
+
+  // ---- Upload logic ----
+  function handleFiles(files) {
+    var key = keyInput.value.trim();
+    if (!key) {
+      alert('Please enter an upload key.');
+      return;
+    }
+
+    // Disable drop zone during upload
+    dropZone.classList.add('uploading');
+    progressBar.classList.add('active', 'indeterminate');
+
+    // Upload files sequentially
+    uploadNext(files, 0, key);
+  }
+
+  function uploadNext(files, index, key) {
+    if (index >= files.length) {
+      // All done
+      dropZone.classList.remove('uploading');
+      progressBar.classList.remove('active', 'indeterminate');
+      return;
+    }
+
+    var file = files[index];
+    addResultItem(file.name, 'busy', '');
+
+    var formData = new FormData();
+    formData.append(key, file, file.name);
+
+    // Use XMLHttpRequest for progress
+    var xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener('progress', function(e) {
+      if (e.lengthComputable) {
+        progressBar.classList.remove('indeterminate');
+        var pct = (e.loaded / e.total) * 100;
+        progressFill.style.width = pct + '%';
+      }
+    });
+
+    xhr.addEventListener('load', function() {
+      progressBar.classList.add('indeterminate');
+      progressFill.style.width = '0%';
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        updateResultItem(index, 'ok', xhr.responseText);
+      } else {
+        updateResultItem(index, 'error', null, xhr.responseText || 'Upload failed (' + xhr.status + ')');
+      }
+
+      uploadNext(files, index + 1, key);
+    });
+
+    xhr.addEventListener('error', function() {
+      progressBar.classList.add('indeterminate');
+      progressFill.style.width = '0%';
+      updateResultItem(index, 'error', null, 'Network error');
+      uploadNext(files, index + 1, key);
+    });
+
+    xhr.open('POST', 'uf');
+    xhr.send(formData);
+  }
+
+  // ---- Results display ----
+  function addResultItem(filename, cls, url, err) {
+    var div = document.createElement('div');
+    div.className = 'result-item';
+    div.setAttribute('data-index', resultsEl.children.length);
+
+    var status = document.createElement('span');
+    status.className = 'status ' + cls;
+
+    var info = document.createElement('div');
+    info.className = 'info';
+
+    var fname = document.createElement('div');
+    fname.className = 'fname';
+    fname.textContent = filename;
+    info.appendChild(fname);
+
+    if (url) {
+      var urlel = document.createElement('div');
+      urlel.className = 'url';
+      var a = document.createElement('a');
+      a.href = url;
+      a.textContent = url;
+      a.target = '_blank';
+      urlel.appendChild(a);
+      info.appendChild(urlel);
+    }
+
+    if (err) {
+      var errEl = document.createElement('div');
+      errEl.className = 'errmsg';
+      errEl.textContent = err;
+      info.appendChild(errEl);
+    }
+
+    var copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-btn';
+    copyBtn.textContent = 'Copy';
+    copyBtn.style.display = 'none';
+    copyBtn.addEventListener('click', function() {
+      navigator.clipboard.writeText(url).then(function() {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(function() { copyBtn.textContent = 'Copy'; }, 1500);
+      });
+    });
+
+    div.appendChild(status);
+    div.appendChild(info);
+    div.appendChild(copyBtn);
+    resultsEl.insertBefore(div, resultsEl.firstChild);
+  }
+
+  function updateResultItem(index, cls, url, err) {
+    var items = resultsEl.querySelectorAll('.result-item');
+    // Find by data-index since we insert at top
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].getAttribute('data-index') === String(index)) {
+        var status = items[i].querySelector('.status');
+        status.className = 'status ' + cls;
+
+        if (url) {
+          var info = items[i].querySelector('.info');
+          var urlel = document.createElement('div');
+          urlel.className = 'url';
+          var a = document.createElement('a');
+          a.href = url;
+          a.textContent = url;
+          a.target = '_blank';
+          urlel.appendChild(a);
+          info.appendChild(urlel);
+
+          items[i].querySelector('.copy-btn').style.display = '';
+        }
+
+        if (err) {
+          var info = items[i].querySelector('.info');
+          var errEl = document.createElement('div');
+          errEl.className = 'errmsg';
+          errEl.textContent = err;
+          info.appendChild(errEl);
+        }
+
+        break;
+      }
+    }
+  }
+
+  // ---- Initial state ----
+  // If local storage has a saved key, use it
+  var savedKey = localStorage.getItem('juush_upload_key');
+  if (savedKey) {
+    keyInput.value = savedKey;
+  }
+
+  keyInput.addEventListener('change', function() {
+    localStorage.setItem('juush_upload_key', keyInput.value.trim());
+  });
+})();
+</script>
+
+</body>
 </html>
