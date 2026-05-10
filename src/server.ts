@@ -110,6 +110,9 @@ class request{
 
     async serveStatic(path, headers = {"Content-Type": "text/html"}, code = 200){
         return fs.readFile(path, "utf8").then(dat => {
+            if (typeof dat === "string" && path.endsWith(".html")) {
+                dat = dat.replace(/\{\{HOSTNAME\}\}/g, process.env.HOSTNAME || "unknown");
+            }
             this.res.writeHead(code, headers);
             this.res.end(dat);
         }).catch(/* istanbul ignore next */ _err => {
