@@ -2,274 +2,448 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Upload — john2143.com</title>
+<title>John2143 Industries Intranet &mdash; File Upload System v2.1</title>
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ============================================================
+   John2143 Industries Intranet — File Upload System v2.1
+   Best viewed in Internet Explorer 5.5+ at 800x600 resolution
+   ============================================================ */
+
+* { margin: 0; padding: 0; }
 
 body {
-  background: #1a1a2e;
-  color: #e0e0e0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  background: #FFFFFF;
+  color: #000000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  margin: 12px;
 }
 
-noscript form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  align-items: center;
+a {
+  color: #0000CC;
+  text-decoration: underline;
+}
+a:visited {
+  color: #551A8B;
+}
+a:hover {
+  color: #0000CC;
+  background: #EFEFEF;
 }
 
+/* ---- Corporate header bar ---- */
+.corp-header {
+  background: #003366;
+  color: #FFFFFF;
+  padding: 8px 12px;
+  width: 760px;
+  margin: 0 auto;
+}
+.corp-header .logo {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 16px;
+  font-weight: bold;
+  color: #FFFFFF;
+}
+.corp-header .subtitle {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10px;
+  color: #CCCCCC;
+}
+
+/* ---- Browser advisory ---- */
+.browser-note {
+  width: 760px;
+  margin: 0 auto;
+  background: #EFEFEF;
+  padding: 2px 12px;
+  font-size: 10px;
+  color: #666666;
+  text-align: center;
+}
+
+/* ---- Main application container ---- */
 #app {
-  width: 100%;
-  max-width: 600px;
-  padding: 24px;
+  width: 760px;
+  margin: 0 auto;
 }
 
 h1 {
-  text-align: center;
-  font-size: 1.5rem;
-  margin-bottom: 8px;
-  color: #a0a0c0;
-  font-weight: 400;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  color: #003366;
+  margin: 12px 0 10px 0;
+  padding-bottom: 4px;
+  border-bottom: 2px solid #003366;
 }
 
-.key-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-  align-items: center;
+/* ---- Fieldsets ---- */
+fieldset {
+  border: 2px outset #D4D0C8;
+  background: #F5F5F5;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+legend {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  font-weight: bold;
+  color: #003366;
+  padding: 0 4px;
 }
 
-.key-row label {
-  white-space: nowrap;
-  color: #8088a0;
-  font-size: 0.9rem;
+/* ---- Form elements ---- */
+label {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  color: #000000;
 }
 
-.key-row input {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #333;
-  border-radius: 4px;
-  background: #16213e;
-  color: #e0e0e0;
-  font-size: 0.9rem;
-  font-family: monospace;
+input[type="text"] {
+  font-family: Courier New, monospace;
+  font-size: 12px;
+  border: 2px inset #D4D0C8;
+  background: #FFFFFF;
+  color: #000000;
+  padding: 3px 5px;
+  width: 250px;
 }
-
-.key-row input:focus {
+input[type="text"]:focus {
+  background: #FFFFF0;
   outline: none;
-  border-color: #5a8;
 }
 
-.drop-zone {
-  border: 2px dashed #444;
-  border-radius: 8px;
-  padding: 48px 24px;
+input[type="file"] {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  border: 2px inset #D4D0C8;
+  background: #FFFFFF;
+  padding: 2px 4px;
+}
+
+button, input[type="submit"], input[type="button"] {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  background: #D4D0C8;
+  border: 2px outset #D4D0C8;
+  color: #000000;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+button:active, input[type="submit"]:active, input[type="button"]:active {
+  border-style: inset;
+  padding: 4px 11px 2px 13px;
+}
+button:focus, input[type="submit"]:focus, input[type="button"]:focus {
+  outline: 1px dotted #000000;
+}
+
+/* ---- Drop zone ---- */
+#dropZone {
+  border: 2px dashed #808080;
+  background: #FAFAFA;
+  padding: 24px;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
-  margin-bottom: 16px;
 }
-
-.drop-zone:hover {
-  border-color: #666;
-  background: rgba(255,255,255,0.02);
+#dropZone.dragover {
+  border: 2px solid #003366;
+  background: #EEEEFF;
 }
-
-.drop-zone.dragover {
-  border-color: #5a8;
-  background: rgba(80,170,130,0.08);
-}
-
-.drop-zone.uploading {
-  border-color: #5588cc;
-  background: rgba(80,130,200,0.08);
+#dropZone.uploading {
+  border: 2px inset #D4D0C8;
+  background: #F0F0F0;
   cursor: default;
 }
 
-.drop-zone .icon {
-  font-size: 2.5rem;
-  margin-bottom: 12px;
-  opacity: 0.5;
+.drop-icon {
+  font-family: Courier New, monospace;
+  font-size: 24px;
+  color: #808080;
+  margin-bottom: 8px;
+}
+.drop-label {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  color: #333333;
+}
+.drop-sub {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10px;
+  color: #999999;
+  margin-top: 4px;
 }
 
-.drop-zone .label {
-  font-size: 1rem;
-  color: #888;
-}
-
-.drop-zone .sub {
-  font-size: 0.8rem;
-  color: #555;
-  margin-top: 6px;
-}
-
+/* ---- Progress bar ---- */
 .progress-bar {
-  height: 4px;
-  background: #333;
-  border-radius: 2px;
-  overflow: hidden;
-  margin-top: 16px;
   display: none;
+  margin-top: 12px;
 }
-
 .progress-bar.active {
   display: block;
 }
 
+.progress-bar .marquee {
+  display: none;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  color: #003366;
+  padding: 4px;
+}
+.progress-bar.indeterminate .marquee {
+  display: block;
+}
+
+.progress-bar .fill-outer {
+  display: none;
+  border: 1px solid #808080;
+  background: #FFFFFF;
+  height: 18px;
+  text-align: left;
+}
+.progress-bar.active .fill-outer {
+  display: block;
+}
+.progress-bar.indeterminate .fill-outer {
+  display: none;
+}
+
 .progress-bar .fill {
+  background: #003366;
   height: 100%;
-  background: #5a8;
   width: 0%;
-  transition: width 0.15s;
-}
-
-.progress-bar.indeterminate .fill {
-  width: 30%;
-  animation: progress-slide 1.2s ease-in-out infinite;
-}
-
-@keyframes progress-slide {
-  0%   { margin-left: 0; }
-  50%  { margin-left: 70%; }
-  100% { margin-left: 0; }
-}
-
-.results {
-  margin-top: 16px;
-}
-
-.result-item {
-  background: #16213e;
-  border: 1px solid #2a2a4a;
-  border-radius: 6px;
-  padding: 12px;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.result-item .status {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.result-item .status.ok    { background: #5a8; }
-.result-item .status.error { background: #c55; }
-.result-item .status.busy  {
-  background: #58c;
-  animation: pulse 0.8s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.4; }
-}
-
-.result-item .info {
-  flex: 1;
-  min-width: 0;
-}
-
-.result-item .fname {
-  font-size: 0.85rem;
-  white-space: nowrap;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10px;
+  color: #FFFFFF;
+  text-align: center;
+  line-height: 18px;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.result-item .url {
-  font-size: 0.8rem;
-  color: #5a8;
+/* ---- Results table ---- */
+#resultsTable {
+  display: none;
+  width: 100%;
+  border: 2px outset #D4D0C8;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+#resultsTable.has-results {
+  display: table;
+}
+
+#resultsTable thead tr {
+  background: #003366;
+}
+#resultsTable th {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  font-weight: bold;
+  color: #FFFFFF;
+  padding: 4px 8px;
+  border: 1px solid #002244;
+  text-align: left;
+}
+
+#resultsTable td {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  padding: 4px 8px;
+  border: 1px solid #C0C0C0;
+  background: #FFFFFF;
+}
+
+#resultsTable tr.even td {
+  background: #F5F5F5;
+}
+
+#resultsTable .td-status {
+  text-align: center;
+  width: 90px;
+  font-family: Courier New, monospace;
+  font-size: 10px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+#resultsTable .td-fname {
+  font-weight: bold;
+}
+#resultsTable .td-url {
+  font-family: Courier New, monospace;
+  font-size: 10px;
   word-break: break-all;
 }
-
-.result-item .url a {
-  color: inherit;
-  text-decoration: none;
+#resultsTable .td-url a {
+  font-family: Courier New, monospace;
+  font-size: 10px;
+}
+#resultsTable .td-errmsg {
+  color: #CC0000;
+  font-size: 10px;
 }
 
-.result-item .url a:hover {
-  text-decoration: underline;
+#resultsTable .td-action {
+  text-align: center;
+  width: 70px;
+}
+#resultsTable .td-action button {
+  font-size: 10px;
+  padding: 2px 8px;
 }
 
-.result-item .errmsg {
-  font-size: 0.8rem;
-  color: #c55;
+/* ---- Footer ---- */
+.corp-footer {
+  width: 760px;
+  margin: 16px auto 0 auto;
+  text-align: center;
+}
+.corp-footer hr {
+  border: 1px solid #C0C0C0;
+  height: 0;
+}
+.corp-footer .footer-text {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10px;
+  color: #666666;
+}
+.corp-footer .hit-counter {
+  font-family: Courier New, monospace;
+  font-size: 10px;
+  color: #999999;
+  background: #EFEFEF;
+  border: 1px inset #C0C0C0;
+  padding: 1px 6px;
+  display: inline-block;
 }
 
-.result-item .copy-btn {
-  background: #2a2a4a;
-  border: 1px solid #444;
-  color: #aaa;
-  padding: 4px 10px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 0.75rem;
-  flex-shrink: 0;
+/* ---- Noscript form ---- */
+#noscript-form {
+  width: 760px;
+  margin: 0 auto;
 }
-
-.result-item .copy-btn:hover {
-  background: #333;
-  color: #fff;
-}
-
-#fileInput {
-  display: none;
+#noscript-form fieldset {
+  text-align: center;
 }
 </style>
 </head>
-<body>
+<body bgcolor="#FFFFFF" text="#000000" link="#0000CC" vlink="#551A8B" alink="#FF0000">
 
+<!-- ============================================================
+     NOSCRIPT FALLBACK
+     ============================================================ -->
 <noscript>
-  <form action="uf" method="post" enctype="multipart/form-data">
-    <p style="margin-bottom:8px">Upload key:</p>
-    <input type="text" name="key_display" value="ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" readonly style="padding:4px 8px;margin-bottom:12px">
-    <input type="file" name="ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ">
-    <input type="submit" value="Upload">
-  </form>
+  <div id="noscript-form">
+    <fieldset>
+      <legend>No-Script Upload</legend>
+      <p style="margin-bottom:8px">
+        <label for="nsKey">Upload Key:</label>
+      </p>
+      <input type="text" id="nsKey" name="key_display" value="ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" readonly
+             style="font-family:Courier New,monospace;font-size:11px;border:2px inset #D4D0C8;padding:3px 5px;margin-bottom:10px;background:#F0F0F0;width:280px;"><br>
+      <input type="file" name="ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" style="margin-bottom:10px;"><br>
+      <input type="submit" value="Upload File">
+    </fieldset>
+  </div>
 </noscript>
 
-<div id="app">
-  <h1>Upload files</h1>
-
-  <div class="key-row">
-    <label for="keyInput">Key:</label>
-    <input type="text" id="keyInput" value="ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" placeholder="Your upload key">
-  </div>
-
-  <div class="drop-zone" id="dropZone">
-    <div class="icon">&#8627;</div>
-    <div class="label">Drop files here or click to browse</div>
-    <div class="sub">Images, videos, audio, or any file</div>
-    <div class="progress-bar" id="progressBar">
-      <div class="fill"></div>
-    </div>
-  </div>
-
-  <input type="file" id="fileInput" multiple>
-
-  <div class="results" id="results"></div>
+<!-- ============================================================
+     CORPORATE HEADER
+     ============================================================ -->
+<div class="corp-header">
+  <span class="logo">&#9632; John2143 Industries</span><br>
+  <span class="subtitle">Intranet &mdash; File Upload System v2.1</span>
+</div>
+<div class="browser-note">
+  Best viewed in Internet Explorer 5.5+ at 800x600 resolution
 </div>
 
+<!-- ============================================================
+     MAIN APPLICATION
+     ============================================================ -->
+<div id="app">
+
+  <h1>&#9656; Upload Files to Repository</h1>
+
+  <!-- Authentication -->
+  <fieldset>
+    <legend>Authentication</legend>
+    <table border="0" cellpadding="4" cellspacing="0">
+      <tr>
+        <td><label for="keyInput"><b>Upload Key:</b></label></td>
+        <td>
+          <input type="text" id="keyInput" value="ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
+                 placeholder="Enter your upload key">
+        </td>
+        <td>
+          <span style="font-size:10px;color:#666666;">
+            (stored in browser cookie)
+          </span>
+        </td>
+      </tr>
+    </table>
+  </fieldset>
+
+  <!-- File Drop Zone -->
+  <fieldset>
+    <legend>File Selection</legend>
+    <div id="dropZone">
+      <div class="drop-icon">&#8627;</div>
+      <div class="drop-label">Drop files here or click to browse</div>
+      <div class="drop-sub">Images, videos, audio, documents, or any file type</div>
+
+      <!-- Progress indicator -->
+      <div class="progress-bar" id="progressBar">
+        <marquee class="marquee" behavior="alternate" scrolldelay="60" truespeed>
+          Processing... Please wait...
+        </marquee>
+        <div class="fill-outer">
+          <div class="fill" id="progressFill"></div>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+
+  <input type="file" id="fileInput" multiple style="display:none;">
+
+  <!-- Results table -->
+  <table id="resultsTable" border="0" cellpadding="4" cellspacing="0">
+    <thead>
+      <tr>
+        <th width="100">Status</th>
+        <th>File / URL</th>
+        <th width="80">Action</th>
+      </tr>
+    </thead>
+    <tbody id="results"></tbody>
+  </table>
+
+</div>
+
+<!-- ============================================================
+     CORPORATE FOOTER
+     ============================================================ -->
+<div class="corp-footer">
+  <hr>
+  <span class="footer-text">
+    Copyright &copy; 2004 John2143 Industries. All Rights Reserved.<br>
+    Powered by Juush Upload Engine v2.1 &mdash; Server: SRV-WEB-04
+  </span><br>
+  <span class="hit-counter">Visitors: 000042</span>
+</div>
+
+<!-- ============================================================
+     APPLICATION LOGIC
+     ============================================================ -->
 <script>
 (function(){
   var dropZone = document.getElementById('dropZone');
   var fileInput = document.getElementById('fileInput');
   var keyInput = document.getElementById('keyInput');
   var progressBar = document.getElementById('progressBar');
-  var progressFill = progressBar.querySelector('.fill');
+  var progressFill = document.getElementById('progressFill');
   var resultsEl = document.getElementById('results');
+  var resultsTable = document.getElementById('resultsTable');
 
   var dragging = 0;
 
@@ -360,14 +534,16 @@ h1 {
     xhr.upload.addEventListener('progress', function(e) {
       if (e.lengthComputable) {
         progressBar.classList.remove('indeterminate');
-        var pct = (e.loaded / e.total) * 100;
+        var pct = Math.round((e.loaded / e.total) * 100);
         progressFill.style.width = pct + '%';
+        progressFill.textContent = pct + '%';
       }
     });
 
     xhr.addEventListener('load', function() {
       progressBar.classList.add('indeterminate');
       progressFill.style.width = '0%';
+      progressFill.textContent = '';
 
       if (xhr.status >= 200 && xhr.status < 300) {
         updateResultItem(index, 'ok', xhr.responseText);
@@ -381,6 +557,7 @@ h1 {
     xhr.addEventListener('error', function() {
       progressBar.classList.add('indeterminate');
       progressFill.style.width = '0%';
+      progressFill.textContent = '';
       updateResultItem(index, 'error', null, 'Network error');
       uploadNext(files, index + 1, key);
     });
@@ -390,85 +567,119 @@ h1 {
   }
 
   // ---- Results display ----
+  function setStatusText(td, cls) {
+    if (cls === 'ok') {
+      td.style.color = '#006600';
+      td.textContent = '[OK]';
+    } else if (cls === 'error') {
+      td.style.color = '#CC0000';
+      td.textContent = '[ERROR]';
+    } else if (cls === 'busy') {
+      td.style.color = '#003399';
+      td.textContent = '[BUSY...]';
+    }
+  }
+
   function addResultItem(filename, cls, url, err) {
-    var div = document.createElement('div');
-    div.className = 'result-item';
-    div.setAttribute('data-index', resultsEl.children.length);
+    // Show the results table if hidden
+    if (!resultsTable.classList.contains('has-results')) {
+      resultsTable.classList.add('has-results');
+    }
 
-    var status = document.createElement('span');
-    status.className = 'status ' + cls;
+    var tbody = resultsEl;
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-index', tbody.children.length);
 
-    var info = document.createElement('div');
-    info.className = 'info';
+    // Status cell
+    var tdStatus = document.createElement('td');
+    tdStatus.className = 'td-status';
+    setStatusText(tdStatus, cls);
+    tr.appendChild(tdStatus);
 
-    var fname = document.createElement('div');
-    fname.className = 'fname';
-    fname.textContent = filename;
-    info.appendChild(fname);
+    // Info cell
+    var tdInfo = document.createElement('td');
+    var divFname = document.createElement('div');
+    divFname.className = 'td-fname';
+    divFname.textContent = filename;
+    tdInfo.appendChild(divFname);
 
     if (url) {
-      var urlel = document.createElement('div');
-      urlel.className = 'url';
+      var divUrl = document.createElement('div');
+      divUrl.className = 'td-url';
       var a = document.createElement('a');
       a.href = url;
       a.textContent = url;
       a.target = '_blank';
-      urlel.appendChild(a);
-      info.appendChild(urlel);
+      divUrl.appendChild(a);
+      tdInfo.appendChild(divUrl);
     }
 
     if (err) {
-      var errEl = document.createElement('div');
-      errEl.className = 'errmsg';
-      errEl.textContent = err;
-      info.appendChild(errEl);
+      var divErr = document.createElement('div');
+      divErr.className = 'td-errmsg';
+      divErr.textContent = err;
+      tdInfo.appendChild(divErr);
     }
 
+    tr.appendChild(tdInfo);
+
+    // Action cell with copy button
+    var tdAction = document.createElement('td');
+    tdAction.className = 'td-action';
     var copyBtn = document.createElement('button');
-    copyBtn.className = 'copy-btn';
     copyBtn.textContent = 'Copy';
-    copyBtn.style.display = 'none';
+    if (!url) {
+      copyBtn.style.display = 'none';
+    }
     copyBtn.addEventListener('click', function() {
-      navigator.clipboard.writeText(url).then(function() {
+      // Read URL from the DOM at click time, so it works even
+      // when the URL is added later by updateResultItem.
+      var link = tr.querySelector('a');
+      var textToCopy = link ? link.href : '';
+      if (!textToCopy) return;
+      navigator.clipboard.writeText(textToCopy).then(function() {
         copyBtn.textContent = 'Copied!';
         setTimeout(function() { copyBtn.textContent = 'Copy'; }, 1500);
       });
     });
+    tdAction.appendChild(copyBtn);
+    tr.appendChild(tdAction);
 
-    div.appendChild(status);
-    div.appendChild(info);
-    div.appendChild(copyBtn);
-    resultsEl.insertBefore(div, resultsEl.firstChild);
+    // Insert at top (newest first)
+    tbody.insertBefore(tr, tbody.firstChild);
+
+    // Apply even/odd striping
+    restripeResults();
   }
 
   function updateResultItem(index, cls, url, err) {
-    var items = resultsEl.querySelectorAll('.result-item');
-    // Find by data-index since we insert at top
-    for (var i = 0; i < items.length; i++) {
-      if (items[i].getAttribute('data-index') === String(index)) {
-        var status = items[i].querySelector('.status');
-        status.className = 'status ' + cls;
+    var rows = resultsEl.querySelectorAll('tr');
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].getAttribute('data-index') === String(index)) {
+        var tdStatus = rows[i].querySelector('.td-status');
+        setStatusText(tdStatus, cls);
+
+        var tdInfo = rows[i].querySelectorAll('td')[1];
 
         if (url) {
-          var info = items[i].querySelector('.info');
-          var urlel = document.createElement('div');
-          urlel.className = 'url';
+          var divUrl = document.createElement('div');
+          divUrl.className = 'td-url';
           var a = document.createElement('a');
           a.href = url;
           a.textContent = url;
           a.target = '_blank';
-          urlel.appendChild(a);
-          info.appendChild(urlel);
+          divUrl.appendChild(a);
+          tdInfo.appendChild(divUrl);
 
-          items[i].querySelector('.copy-btn').style.display = '';
+          // Show copy button
+          rows[i].querySelector('.td-action button').style.display = '';
         }
 
         if (err) {
-          var info = items[i].querySelector('.info');
-          var errEl = document.createElement('div');
-          errEl.className = 'errmsg';
-          errEl.textContent = err;
-          info.appendChild(errEl);
+          var divErr = document.createElement('div');
+          divErr.className = 'td-errmsg';
+          divErr.textContent = err;
+          tdInfo.appendChild(divErr);
         }
 
         break;
@@ -476,8 +687,18 @@ h1 {
     }
   }
 
+  function restripeResults() {
+    var rows = resultsEl.querySelectorAll('tr');
+    for (var i = 0; i < rows.length; i++) {
+      if (i % 2 === 1) {
+        rows[i].classList.add('even');
+      } else {
+        rows[i].classList.remove('even');
+      }
+    }
+  }
+
   // ---- Initial state ----
-  // If local storage has a saved key, use it
   var savedKey = localStorage.getItem('juush_upload_key');
   if (savedKey) {
     keyInput.value = savedKey;
