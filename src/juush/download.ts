@@ -294,7 +294,7 @@ const processDownload = async function(reqx, data, disposition){
 
 //Returns true if there is an auth error. also handles reqx
 const accessCheck = async function(uploadID, reqx){
-    const ip = reqx.req.headers["x-forwarded-for"];
+    const ip = reqx.req.socket.remoteAddress;
     const canDo = await U.ipHasAccess(ip, uploadID);
 
     if(canDo === "NOFILE"){

@@ -228,12 +228,17 @@ export const guessFileExtension = filename => {
     return fileExtension;
 };
 
-export let isAdmin;
+export let isAdmin: any;
 if(global.it){
     global.testIsAdmin = true;
-    isAdmin = __ip => global.testIsAdmin;
+    isAdmin = _reqx => global.testIsAdmin;
 }else{
-    isAdmin = ip => ip === "127.0.0.1" || ip === "::1";
+    const ADMIN_KEY = process.env.ADMIN_KEY;
+    if(ADMIN_KEY){
+        isAdmin = reqx => reqx.urldata.query.admin_key === ADMIN_KEY;
+    }else{
+        isAdmin = _reqx => false;
+    }
 }
 
 export const IPEqual = (a, b) => a && b && a.split("/")[0] === b.split("/")[0];

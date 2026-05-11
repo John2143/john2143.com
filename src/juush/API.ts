@@ -16,7 +16,7 @@ export default async function(server, reqx){
     const {res, urldata, req} = reqx;
     // /juush/uploads/<userid>/[page]/
     // lists some number of uploads from a user, with an optional offset
-    const ip = req.headers["x-forwarded-for"];
+    const ip = req.socket.remoteAddress;
 
     if(urldata.path[1] === "uploads"){
         const [, , userid_, page = 0] = urldata.path;
@@ -27,7 +27,7 @@ export default async function(server, reqx){
         };
 
         if(urldata.query["hidden"]){
-            if((await whoami(ip)).includes(userid) || await isAdmin(ip)){
+            if((await whoami(ip)).includes(userid) || await isAdmin(reqx)){
                 //noop
             }else{
                 res.statusCode = 403;
@@ -64,7 +64,7 @@ export default async function(server, reqx){
         try{
             let projection = {name: 1, autohide: 1, customURL: 1};
             if(urldata.query["key"]){
-                if(!await isAdmin(ip)){
+                if(!await isAdmin(reqx)){
                     res.statusCode = 403;
                     res.end("You may not see user keys");
                     return;
@@ -113,7 +113,7 @@ export default async function(server, reqx){
     // /juush/deluser/<userid>
     // Delete a user
     }else if(urldata.path[1] === "deluser"){
-        if(!isAdmin(ip)){
+        if(!isAdmin(reqx)){
             res.writeHead(401, {});
             res.end("You cannot delete users");
             return;
@@ -122,12 +122,6 @@ export default async function(server, reqx){
         query.keys.deleteOne({_id: Number(urldata.path[2])})
             .then(genericAPIOperationResult(res))
             .catch(juushErrorCatch(res));
-    // /juush/isadmin/[ip]
-    // Returns if the ip (or connector) is an admin
-    }else if(urldata.path[1] === "isadmin"){
-        if(urldata.path[2]) ip = urldata.path[2];
-        res.setHeader("Content-Type", "text/plain");
-        res.end(isAdmin(ip) ? "true" : "false");
     // /juush/usersetting/<id>/<setting>/<value>
     }else if(urldata.path[1] === "usersetting"){
         let _id = Number(urldata.path[2]);
