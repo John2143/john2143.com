@@ -292,6 +292,122 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
   padding: 2px 8px;
 }
 
+/* ---- Pending file list ---- */
+#fileList {
+  display: none;
+  margin-top: 12px;
+  border: 1px solid #C0C0C0;
+  background: #FFFFFF;
+  max-height: 240px;
+  overflow-y: auto;
+}
+#fileList.has-files {
+  display: block;
+}
+
+.file-list-item {
+  display: flex;
+  align-items: center;
+  padding: 5px 8px;
+  border-bottom: 1px solid #E0E0E0;
+  font-size: 11px;
+  gap: 8px;
+}
+.file-list-item:last-child {
+  border-bottom: none;
+}
+
+.file-list-item .fname-original {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #666666;
+  font-size: 10px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.file-list-item .fname-input {
+  font-family: Courier New, monospace;
+  font-size: 11px;
+  border: 2px inset #D4D0C8;
+  background: #FFFFFF;
+  color: #000000;
+  padding: 2px 5px;
+  min-width: 140px;
+  flex-shrink: 1;
+}
+.file-list-item .fname-input:focus {
+  background: #FFFFF0;
+  outline: none;
+}
+
+.file-list-item .fsize {
+  font-family: Courier New, monospace;
+  font-size: 10px;
+  color: #999999;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.file-list-item .fremove {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10px;
+  background: #D4D0C8;
+  border: 2px outset #D4D0C8;
+  color: #000000;
+  padding: 1px 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.file-list-item .fremove:active {
+  border-style: inset;
+}
+
+/* ---- Submit row ---- */
+#submitRow {
+  display: none;
+  margin-top: 10px;
+  text-align: right;
+}
+#submitRow.visible {
+  display: block;
+}
+
+#submitRow .submit-btn {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  font-weight: bold;
+  background: #003366;
+  border: 2px outset #004488;
+  color: #FFFFFF;
+  padding: 5px 20px;
+  cursor: pointer;
+}
+#submitRow .submit-btn:active {
+  border-style: inset;
+  padding: 6px 19px 4px 21px;
+}
+#submitRow .submit-btn:disabled {
+  background: #808080;
+  border-color: #808080;
+  cursor: default;
+}
+
+#submitRow .clear-btn {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  background: #D4D0C8;
+  border: 2px outset #D4D0C8;
+  color: #000000;
+  padding: 4px 12px;
+  cursor: pointer;
+  margin-right: 8px;
+}
+#submitRow .clear-btn:active {
+  border-style: inset;
+}
 /* ---- Footer ---- */
 .corp-footer {
   width: 760px;
@@ -402,6 +518,15 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
         </div>
       </div>
     </div>
+
+    <!-- Pending file list with editable filenames -->
+    <div id="fileList"></div>
+
+    <!-- Submit / Clear buttons -->
+    <div id="submitRow">
+      <button type="button" class="clear-btn" id="clearBtn">Clear</button>
+      <button type="button" class="submit-btn" id="submitBtn">Upload Files</button>
+    </div>
   </fieldset>
 
   <input type="file" id="fileInput" multiple style="display:none;">
@@ -444,6 +569,12 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
   var progressFill = document.getElementById('progressFill');
   var resultsEl = document.getElementById('results');
   var resultsTable = document.getElementById('resultsTable');
+  var fileList = document.getElementById('fileList');
+  var submitRow = document.getElementById('submitRow');
+  var submitBtn = document.getElementById('submitBtn');
+  var clearBtn = document.getElementById('clearBtn');
+
+  var pendingFiles = [];
 
   var dragging = 0;
 
@@ -475,6 +606,7 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
     e.stopPropagation();
     dragging = 0;
     dropZone.classList.remove('dragover');
+    if (dropZone.classList.contains('uploading')) return;
     var files = e.dataTransfer.files;
     if (files && files.length) {
       handleFiles(files);
@@ -492,6 +624,10 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
   });
 
   fileInput.addEventListener('change', function() {
+    if (dropZone.classList.contains('uploading')) {
+      fileInput.value = '';
+      return;
+    }
     if (fileInput.files && fileInput.files.length) {
       handleFiles(fileInput.files);
       fileInput.value = '';
@@ -500,18 +636,11 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
 
   // ---- Upload logic ----
   function handleFiles(files) {
-    var key = keyInput.value.trim();
-    if (!key) {
-      alert('Please enter an upload key.');
-      return;
+    // Add files to pending queue (key validated on submit)
+    for (var i = 0; i < files.length; i++) {
+      pendingFiles.push(files[i]);
     }
-
-    // Disable drop zone during upload
-    dropZone.classList.add('uploading');
-    progressBar.classList.add('active', 'indeterminate');
-
-    // Upload files sequentially
-    uploadNext(files, 0, key);
+    renderFileList();
   }
 
   function uploadNext(files, index, key) {
@@ -519,14 +648,27 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
       // All done
       dropZone.classList.remove('uploading');
       progressBar.classList.remove('active', 'indeterminate');
+      submitBtn.disabled = false;
+      clearBtn.disabled = false;
+      pendingFiles = [];
+      renderFileList();
       return;
     }
 
     var file = files[index];
-    addResultItem(file.name, 'busy', '');
+
+    // Read custom filename from the DOM input
+    var customName = file.name;
+    var nameInput = document.getElementById('fname-' + index);
+    if (nameInput) {
+      var val = nameInput.value.trim();
+      if (val) customName = val;
+    }
+
+    addResultItem(customName, 'busy', '');
 
     var formData = new FormData();
-    formData.append(key, file, file.name);
+    formData.append(key, file, customName);
 
     // Use XMLHttpRequest for progress
     var xhr = new XMLHttpRequest();
@@ -565,6 +707,106 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
     xhr.open('POST', 'uf');
     xhr.send(formData);
   }
+  // ---- Pending file list rendering ----
+  function humanFileSize(size) {
+    size = Number(size);
+    var i = Math.floor(Math.log(size) / Math.log(1024));
+    return (size / Math.pow(1024, i)).toFixed(1) + ['B', 'KB', 'MB', 'GB', 'TB'][i];
+  }
+
+  function renderFileList() {
+    fileList.innerHTML = '';
+
+    if (pendingFiles.length === 0) {
+      fileList.classList.remove('has-files');
+      submitRow.classList.remove('visible');
+      return;
+    }
+
+    fileList.classList.add('has-files');
+    submitRow.classList.add('visible');
+
+    for (var i = 0; i < pendingFiles.length; i++) {
+      var f = pendingFiles[i];
+      var item = document.createElement('div');
+      item.className = 'file-list-item';
+
+      // Editable filename input
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'fname-input';
+      input.id = 'fname-' + i;
+      input.value = f.name;
+      input.title = 'Edit filename for upload';
+      item.appendChild(input);
+
+      // Original filename hint
+      var orig = document.createElement('span');
+      orig.className = 'fname-original';
+      orig.textContent = f.name;
+      orig.title = 'Original filename: ' + f.name;
+      item.appendChild(orig);
+
+      // File size
+      var sz = document.createElement('span');
+      sz.className = 'fsize';
+      sz.textContent = humanFileSize(f.size);
+      item.appendChild(sz);
+
+      // Remove button
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'fremove';
+      rm.textContent = 'X';
+      rm.title = 'Remove from list';
+      rm.setAttribute('data-idx', i);
+      rm.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var idx = Number(this.getAttribute('data-idx'));
+        pendingFiles.splice(idx, 1);
+        renderFileList();
+      });
+      item.appendChild(rm);
+
+      fileList.appendChild(item);
+    }
+  }
+
+  // ---- Submit / Clear ----
+  function submitUploads() {
+    var key = keyInput.value.trim();
+    if (!key) {
+      alert('Please enter an upload key.');
+      return;
+    }
+    if (pendingFiles.length === 0) return;
+
+    // Disable drop zone during upload
+    dropZone.classList.add('uploading');
+    progressBar.classList.add('active', 'indeterminate');
+    submitBtn.disabled = true;
+    clearBtn.disabled = true;
+
+    // Snapshot the pending files for upload
+    var files = pendingFiles.slice();
+    uploadNext(files, 0, key);
+  }
+
+  function clearFiles() {
+    if (dropZone.classList.contains('uploading')) return;
+    pendingFiles = [];
+    renderFileList();
+  }
+
+  submitBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    submitUploads();
+  });
+
+  clearBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    clearFiles();
+  });
 
   // ---- Results display ----
   function setStatusText(td, cls) {

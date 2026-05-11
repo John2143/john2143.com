@@ -3,6 +3,8 @@
         "target": "esnext",
         "module": "commonjs",
         "strict": false,
+        "rootDir": "src",
+        "types": ["node"],
         "esModuleInterop": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": false,

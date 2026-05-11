@@ -9,12 +9,12 @@
       let
         pkgs = (import (inputs.nixpkgs) { inherit system; });
       in {
-        devShell = pkgs.mkShell {
+        devShells.default = pkgs.mkShell {
           name = "node22";
           buildInputs=[
             pkgs.nodejs_22
-            pkgs.nodePackages.typescript
-            pkgs.nodePackages.typescript-language-server
+            pkgs.typescript
+            pkgs.typescript-language-server
             pkgs.yq
             pkgs.curl
             pkgs.fish
