@@ -122,6 +122,11 @@ export default async function(server, reqx){
         query.keys.deleteOne({_id: Number(urldata.path[2])})
             .then(genericAPIOperationResult(res))
             .catch(juushErrorCatch(res));
+    // /juush/isadmin
+    // Always returns false — admin via IP has been removed
+    }else if(urldata.path[1] === "isadmin"){
+        res.setHeader("Content-Type", "text/plain");
+        res.end("false");
     // /juush/usersetting/<id>/<setting>/<value>
     }else if(urldata.path[1] === "usersetting"){
         let _id = Number(urldata.path[2]);
