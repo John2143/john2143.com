@@ -71,6 +71,7 @@ export function humanFileSize(size) {
 }
 
 let numTotalConnections = 0;
+const maxConcurrentParts = 4;
 
 export async function uploadToS3(url: string, mimeType: string, numTry: number = 0) {
     const filepath = U.getFilename(url);
@@ -109,7 +110,7 @@ export async function uploadToS3(url: string, mimeType: string, numTry: number =
             console.error(`Retrying : ${key} ${numTry + 1}/${maxTries}`);
 
             try {
-                uploadToS3(url, mimeType, numTry + 1);
+                return uploadToS3(url, mimeType, numTry + 1);
             } catch (e) {
                 console.error(`Failed retry internal stack: ${key} ${numTry + 1}/${maxTries}`);
             }
@@ -139,6 +140,7 @@ interface UploadPartParams {
 }
 
 export async function uploadPart(key: string, partParams: UploadPartParams, numTry: number = 0): Promise<UploadPartCommandOutput>{
+    let too;
     try {
         console.log(`uploading part ${partParams.partNumber}`);
         let uploadCommand = U.s3_client.send(new UploadPartCommand({
@@ -152,7 +154,6 @@ export async function uploadPart(key: string, partParams: UploadPartParams, numT
 
         //10 second timeout
         const secs = Number(process.env.S3_CHUNK_TIMEOUT || 45);
-        let too;
         let timeout = new Promise((resolve, reject) => {
             too = setTimeout(() => {
                 console.log(`Timeout: ${partParams.partNumber} on ${key}`);
@@ -166,12 +167,13 @@ export async function uploadPart(key: string, partParams: UploadPartParams, numT
             console.log(`Timeout: ${partParams.partNumber} on ${key}`);
             throw new Error("Timeout");
         }
-        clearInterval(too);
+        clearTimeout(too);
         console.log(`Uploaded part ${partParams.partNumber} to ${key}`);
         //console.log(res);
         // Must be the upload command
         return await res;
     } catch (e) {
+        clearTimeout(too);
         console.error(`Failed to upload part ${partParams.partNumber} to ${key}`);
         console.log(e);
         console.log(e["$metadata"]);
@@ -194,6 +196,7 @@ export async function uploadPart(key: string, partParams: UploadPartParams, numT
         }
     }
 }
+
 
 let pendingQueue = [];
 
@@ -243,13 +246,14 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
             partNumber: currentPart,
         };
 
-        while(numTotalConnections > 1 && numLocalConnections > 1) {
+        while(numTotalConnections >= maxConcurrentParts && numLocalConnections >= maxConcurrentParts) {
             await new Promise(r => pendingQueue.push(r));
         }
 
-        //console.log(uc);
         numTotalConnections++;
         numLocalConnections++;
+
+        //console.log(uc);
         console.log(`multipart_part for ${url} (nc ${numTotalConnections}): ${currentPart}/${numParts}: ${p.start}-${p.end} (${humanFileSize(contentLength)})`);
         let part = currentPart;
         let res_a = uploadPart(key, uc).then(res => {
@@ -288,8 +292,6 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
                 p.abort();
             }
         }
-        // TODO: is this double counting?
-        numTotalConnections -= numLocalConnections;
         throw new Error("Failed parts");
     });
     // sleep for 500ms
@@ -475,7 +477,7 @@ export default async function(server, reqx){
         if(U.s3_client) {
             // async
             await new Promise(r => setTimeout(r, 2000));
-            uploadToS3(url, headers.mimetype);
+            uploadToS3(url, headers.mimetype).catch(e => console.error("Background S3 upload failed:", e));
         }
     });
 

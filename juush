@@ -63,6 +63,6 @@ fi
 
 echoerr "Starting upload"
 $NOTIFY "Starting upload"
-URL=`curl -X POST --limit-rate 5M -F "$JUUSH_KEY=@$FILE;type=$MIME_TYPE" $REMOTE`
+URL=`curl -X POST -F "$JUUSH_KEY=@$FILE;type=$MIME_TYPE" $REMOTE`
 echo -n "$URL" | $CLIPBOARD
 $NOTIFY "Got Url: $URL"
