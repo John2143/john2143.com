@@ -561,14 +561,33 @@ export default async function(server, reqx){
                 reqx.extraLog = url.green + " " + String(item.name).blue + " " + String(humanFileSize(headers.contentLength)).blue;
                 returnPromise.resolve();
 
-                if(!item.customURL || item.customURL === "host") {
-                    // Set this to the input header host
+                if(!item.customURL) {
+                    // Default: strip first subdomain if present, prepend "i." prefix
+                    // e.g. up.brick.gay → i.brick.gay, brick.gay → i.brick.gay
+                    const hostParts = reqx.req.headers.host.split(".");
+                    if(hostParts.length > 2) {
+                        customURL = `i.${hostParts.slice(1).join(".")}`;
+                    } else {
+                        customURL = `i.${reqx.req.headers.host}`;
+                    }
+                    customURLSettings = { no_f: true };
+                } else if(item.customURL === "host") {
+                    // Set this to the input header host (old default)
                     customURL = reqx.req.headers.host;
                 } else if(item.customURL === "host-no-f") {
                     customURL = `i.${reqx.req.headers.host}`;
                     customURLSettings = { no_f: true };
                 } else if(item.customURL === "host-no-i-f" || item.customURL === "host-no-f-i") {
                     customURL = reqx.req.headers.host;
+                    customURLSettings = { no_f: true };
+                } else if(item.customURL === "host-i-no-sub") {
+                    // Explicit alias for the default behavior
+                    const hostParts = reqx.req.headers.host.split(".");
+                    if(hostParts.length > 2) {
+                        customURL = `i.${hostParts.slice(1).join(".")}`;
+                    } else {
+                        customURL = `i.${reqx.req.headers.host}`;
+                    }
                     customURLSettings = { no_f: true };
                 } else {
                     customURL = item.customURL;
