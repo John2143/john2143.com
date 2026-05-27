@@ -46,33 +46,47 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: development
+    env:
+      NEW_TAG: ${{ needs.build.outputs.image_tag }}
     steps:
     - uses: actions/checkout@v4
       with:
         repository: 2143-Labs/2143-k8s
         ssh-key: ${{ secrets.DEPLOY_KEY_2143_K8S }}
 
+    - name: Install kustomize
+      run: |
+        curl -sL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.6.0/kustomize_v5.6.0_linux_amd64.tar.gz" | sudo tar xz -C /usr/local/bin
+
     - name: Update dev overlay image tag
       run: |
-        sed -i 's/newTag: "[0-9]\+"/newTag: "${{ needs.build.outputs.image_tag }}"/' overlays/dev/kustomization.yaml
+        cd overlays/dev
+        kustomize edit set image imagehost:latest=ghcr.io/john2143/john2143.com:${{ env.NEW_TAG }}
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git diff --quiet && echo "No changes" || (git commit -am "dev: bump john2143.com to ${{ needs.build.outputs.image_tag }}" && git push)
+        git diff --quiet && echo "No changes" || (git commit -am "dev: bump john2143.com to ${{ env.NEW_TAG }}" && git push)
 
   update-prod:
     needs: [build, update-dev]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: production
+    env:
+      NEW_TAG: ${{ needs.build.outputs.image_tag }}
     steps:
     - uses: actions/checkout@v4
       with:
         repository: 2143-Labs/2143-k8s
         ssh-key: ${{ secrets.DEPLOY_KEY_2143_K8S }}
 
+    - name: Install kustomize
+      run: |
+        curl -sL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.6.0/kustomize_v5.6.0_linux_amd64.tar.gz" | sudo tar xz -C /usr/local/bin
+
     - name: Update prod overlay image tag
       run: |
-        sed -i 's/newTag: "[0-9]\+"/newTag: "${{ needs.build.outputs.image_tag }}"/' overlays/prod/kustomization.yaml
+        cd overlays/prod
+        kustomize edit set image imagehost:latest=ghcr.io/john2143/john2143.com:${{ env.NEW_TAG }}
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git diff --quiet && echo "No changes" || (git commit -am "prod: bump john2143.com to ${{ needs.build.outputs.image_tag }}" && git push)
+        git diff --quiet && echo "No changes" || (git commit -am "prod: bump john2143.com to ${{ env.NEW_TAG }}" && git push)
