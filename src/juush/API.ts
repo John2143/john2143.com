@@ -144,11 +144,6 @@ export default async function(server, reqx){
             await query.keys.updateOne({_id}, {$set: {autohide:
                 newvalue
             }});
-        }else if(setting === "customURL"){
-            if(newvalue === "") newvalue = null;
-            await query.keys.updateOne({_id}, {$set: {customURL:
-                newvalue
-            }});
         }else{
             res.statusCode = 405;
             res.end("unknown option");
