@@ -11,7 +11,7 @@ export const juushHostMap: Record<string, { url: string; no_f: boolean }> = {
 };
 
 // OAuth provider configuration
-export const AUTH_CALLBACK_BASE = process.env.AUTH_CALLBACK_BASE || "https://john2143.com";
+export const AUTH_CALLBACK_BASE = process.env.AUTH_CALLBACK_BASE || "https://2143.me";
 export const POCKETID_ISSUER = process.env.POCKETID_ISSUER || "https://au.2143.me";
 export const POCKETID_CLIENT_ID = process.env.POCKETID_CLIENT_ID || "";
 export const POCKETID_CLIENT_SECRET = process.env.POCKETID_CLIENT_SECRET || "";
