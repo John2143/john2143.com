@@ -43,13 +43,24 @@ async function m(){
         redirs.juush = juush.API;
         await juush.startdb();
 
-        // OAuth routes
-        redirs["auth/login/pocketid"] = authRoutes.login("pocketid");
-        redirs["auth/login/discord"] = authRoutes.login("discord");
-        redirs["auth/callback/pocketid"] = authRoutes.callback("pocketid");
-        redirs["auth/callback/discord"] = authRoutes.callback("discord");
-        redirs["auth/logout"] = authRoutes.logout;
-        redirs["auth/me"] = authRoutes.me;
+        // OAuth auth dispatcher (server routes by path[0] only)
+        redirs.auth = async function(server: any, reqx: any) {
+            const sub = reqx.urldata.path[1];
+            const provider = reqx.urldata.path[2];
+            switch (sub) {
+                case "login":
+                    return authRoutes.login(provider)(server, reqx);
+                case "callback":
+                    return authRoutes.callback(provider)(server, reqx);
+                case "logout":
+                    return authRoutes.logout(server, reqx);
+                case "me":
+                    return authRoutes.me(server, reqx);
+                default:
+                    reqx.res.writeHead(404, { "Content-Type": "text/plain" });
+                    reqx.res.end("Unknown auth route");
+            }
+        };
     }
 
     let srv = new server({
