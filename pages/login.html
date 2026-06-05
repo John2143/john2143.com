@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — {{HOSTNAME}}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 400px;
+            margin: 80px auto;
+            padding: 0 20px;
+            text-align: center;
+            background: #1a1a2e;
+            color: #e0e0e0;
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+        .subtitle {
+            margin-bottom: 40px;
+            color: #888;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 12px 20px;
+            margin-bottom: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: opacity 0.2s;
+        }
+        .btn:hover {
+            opacity: 0.85;
+        }
+        .btn-pockedid {
+            background: #4f46e5;
+            color: white;
+        }
+        .btn-discord {
+            background: #5865f2;
+            color: white;
+        }
+        .back {
+            margin-top: 40px;
+            color: #666;
+            font-size: 0.85rem;
+        }
+        .back a {
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <h1>Login</h1>
+    <p class="subtitle">Choose a provider to sign in:</p>
+
+    <a href="/auth/login/pocketid" class="btn btn-pockedid">
+        Login with Pocket ID
+    </a>
+
+    <a href="/auth/login/discord" class="btn btn-discord">
+        Login with Discord
+    </a>
+
+    <div class="back">
+        <a href="/">Back to homepage</a>
+    </div>
+</body>
+</html>

@@ -27,6 +27,41 @@ class request{
         return false;
     }
 
+    getCookie(name) {
+        const cookieHeader = this.req.headers.cookie;
+        if (!cookieHeader) return null;
+        const cookies = cookieHeader.split(";").map(c => c.trim());
+        for (const cookie of cookies) {
+            const eqIdx = cookie.indexOf("=");
+            if (eqIdx === -1) continue;
+            const key = cookie.slice(0, eqIdx);
+            if (key === name) {
+                return cookie.slice(eqIdx + 1);
+            }
+        }
+        return null;
+    }
+
+    doRedirectWithCookie(redir, cookie) {
+        const parts = [`${cookie.name}=${cookie.value}`];
+        if (cookie.httpOnly) parts.push("HttpOnly");
+        if (cookie.sameSite) parts.push(`SameSite=${cookie.sameSite}`);
+        if (cookie.secure) parts.push("Secure");
+        if (cookie.path) parts.push(`Path=${cookie.path}`);
+        if (cookie.maxAge !== undefined) parts.push(`Max-Age=${cookie.maxAge}`);
+
+        this.res.writeHead(302, {
+            "Content-Type": "text/html",
+            "Location": redir,
+            "Set-Cookie": parts.join("; "),
+        });
+        this.res.end("Redirecting to '" + redir + "'...");
+    }
+
+    clearCookie(name) {
+        this.res.setHeader("Set-Cookie", `${name}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`);
+    }
+
     get urldata(){
         if(!this._urldata){
             this._urldata = url.parse(this.req.url, true);

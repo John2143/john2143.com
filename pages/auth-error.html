@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Error — {{HOSTNAME}}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 400px;
+            margin: 80px auto;
+            padding: 0 20px;
+            text-align: center;
+            background: #1a1a2e;
+            color: #e0e0e0;
+        }
+        h1 {
+            color: #ef4444;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+        .error-msg {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            word-break: break-word;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 24px;
+            border-radius: 8px;
+            background: #4f46e5;
+            color: white;
+            text-decoration: none;
+            margin: 6px;
+            transition: opacity 0.2s;
+        }
+        .btn:hover {
+            opacity: 0.85;
+        }
+        .btn-secondary {
+            background: #374151;
+        }
+    </style>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const error = params.get("error") || "An unknown error occurred during authentication.";
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("error-text").textContent = error;
+        });
+    </script>
+</head>
+<body>
+    <h1>Authentication Error</h1>
+    <div class="error-msg" id="error-text"></div>
+    <a href="/login" class="btn">Try Again</a>
+    <a href="/" class="btn btn-secondary">Home</a>
+</body>
+</html>

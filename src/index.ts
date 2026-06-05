@@ -4,6 +4,7 @@
 "use strict";
 
 import "./global.js";
+import * as authRoutes from "./auth/routes.js";
 
 const showIP = async function(server, reqx){
     const ip = await server.getExtIP();
@@ -41,6 +42,14 @@ async function m(){
         redirs.nuser = juush.newUser;
         redirs.juush = juush.API;
         await juush.startdb();
+
+        // OAuth routes
+        redirs["auth/login/pocketid"] = authRoutes.login("pocketid");
+        redirs["auth/login/discord"] = authRoutes.login("discord");
+        redirs["auth/callback/pocketid"] = authRoutes.callback("pocketid");
+        redirs["auth/callback/discord"] = authRoutes.callback("discord");
+        redirs["auth/logout"] = authRoutes.logout;
+        redirs["auth/me"] = authRoutes.me;
     }
 
     let srv = new server({

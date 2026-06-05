@@ -159,6 +159,9 @@ export async function startdb() {
     query = {
         keys: db.collection("keys"),
         index: db.collection("index"),
+        users: db.collection("users"),
+        sessions: db.collection("sessions"),
+        oauth_states: db.collection("oauth_states"),
         async counter(name){
             if(!countersSeen[name]){
                 //Make sure the counter has been initialized
@@ -178,6 +181,14 @@ export async function startdb() {
             return counter.value.value;
         }
     };
+
+    // Ensure OAuth indexes
+    await query.users.createIndex({ "oauth.pocketid.sub": 1 }, { unique: true, sparse: true });
+    await query.users.createIndex({ "oauth.discord.id": 1 }, { unique: true, sparse: true });
+    await query.users.createIndex({ juush_user_id: 1 }, { sparse: true });
+    await query.sessions.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 });
+    await query.oauth_states.createIndex({ created_at: 1 }, { expireAfterSeconds: 600 }); // 10min TTL
+
     if(global.it) global.query = query;
 }
 
@@ -234,11 +245,19 @@ if(global.it){
     isAdmin = _reqx => global.testIsAdmin;
 }else{
     const ADMIN_KEY = process.env.ADMIN_KEY;
-    if(ADMIN_KEY){
-        isAdmin = reqx => reqx.urldata.query.admin_key === ADMIN_KEY;
-    }else{
-        isAdmin = _reqx => false;
-    }
+    isAdmin = async (reqx: any) => {
+        // First check OAuth session for is_admin flag
+        try {
+            const { requireUser } = await import("../auth/middleware.js");
+            const user = await requireUser(reqx);
+            if (user && user.is_admin) return true;
+        } catch (_) {
+            // Middleware not available (before DB init) — fall through
+        }
+        // Fallback: legacy admin_key query param
+        if (ADMIN_KEY && reqx.urldata.query.admin_key === ADMIN_KEY) return true;
+        return false;
+    };
 }
 
 export const IPEqual = (a, b) => a && b && a.split("/")[0] === b.split("/")[0];
