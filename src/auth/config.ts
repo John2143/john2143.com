@@ -1,4 +1,3 @@
-"use strict";
 
 import * as serverConst from "../const.js";
 import type { OAuthProvider } from "./providers.js";
@@ -11,7 +10,7 @@ const pocketid: OAuthProvider = {
     issuer: serverConst.POCKETID_ISSUER,
     client_id: serverConst.POCKETID_CLIENT_ID,
     client_secret: serverConst.POCKETID_CLIENT_SECRET,
-    redirect_uri: `${serverConst.AUTH_CALLBACK_BASE}/auth/callback/pocketid`,
+    redirect_path: "/auth/callback/pocketid",
     scopes: ["openid", "profile", "email", "groups"],
     idField: "sub",
     mapUser(userinfo: any) {
@@ -40,7 +39,7 @@ const discord: OAuthProvider = {
     userinfo_endpoint: "https://discord.com/api/users/@me",
     client_id: serverConst.DISCORD_CLIENT_ID,
     client_secret: serverConst.DISCORD_CLIENT_SECRET,
-    redirect_uri: `${serverConst.AUTH_CALLBACK_BASE}/auth/callback/discord`,
+    redirect_path: "/auth/callback/discord",
     scopes: ["identify", "email"],
     idField: "id",
     mapUser(userinfo: any) {

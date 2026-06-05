@@ -1,3 +1,4 @@
+import { serverLog } from "../logger.js";
 
 import {juushErrorCatch, isAdmin, query, randomStr} from "./util.js";
 

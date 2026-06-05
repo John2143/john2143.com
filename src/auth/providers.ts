@@ -1,4 +1,3 @@
-"use strict";
 
 export interface OAuthProvider {
     id: string;
@@ -10,7 +9,7 @@ export interface OAuthProvider {
     userinfo_endpoint?: string;
     client_id: string;
     client_secret: string;
-    redirect_uri: string;
+    redirect_path: string;
     scopes: string[];
     // Maps provider userinfo → the oauth.<id> sub-document
     mapUser: (userinfo: any) => Record<string, unknown>;

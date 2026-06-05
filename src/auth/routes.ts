@@ -1,6 +1,5 @@
-declare var serverLog: (...args: any[]) => void;
-"use strict";
-
+import { Hono } from "hono";
+import { serverLog } from "../logger.js";
 import { createHash, randomBytes } from "node:crypto";
 import * as serverConst from "../const.js";
 import { getProvider } from "./config.js";
@@ -8,8 +7,11 @@ import type { OAuthProvider } from "./providers.js";
 import { createSession, clearSession } from "./session.js";
 import { requireUser } from "./middleware.js";
 import { query, randomStr } from "../juush/util.js";
+import { createCompatReqx } from "../juush/compat.js";
 
-// PKCE helpers
+const auth = new Hono();
+
+// --- PKCE helpers ---
 function randomPKCECodeVerifier(): string {
     return randomBytes(32).toString("base64url");
 }
@@ -21,37 +23,43 @@ async function calculatePKCECodeChallenge(verifier: string): Promise<string> {
 function randomState(): string {
     return randomBytes(16).toString("hex");
 }
-// Helper: generate username with uniqueness check
+
+// Build redirect_uri dynamically from the request's Host header
+function buildRedirectUri(c: any, path: string): string {
+    const host = c.req.header("host");
+    if (host) {
+        const proto = c.req.header("x-forwarded-proto") || "https";
+        return `${proto}://${host}${path}`;
+    }
+    return `${serverConst.AUTH_CALLBACK_BASE}${path}`;
+}
+
+// --- Username generation ---
 async function generateUniqueUsername(provider: OAuthProvider, userinfo: any): Promise<string> {
     const base = provider.suggestUsername(userinfo).toLowerCase().replace(/[^a-z0-9_]/g, "_");
     const prefixed = `${provider.id}_${base}`;
 
-    // Check if taken
     const existing = await query.users.findOne({ username: prefixed });
     if (!existing) return prefixed;
 
-    // Append random suffix
     const suffix = randomStr(4);
     return `${prefixed}_${suffix}`;
 }
 
-// Helper: create or update user from OAuth callback
+// --- Upsert user ---
 async function upsertUser(provider: OAuthProvider, oauthData: Record<string, unknown>): Promise<any> {
     const idValue = oauthData[provider.idField];
     const oauthPath = `oauth.${provider.id}`;
     const idPath = `${oauthPath}.${provider.idField}`;
 
-    // Check if this OAuth identity already exists
     const existing = await query.users.findOne({ [idPath]: idValue });
 
     if (existing) {
-        // Update provider data (avatar, email, groups may have changed)
         const setFields: Record<string, unknown> = {};
         for (const [key, val] of Object.entries(oauthData)) {
             setFields[`${oauthPath}.${key}`] = val;
         }
 
-        // Re-check admin status on each login
         if (provider.id === "pocketid") {
             const adminGroup = serverConst.POCKETID_ADMIN_GROUP;
             const groups: string[] = (oauthData.groups as string[]) || [];
@@ -62,7 +70,7 @@ async function upsertUser(provider: OAuthProvider, oauthData: Record<string, unk
         return existing;
     }
 
-    // Create new user
+    // New user
     const userinfoResponse = await getUserinfo(provider, oauthData);
     const username = await generateUniqueUsername(provider, userinfoResponse || oauthData);
 
@@ -80,9 +88,7 @@ async function upsertUser(provider: OAuthProvider, oauthData: Record<string, unk
         _id: randomStr(10),
         username,
         primary_provider: provider.id,
-        oauth: {
-            [provider.id]: oauthData,
-        },
+        oauth: { [provider.id]: oauthData },
         juush_user_id: null,
         disabled: false,
         is_admin,
@@ -93,261 +99,236 @@ async function upsertUser(provider: OAuthProvider, oauthData: Record<string, unk
     return userDoc;
 }
 
-// Fetch userinfo — for OIDC use the already-fetched claims; for OAuth2 fetch separately
 async function getUserinfo(provider: OAuthProvider, oauthData: Record<string, unknown>): Promise<any> {
-    // For OIDC, the claims are already in oauthData from the ID token / userinfo endpoint
-    // For OAuth2 (Discord), we may need a separate call — handled in callback
     return oauthData;
 }
 
-// GET /auth/login/:provider
-export function login(providerId: string) {
-    return async function(_server: any, reqx: any) {
-        const provider = getProvider(providerId);
-        if (!provider) {
-            reqx.doHTML(`Unknown provider: ${providerId}`, 404);
-            return;
+// --- GET /auth/login/:provider ---
+auth.get("/login/:provider", async (c) => {
+    const providerId = c.req.param("provider");
+    const provider = getProvider(providerId);
+
+    if (!provider) {
+        return c.html(`Unknown provider: ${providerId}`, 404);
+    }
+
+    try {
+        const code_verifier = randomPKCECodeVerifier();
+        const code_challenge = await calculatePKCECodeChallenge(code_verifier);
+        const state = randomState();
+        const redirect_uri = buildRedirectUri(c, provider.redirect_path);
+
+        let authorizationUrl: string;
+
+        if (provider.type === "oidc" && provider.issuer) {
+            const discoveryUrl = `${provider.issuer}/.well-known/openid-configuration`;
+            const discoveryResp = await fetch(discoveryUrl);
+            if (!discoveryResp.ok) {
+                return c.html("OIDC discovery failed", 502);
+            }
+            const discovery: any = await discoveryResp.json();
+            const url = new URL(discovery.authorization_endpoint);
+            url.searchParams.set("client_id", provider.client_id);
+            url.searchParams.set("redirect_uri", redirect_uri);
+            url.searchParams.set("response_type", "code");
+            url.searchParams.set("scope", provider.scopes.join(" "));
+            url.searchParams.set("state", state);
+            url.searchParams.set("code_challenge", code_challenge);
+            url.searchParams.set("code_challenge_method", "S256");
+            authorizationUrl = url.toString();
+        } else {
+            const url = new URL(provider.authorization_endpoint!);
+            url.searchParams.set("client_id", provider.client_id);
+            url.searchParams.set("redirect_uri", redirect_uri);
+            url.searchParams.set("response_type", "code");
+            url.searchParams.set("scope", provider.scopes.join(" "));
+            url.searchParams.set("state", state);
+            url.searchParams.set("code_challenge", code_challenge);
+            url.searchParams.set("code_challenge_method", "S256");
+            authorizationUrl = url.toString();
         }
 
-        try {
-            let authorizationUrl: string;
-            let state: string;
-            let code_verifier: string;
+        await query.oauth_states.insertOne({
+            _id: state,
+            code_verifier,
+            provider: providerId,
+            redirect_after: c.req.query("redirect") || "/user",
+            redirect_uri,
+            created_at: new Date(),
+        });
 
-            code_verifier = randomPKCECodeVerifier();
-            const code_challenge = await calculatePKCECodeChallenge(code_verifier);
-            state = randomState();
+        return c.redirect(authorizationUrl, 302);
+    } catch (err: any) {
+        serverLog("Auth login error:", err);
+        return c.html("Authentication service unavailable. Please try again later.", 502);
+    }
+});
 
-            if (provider.type === "oidc" && provider.issuer) {
-                // OIDC: fetch discovery document, build authorization URL
-                const discoveryUrl = `${provider.issuer}/.well-known/openid-configuration`;
-                const discoveryResp = await fetch(discoveryUrl);
-                if (!discoveryResp.ok) {
-                    reqx.doHTML("OIDC discovery failed", 502);
-                    return;
-                }
-                const discovery = await discoveryResp.json();
-                const url = new URL(discovery.authorization_endpoint);
-                url.searchParams.set("client_id", provider.client_id);
-                url.searchParams.set("redirect_uri", provider.redirect_uri);
-                url.searchParams.set("response_type", "code");
-                url.searchParams.set("scope", provider.scopes.join(" "));
-                url.searchParams.set("state", state);
-                url.searchParams.set("code_challenge", code_challenge);
-                url.searchParams.set("code_challenge_method", "S256");
-                authorizationUrl = url.toString();
-            } else {
-                // Plain OAuth2 (Discord): manual URL construction
-                const url = new URL(provider.authorization_endpoint!);
-                url.searchParams.set("client_id", provider.client_id);
-                url.searchParams.set("redirect_uri", provider.redirect_uri);
-                url.searchParams.set("response_type", "code");
-                url.searchParams.set("scope", provider.scopes.join(" "));
-                url.searchParams.set("state", state);
-                url.searchParams.set("code_challenge", code_challenge);
-                url.searchParams.set("code_challenge_method", "S256");
+// --- GET /auth/callback/:provider ---
+auth.get("/callback/:provider", async (c) => {
+    const providerId = c.req.param("provider");
+    const provider = getProvider(providerId);
 
-                authorizationUrl = url.toString();
-            }
+    if (!provider) {
+        return c.html(`Unknown provider: ${providerId}`, 404);
+    }
 
-            // Store state
-            await query.oauth_states.insertOne({
-                _id: state,
-                code_verifier,
-                provider: providerId,
-                redirect_after: reqx.urldata.query.redirect || "/",
-                created_at: new Date(),
+    const code = c.req.query("code");
+    const state = c.req.query("state");
+    const oauthError = c.req.query("error");
+    const error_description = c.req.query("error_description");
+
+    if (oauthError) {
+        const msg = error_description || oauthError;
+        return c.redirect(`/auth-error?error=${encodeURIComponent("OAuth error: " + msg)}`);
+    }
+
+    if (!code || !state) {
+        return c.redirect(`/auth-error?error=${encodeURIComponent("Missing code or state parameter")}`);
+    }
+
+    try {
+        const stateDoc = await query.oauth_states.findOne({ _id: state });
+        if (!stateDoc) {
+            return c.redirect(`/auth-error?error=${encodeURIComponent("Invalid or expired state")}`);
+        }
+
+        await query.oauth_states.deleteOne({ _id: state });
+
+        const redirectAfter = stateDoc.redirect_after || "/user";
+        let claims: any;
+
+        if (provider.type === "oidc" && provider.issuer) {
+            const discoveryUrl = `${provider.issuer}/.well-known/openid-configuration`;
+            const discoveryResp = await fetch(discoveryUrl);
+            if (!discoveryResp.ok) throw new Error("OIDC discovery failed");
+            const discovery: any = await discoveryResp.json();
+
+            const tokenResponse = await fetch(discovery.token_endpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({
+                    grant_type: "authorization_code",
+                    code,
+                    redirect_uri: stateDoc.redirect_uri,
+                    client_id: provider.client_id,
+                    client_secret: provider.client_secret,
+                    code_verifier: stateDoc.code_verifier,
+                }).toString(),
             });
 
-            reqx.doRedirect(authorizationUrl);
-        } catch (err: any) {
-            serverLog("Auth login error:", err);
-            reqx.doHTML("Authentication service unavailable. Please try again later.", 502);
-        }
-    };
-}
-
-// GET /auth/callback/:provider
-export function callback(providerId: string) {
-    return async function(_server: any, reqx: any) {
-        const provider = getProvider(providerId);
-        if (!provider) {
-            reqx.doHTML(`Unknown provider: ${providerId}`, 404);
-            return;
-        }
-
-        // Don't log sensitive query params
-        reqx.shouldLog = false;
-
-        const { code, state, error: oauthError, error_description } = reqx.urldata.query;
-
-        if (oauthError) {
-            const msg = error_description || oauthError;
-            reqx.doRedirect(`/auth-error?error=${encodeURIComponent("OAuth error: " + msg)}`);
-            return;
-        }
-
-        if (!code || !state) {
-            reqx.doRedirect(`/auth-error?error=${encodeURIComponent("Missing code or state parameter")}`);
-            return;
-        }
-
-        try {
-            // Validate state
-            const stateDoc = await query.oauth_states.findOne({ _id: state });
-            if (!stateDoc) {
-                reqx.doRedirect(`/auth-error?error=${encodeURIComponent("Invalid or expired state")}`);
-                return;
+            if (!tokenResponse.ok) {
+                const errText = await tokenResponse.text();
+                serverLog("OIDC token exchange failed:", errText);
+                return c.redirect(`/auth-error?error=${encodeURIComponent("Token exchange failed")}`);
             }
 
-            // Clean up state immediately
-            await query.oauth_states.deleteOne({ _id: state });
+            const tokenData: any = await tokenResponse.json();
 
-            const redirectAfter = stateDoc.redirect_after || "/";
-
-            let claims: any;
-
-            if (provider.type === "oidc" && provider.issuer) {
-                // OIDC: fetch discovery doc, exchange code, fetch userinfo
-                const discoveryUrl = `${provider.issuer}/.well-known/openid-configuration`;
-                const discoveryResp = await fetch(discoveryUrl);
-                if (!discoveryResp.ok) throw new Error("OIDC discovery failed");
-                const discovery = await discoveryResp.json();
-
-                // Exchange code for tokens
-                const tokenResponse = await fetch(discovery.token_endpoint, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: new URLSearchParams({
-                        grant_type: "authorization_code",
-                        code,
-                        redirect_uri: provider.redirect_uri,
-                        client_id: provider.client_id,
-                        client_secret: provider.client_secret,
-                        code_verifier: stateDoc.code_verifier,
-                    }).toString(),
-                });
-
-                if (!tokenResponse.ok) {
-                    const errText = await tokenResponse.text();
-                    serverLog("OIDC token exchange failed:", errText);
-                    reqx.doRedirect(`/auth-error?error=${encodeURIComponent("Token exchange failed")}`);
-                    return;
-                }
-
-                const tokenData = await tokenResponse.json();
-
-                // Fetch userinfo
-                const userResponse = await fetch(discovery.userinfo_endpoint, {
-                    headers: { "Authorization": `Bearer ${tokenData.access_token}` },
-                });
-
-                if (!userResponse.ok) {
-                    reqx.doRedirect(`/auth-error?error=${encodeURIComponent("Failed to fetch user info")}`);
-                    return;
-                }
-
-                claims = await userResponse.json();
-            } else {
-                // Plain OAuth2: manual token exchange
-                const tokenResponse = await fetch(provider.token_endpoint!, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/x-www-form-urlencoded",
-                    },
-                    body: new URLSearchParams({
-                        client_id: provider.client_id,
-                        client_secret: provider.client_secret,
-                        grant_type: "authorization_code",
-                        code,
-                        redirect_uri: provider.redirect_uri,
-                        code_verifier: stateDoc.code_verifier,
-                    }).toString(),
-                });
-
-                if (!tokenResponse.ok) {
-                    const errText = await tokenResponse.text();
-                    serverLog("Token exchange failed:", errText);
-                    reqx.doRedirect(`/auth-error?error=${encodeURIComponent("Token exchange failed")}`);
-                    return;
-                }
-
-                const tokenData = await tokenResponse.json();
-
-                // Fetch userinfo
-                const userResponse = await fetch(provider.userinfo_endpoint!, {
-                    headers: {
-                        "Authorization": `Bearer ${tokenData.access_token}`,
-                    },
-                });
-
-                if (!userResponse.ok) {
-                    reqx.doRedirect(`/auth-error?error=${encodeURIComponent("Failed to fetch user info")}`);
-                    return;
-                }
-
-                claims = await userResponse.json();
-            }
-
-            // Map claims to oauth data
-            const oauthData = provider.mapUser(claims);
-
-            // Upsert user
-            const user = await upsertUser(provider, oauthData);
-
-            if (user.disabled) {
-                reqx.doRedirect(`/auth-error?error=${encodeURIComponent("Account disabled")}`);
-                return;
-            }
-
-            // Create session
-            const sessionToken = await createSession(user._id);
-
-            // Set cookie and redirect
-            reqx.doRedirectWithCookie(redirectAfter, {
-                name: "session_token",
-                value: sessionToken,
-                httpOnly: true,
-                sameSite: "Lax",
-                secure: true,
-                path: "/",
-                maxAge: 24 * 60 * 60, // 24 hours
+            const userResponse = await fetch(discovery.userinfo_endpoint, {
+                headers: { "Authorization": `Bearer ${tokenData.access_token}` },
             });
-        } catch (err: any) {
-            serverLog("Auth callback error:", err);
-            reqx.doRedirect(`/auth-error?error=${encodeURIComponent("Authentication failed: " + (err.message || "Unknown error"))}`);
-        }
-    };
-}
 
-// GET /auth/logout
-export async function logout(_server: any, reqx: any) {
-    const token = reqx.getCookie("session_token");
+            if (!userResponse.ok) {
+                return c.redirect(`/auth-error?error=${encodeURIComponent("Failed to fetch user info")}`);
+            }
+
+            claims = await userResponse.json();
+        } else {
+            const tokenResponse = await fetch(provider.token_endpoint!, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({
+                    client_id: provider.client_id,
+                    client_secret: provider.client_secret,
+                    grant_type: "authorization_code",
+                    code,
+                    redirect_uri: stateDoc.redirect_uri,
+                    code_verifier: stateDoc.code_verifier,
+                }).toString(),
+            });
+
+            if (!tokenResponse.ok) {
+                const errText = await tokenResponse.text();
+                serverLog("Token exchange failed:", errText);
+                return c.redirect(`/auth-error?error=${encodeURIComponent("Token exchange failed")}`);
+            }
+
+            const tokenData: any = await tokenResponse.json();
+
+            const userResponse = await fetch(provider.userinfo_endpoint!, {
+                headers: { "Authorization": `Bearer ${tokenData.access_token}` },
+            });
+
+            if (!userResponse.ok) {
+                return c.redirect(`/auth-error?error=${encodeURIComponent("Failed to fetch user info")}`);
+            }
+
+            claims = await userResponse.json();
+        }
+
+        const oauthData = provider.mapUser(claims);
+        const user = await upsertUser(provider, oauthData);
+
+        if (user.disabled) {
+            return c.redirect(`/auth-error?error=${encodeURIComponent("Account disabled")}`);
+        }
+
+        const sessionToken = await createSession(user._id);
+
+        // Set session cookie
+        const cookieValue = [
+            `session_token=${sessionToken}`,
+            "HttpOnly",
+            "SameSite=Lax",
+            "Secure",
+            "Path=/",
+            "Max-Age=86400",
+        ].join("; ");
+
+        c.header("Set-Cookie", cookieValue);
+        return c.redirect(redirectAfter, 302);
+    } catch (err: any) {
+        serverLog("Auth callback error:", err);
+        return c.redirect(`/auth-error?error=${encodeURIComponent("Authentication failed: " + (err.message || "Unknown error"))}`);
+    }
+});
+
+// --- GET /auth/logout ---
+auth.get("/logout", async (c) => {
+    const reqx = createCompatReqx(c);
+    const token = getCookieFromHeader(c.req.header("cookie"), "session_token");
     if (token) {
         await clearSession(token);
     }
 
-    // Clear cookie
-    reqx.clearCookie("session_token");
-    reqx.doRedirect("/");
-}
+    c.header("Set-Cookie", "session_token=; HttpOnly; SameSite=Lax; Secure; Path=/; Max-Age=0");
+    return c.redirect("/", 302);
+});
 
-// GET /auth/me
-export async function me(_server: any, reqx: any) {
+// --- GET /auth/me ---
+auth.get("/me", async (c) => {
+    const reqx = createCompatReqx(c);
     const user = await requireUser(reqx);
 
     if (!user) {
-        reqx.res.writeHead(401, { "Content-Type": "application/json" });
-        reqx.res.end(JSON.stringify({ error: "Not authenticated" }));
-        return;
+        return c.json({ error: "Not authenticated" }, 401);
     }
 
-    reqx.res.writeHead(200, { "Content-Type": "application/json" });
-    reqx.res.end(JSON.stringify({
+    return c.json({
         _id: user._id,
         username: user.username,
         primary_provider: user.primary_provider,
         is_admin: user.is_admin,
         juush_user_id: user.juush_user_id,
-    }));
+    });
+});
+
+// Helper: extract cookie value from cookie header
+function getCookieFromHeader(cookieHeader: string | undefined, name: string): string | null {
+    if (!cookieHeader) return null;
+    const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+    return match ? decodeURIComponent(match[1]) : null;
 }
+
+export default auth;

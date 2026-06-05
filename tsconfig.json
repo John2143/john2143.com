@@ -1,11 +1,11 @@
 {
     "compilerOptions": {
         "target": "esnext",
-        "module": "commonjs",
+        "module": "nodenext",
+        "moduleResolution": "nodenext",
         "strict": false,
         "rootDir": "src",
         "types": ["node"],
-        "esModuleInterop": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": false,
         "outDir": "c"

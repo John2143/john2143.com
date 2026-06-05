@@ -1,4 +1,3 @@
-"use strict";
 
 import { createHash, randomBytes } from "node:crypto";
 import { query } from "../juush/util.js";

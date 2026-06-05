@@ -1,4 +1,4 @@
-module.exports = [
+export default [
     {
         files: ["src/**/*.ts", "src/**/*.js"],
         languageOptions: {
@@ -8,11 +8,6 @@ module.exports = [
                 // Node.js
                 console: "readonly",
                 process: "readonly",
-                require: "readonly",
-                module: "readonly",
-                exports: "readonly",
-                __dirname: "readonly",
-                __filename: "readonly",
                 Buffer: "readonly",
                 setTimeout: "readonly",
                 clearTimeout: "readonly",
@@ -31,10 +26,6 @@ module.exports = [
                 Map: "readonly",
                 Set: "readonly",
                 Symbol: "readonly",
-                // Project globals
-                fs: "readonly",
-                serverLog: "readonly",
-                serverConst: "readonly",
                 chai: "readonly",
                 query: "readonly",
                 expect: "readonly",
