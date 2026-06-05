@@ -3,76 +3,434 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User — {{HOSTNAME}}</title>
+    <title>User — Juush</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <script src="https://use.fontawesome.com/ed4d2de3d2.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            max-width: 600px;
-            margin: 40px auto;
-            padding: 20px;
-            background: #111;
-            color: #eee;
-        }
-        .card {
-            background: #1a1a1a;
-            border-radius: 8px;
-            padding: 24px;
-            border: 1px solid #333;
-        }
-        .field { margin-bottom: 12px; }
-        .label { color: #888; font-size: 12px; text-transform: uppercase; }
-        .value { font-size: 16px; }
-        .error { color: #e74c3c; }
-        button, a.button {
-            display: inline-block;
-            padding: 10px 20px;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-            text-decoration: none;
-            font-size: 14px;
-        }
-        .logout { background: #333; color: #eee; }
-        .login { background: #5865F2; color: #fff; margin-right: 8px; }
+.consv{ width:100%; height:auto; }
+.cons{ width:100%; height:auto; }
+.red{ color:red; }
+.green{ color:green; }
+.dank {
+    color:yellow;
+    display:inline-block; outline:none; background-color:white;
+    padding:0 20px; line-height:200%; border:1px solid silver;
+    background-image:linear-gradient(magenta,cyan,blue,yellow,green,brown,orange);
+    background-size:100% 200%; transition:background-position 200000s;
+}
+.dank:hover {
+    background-position:0 -3434343400%; color:red; text-transform:uppercase;
+}
+.fameme:hover{
+    -webkit-animation:spin 4s infinite linear; font-size:1000px; color:red;
+}
+.whoamicon.fa-check-circle{ color:green; }
+.whoamicon.fa-times-circle{ color:red; }
+.whoamicon.fa-cog{ color:blue; }
+.card-img-top{ width:100%; height:200px; }
+.full-width{ width:100%; min-width:100%; max-width:100%; }
+.hiddenUpload{ background-color:#ffdca5; }
+@-webkit-keyframes spin {
+    0%  {-webkit-transform:rotate(0deg);}
+    100% {-webkit-transform:rotate(360deg);}
+}
+.auth-section { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+.btn-pocketid {
+    background:#4f46e5; color:white; display:block; width:100%; padding:8px 16px;
+    border:none; border-radius:6px; cursor:pointer; text-decoration:none; text-align:center; font-size:0.85rem;
+}
+.btn-discord {
+    background:#5865f2; color:white; display:block; width:100%; padding:8px 16px;
+    border:none; border-radius:6px; cursor:pointer; text-decoration:none; text-align:center; font-size:0.85rem;
+}
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1 id="heading">Loading…</h1>
-        <div id="user-info" style="display:none">
-            <div class="field"><div class="label">Username</div><div class="value" id="username"></div></div>
-            <div class="field"><div class="label">Provider</div><div class="value" id="provider"></div></div>
-            <div class="field"><div class="label">Admin</div><div class="value" id="admin"></div></div>
-            <br>
-            <a href="/auth/logout" class="button logout">Logout</a>
-        </div>
-        <div id="not-logged-in" style="display:none">
-            <p>You are not logged in.</p>
-            <a href="/auth/login/pocketid" class="button login">Login with Pocket ID</a>
-            <a href="/auth/login/discord" class="button login" style="background:#5865F2">Login with Discord</a>
-        </div>
-        <div id="error" class="error" style="display:none"></div>
-    </div>
+<div x-data="app()" x-init="init()" class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-xs-2">
+            <div style="position:fixed">
+                <ul class="list-group full-width">
+                    <div class="list-group-item list-group-item-info">User</div>
+                    <div class="list-group-item">
+                        <select x-model="selectedId" x-on:change="onSelectChange" :class="{dank: memify}">
+                            <template x-for="user in users" :key="user._id">
+                                <option :value="user._id" x-text="user.name"></option>
+                            </template>
+                        </select><br>
+                    </div>
+                    <div class="list-group-item">
+                        <div class="btn-group">
+                            <button class="btn btn-primary" @click="prevPage" :class="{dank: memify}" :disabled="page <= 0">Previous</button>
+                            <button class="btn btn-primary" @click="nextPage" :class="{dank: memify}">Next</button>
+                        </div>
+                    </div>
+                </ul>
 
-    <script>
-        fetch("/auth/me")
-            .then(r => r.json())
-            .then(user => {
-                if (user.error) {
-                    document.getElementById("not-logged-in").style.display = "block";
-                    document.getElementById("heading").textContent = "Guest";
+                <!-- User Info -->
+                <template x-if="uinfo">
+                    <div :class="{dank: memify}">
+                        <ul class="list-group full-width">
+                            <div class="list-group-item list-group-item-info">User Info</div>
+                            <div class="list-group-item" :title="whoamiTitle(selected?._id)">
+                                <i class="fa fa-fw fa-hashtag"></i>
+                                Userid <span x-text="selected?._id"></span>
+                                <i x-show="whoami !== undefined && whoami !== null && whoami !== false" class="fa whoamicon"
+                                   :class="whoami == selected?._id ? 'fa-check-circle' : 'fa-times-circle'"></i>
+                                <i x-show="whoami === undefined" class="fa fa-fw whoamicon fa-cog fa-spin"></i>
+                                <i x-show="whoami === false" class="fa fa-fw whoamicon fa-user-times"></i>
+                                <i x-show="whoami === null" class="fa fa-fw whoamicon fa-users"></i>
+                            </div>
+                            <div class="list-group-item"><i class="fa fa-fw fa-eye" :class="{fameme: memify}"></i> <span x-text="uinfo?.downloads"></span> Total Views</div>
+                            <div class="list-group-item"><i class="fa fa-fw fa-upload" :class="{fameme: memify}"></i> <span x-text="uinfo?.total"></span> Uploads</div>
+                            <div class="list-group-item" title="Average downloads per upload"><i class="fa fa-fw fa-arrows-v" :class="{fameme: memify}"></i> <span x-text="adu()"></span> ADU</div>
+                        </ul>
+                    </div>
+                </template>
+
+                <!-- Auth: Not logged in -->
+                <template x-if="!authUser">
+                    <div class="auth-section">
+                        <a href="/auth/login/pocketid?redirect=/user" class="btn-pocketid">Login with Pocket ID</a>
+                        <a href="/auth/login/discord?redirect=/user" class="btn-discord">Login with Discord</a>
+                    </div>
+                </template>
+
+                <!-- Auth: Logged in -->
+                <template x-if="authUser">
+                    <div>
+                        <ul class="list-group full-width">
+                            <div class="list-group-item list-group-item-info">Logged in</div>
+                            <div class="list-group-item">
+                                <i class="fa fa-fw fa-user"></i> <span x-text="authUser.username"></span>
+                            </div>
+                            <div class="list-group-item" x-show="authUser.juush_user_id === null">
+                                <em>No juush account linked</em>
+                            </div>
+                            <a href="/auth/logout" class="list-group-item list-group-item-action">Logout</a>
+                        </ul>
+                    </div>
+                </template>
+
+                <!-- User Menu -->
+                <template x-if="authUser && whoami == selected?._id">
+                    <div>
+                        <ul class="list-group">
+                            <div class="list-group-item list-group-item-info">User Menu</div>
+                            <button class="list-group-item list-group-item-action" @click="changeAutohide()">
+                                <i class="fa fa-fw" :class="uinfo?.autohide ? 'fa-eye-slash red' : 'fa-eye green'" :class="{fameme: memify}"></i>
+                                Auto-hide <span x-text="uinfo?.autohide ? 'on' : 'off'"></span>
+                            </button>
+                            <button class="list-group-item list-group-item-action" @click="changeURL()">Custom URL</button>
+                        </ul>
+                    </div>
+                </template>
+
+                <!-- Admin Menu -->
+                <template x-if="authUser?.is_admin">
+                    <div>
+                        <ul class="list-group">
+                            <div class="list-group-item list-group-item-info">Admin Menu</div>
+                            <button class="list-group-item list-group-item-action list-group-item-default" @click="toggleHidden()" :class="{'active': adminShowHidden}">Show Hidden</button>
+                            <button class="list-group-item list-group-item-action list-group-item-danger" @click="deleteThisUser()">Delete this user</button>
+                        </ul>
+                    </div>
+                </template>
+
+                <!-- General Menu -->
+                <div>
+                    <ul class="list-group">
+                        <div class="list-group-item list-group-item-info">Menu</div>
+                        <button class="list-group-item list-group-item-action" @click="memify = !memify">Memify</button>
+                        <button class="list-group-item list-group-item-action" @click="blockUserURL = !blockUserURL">
+                            <i class="fa fa-fw" :class="!blockUserURL ? 'fa-check green' : 'fa-times red'" :class="{fameme: memify}"></i>
+                            <span x-text="!blockUserURL ? 'Allow Cust URL' : 'Block Cust URL'"></span>
+                        </button>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Grid -->
+        <div class="col-xs-10">
+            <div class="row">
+                <template x-for="pic in uploads" :key="pic._id">
+                    <div class="col-lg-3 col-sm-12" style="padding:40px;" :class="{hiddenUpload: pic.modifiers?.hidden}">
+                        <a :href="'/f/' + pic._id" :title="pic.filename">
+                            <center>
+                                <img x-show="pic.type === 'image'" class="card-img-top cons" :src="'/f/' + pic._id + '/thumb'" />
+                                <img x-show="pic.type === 'video'" class="card-img-top consv" src="https://2143.me/f/gqKBv.png" />
+                                <audio x-show="pic.type === 'audio'" class="card-img-top" controls preload="none" :src="'/f/' + pic._id"></audio>
+                                <div x-show="pic.type !== 'image' && pic.type !== 'video' && pic.type !== 'audio'" class="card-img-top" x-text="pic.filename"></div>
+                            </center>
+                        </a>
+                        <div class="card-block">
+                            <span x-text="pic.filenameShort"></span><br>
+                            <a :href="'/f/' + pic._id + '/dl'">
+                                <i class="fa fa-fw fa-arrow-down"></i> <span x-text="pic.downloads"></span><br>
+                            </a>
+                            <i class="fa fa-fw fa-clock-o"></i> <span x-text="pic.dispDate"></span><br>
+                            <i class="fa fa-fw fa-clock-o"></i> <span x-text="pic.timeAgo"></span><br>
+                            <i class="fa fa-fw fa-file-code-o"></i> <span x-text="pic.mimetype"></span><br>
+
+                            <!-- Upload actions -->
+                            <template x-if="authUser && whoami == selected?._id && pic.type !== 'deleted'">
+                                <span>
+                                    <!-- Delete -->
+                                    <span x-show="!pic.deleting">
+                                        <a class="btn btn-sm btn-danger" @click="pic.deleting = true">
+                                            <i class="fa fa-trash"></i> Delete
+                                        </a>
+                                    </span>
+                                    <span x-show="pic.deleting">
+                                        <a class="btn btn-sm btn-danger" @click="juushDelete(pic)"><i class="fa"></i> Confirm</a>
+                                        <a class="btn btn-sm btn-success" @click="pic.deleting = false"><i class="fa"></i> Cancel</a>
+                                    </span>
+
+                                    <!-- Rename -->
+                                    <a class="btn btn-sm btn-warning" @click="pic.renaming = true" x-show="!pic.renaming"><i class="fa"></i> Rename</a>
+                                    <span x-show="pic.renaming">
+                                        <div class="input-group">
+                                            <input class="form-control" type="text" placeholder="New name" x-model="pic.newName">
+                                            <a class="btn btn-sm btn-success" @click="juushRename(pic)"><i class="fa"></i> Confirm</a>
+                                            <a class="btn btn-sm btn-warning" @click="pic.renaming = false; pic.newName = ''"><i class="fa"></i> Cancel</a>
+                                        </div>
+                                    </span>
+
+                                    <!-- Hide/Unhide -->
+                                    <a class="btn btn-sm btn-warning" @click="pic.hiding = true" x-show="!pic.hiding"><i class="fa"></i> <span x-text="pic.modifiers?.hidden ? 'Unhide' : 'Hide'"></span></a>
+                                    <span x-show="pic.hiding">
+                                        <div class="input-group">
+                                            <a class="btn btn-sm btn-success" @click="juushHides(pic, !pic.modifiers?.hidden)"><i class="fa"></i> Confirm</a>
+                                            <a class="btn btn-sm btn-warning" @click="pic.hiding=false"><i class="fa"></i> Cancel</a>
+                                        </div>
+                                    </span>
+                                    <span x-text="pic.err" class="red"></span>
+                                </span>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const monthAbbr = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const lead0 = n => n < 10 ? "0" + n : n;
+
+function app() {
+    return {
+        authUser: null,
+        users: [],
+        selectedId: null,
+        selected: null,
+        whoami: undefined,
+        page: 0,
+        uploads: [],
+        uinfo: null,
+        adminShowHidden: false,
+        memify: false,
+        blockUserURL: false,
+
+        async init() {
+            try {
+                const meRes = await fetch('/auth/me');
+                if (meRes.ok) {
+                    this.authUser = await meRes.json();
+                    this.whoami = this.authUser.juush_user_id;
                 } else {
-                    document.getElementById("user-info").style.display = "block";
-                    document.getElementById("heading").textContent = user.username;
-                    document.getElementById("username").textContent = user.username;
-                    document.getElementById("provider").textContent = user.primary_provider;
-                    document.getElementById("admin").textContent = user.is_admin ? "Yes" : "No";
+                    this.whoami = false;
                 }
-            })
-            .catch(() => {
-                document.getElementById("not-logged-in").style.display = "block";
-                document.getElementById("heading").textContent = "Guest";
-            });
-    </script>
+            } catch(e) {
+                this.whoami = false;
+            }
+            await this.loadUsers();
+        },
+
+        async loadUsers() {
+            try {
+                const res = await fetch('/juush/users');
+                this.users = await res.json();
+                const savedId = parseInt(localStorage.getItem('juush_selected_user'));
+                if (savedId && this.users.find(u => u._id === savedId)) {
+                    this.selectedId = savedId;
+                } else if (this.users.length > 0) {
+                    this.selectedId = this.users[0]._id;
+                }
+                this.onSelectChange();
+            } catch(e) {
+                console.error('Failed to load users', e);
+            }
+        },
+
+        onSelectChange() {
+            this.selected = this.users.find(u => u._id === this.selectedId) || null;
+            if (!this.selected) return;
+            localStorage.setItem('juush_selected_user', this.selected._id);
+            this.page = 0;
+            this.updateUserpage();
+            this.updateInfo();
+        },
+
+        prevPage() {
+            if (this.page > 0) { this.page--; this.updateUserpage(); }
+        },
+
+        nextPage() {
+            this.page++;
+            this.updateUserpage();
+        },
+
+        async updateUserpage() {
+            if (!this.selected) return;
+            const id = this.selected._id;
+            let url = `/juush/uploads/${id}/${this.page}`;
+            if (this.whoami === id || this.adminShowHidden) url += '?hidden=true';
+            try {
+                const res = await fetch(url);
+                const raw = await res.json();
+                this.uploads = raw.map(ul => this.processUpload(ul));
+            } catch(e) {
+                this.uploads = [];
+            }
+        },
+
+        processUpload(ul) {
+            const mimes = (ul.mimetype || '').split('/');
+            let type;
+            if (mimes[0] === 'image') type = 'image';
+            else if (mimes[0] === 'video') type = 'video';
+            else if (mimes[0] === 'audio') type = 'audio';
+            else if (ul.mimetype === 'deleted') type = 'deleted';
+            else type = null;
+
+            const dt = new Date(ul.uploaddate);
+            const dispDate = monthAbbr[dt.getMonth()] + ' ' + dt.getDate() + ' ' + dt.getFullYear()
+                + ', ' + lead0(dt.getHours()) + ':' + lead0(dt.getMinutes()) + ':' + lead0(dt.getSeconds());
+            const timeAgo = this.dateDistance(dt);
+            const filenameShort = ul.filename && ul.filename.length > 15
+                ? ul.filename.substring(0, 12) + '...'
+                : (ul.filename || '');
+
+            return { ...ul, type, dispDate, timeAgo, filenameShort, deleting: false, renaming: false, hiding: false, newName: '', err: '' };
+        },
+
+        dateDistance(d) {
+            let time = Date.now() / 1000 - d.getTime() / 1000;
+            const plural = () => time == 1 ? ' ago' : 's ago';
+            time = Math.floor(time);
+            if (time < 60) return time + ' second' + plural();
+            time = Math.floor(time / 60);
+            if (time < 60) return time + ' minute' + plural();
+            time = Math.floor(time / 60);
+            if (time < 24) return time + ' hour' + plural();
+            if (time < 48) return 'Yesterday';
+            time = Math.floor(time / 24);
+            if (time < 31) return time + ' day' + plural();
+            time = Math.floor(time / 30);
+            if (time < 12) return time + ' month' + plural();
+            time = Math.floor(time / 12);
+            return time + ' year' + plural();
+        },
+
+        async updateInfo() {
+            if (!this.selected) { this.uinfo = null; return; }
+            try {
+                const res = await fetch('/juush/userinfo/' + this.selected._id);
+                this.uinfo = await res.json();
+            } catch(e) {
+                this.uinfo = null;
+            }
+        },
+
+        adu() {
+            if (!this.uinfo || !this.uinfo.total || !this.uinfo.downloads) return '0.00';
+            return (this.uinfo.downloads / this.uinfo.total).toFixed(2);
+        },
+
+        whoamiTitle(id) {
+            if (this.whoami === undefined) return 'Loading...';
+            if (this.whoami === false) return 'Guest user (No uploads)';
+            if (this.whoami === null) return 'Multiple identities';
+            if (this.whoami === id) return 'This is you!';
+            return '';
+        },
+
+        toggleHidden() {
+            this.adminShowHidden = !this.adminShowHidden;
+            this.updateUserpage();
+        },
+
+        async juushDelete(ul) {
+            try {
+                const res = await fetch('/f/' + ul._id + '/delete');
+                if (res.ok) { ul.type = 'deleted'; ul.mimetype = 'deleted'; }
+                else { ul.err = res.statusText; }
+            } catch(e) { ul.err = e.message; }
+        },
+
+        async juushRename(ul) {
+            try {
+                const res = await fetch('/f/' + ul._id + '/rename/' + encodeURIComponent(ul.newName));
+                if (res.ok) {
+                    ul.filename = await res.text();
+                    ul.filenameShort = ul.filename.length > 15 ? ul.filename.substring(0, 12) + '...' : ul.filename;
+                } else { ul.err = res.statusText; }
+            } catch(e) { ul.err = e.message; }
+        },
+
+        async juushHides(ul, nowHidden) {
+            const url = nowHidden ? '/hide' : '/unhide';
+            try {
+                const res = await fetch('/f/' + ul._id + url);
+                if (res.ok) {
+                    if (!ul.modifiers) ul.modifiers = {};
+                    ul.modifiers.hidden = nowHidden;
+                } else { ul.err = res.statusText; }
+            } catch(e) { ul.err = e.message; }
+        },
+
+        async deleteThisUser() {
+            if (!this.selected) return;
+            if (!confirm('Are you sure you want to delete ' + this.selected.name)) return;
+            try {
+                const res = await fetch('/juush/deluser/' + this.selected._id);
+                const data = await res.json();
+                alert('Deleted? ' + JSON.stringify(data));
+                if (data.success) {
+                    this.users = this.users.filter(u => u._id !== this.selected._id);
+                    this.selectedId = this.users[0] ? this.users[0]._id : null;
+                    this.onSelectChange();
+                }
+            } catch(e) { alert('Failed to delete: ' + e.message); }
+        },
+
+        async changeAutohide() {
+            if (!this.selected || !this.uinfo) return;
+            this.uinfo.autohide = !this.uinfo.autohide;
+            try {
+                await fetch('/juush/usersetting/' + this.selected._id + '/autohide/' + this.uinfo.autohide);
+            } catch(e) {
+                this.uinfo.autohide = !this.uinfo.autohide;
+                alert('Failed to change setting');
+            }
+        },
+
+        async changeURL() {
+            if (!this.selected) return;
+            let newURL = prompt('Please enter a new domain, or blank for default (2143.me)');
+            if (newURL === '' || newURL === 'host') newURL = 'host';
+            try {
+                const res = await fetch('/juush/usersetting/' + this.selected._id + '/customURL/' + encodeURIComponent(newURL));
+                if (!res.ok) throw new Error(res.statusText);
+            } catch(e) { alert('Failed to change: ' + e.message); }
+        },
+    };
+}
+</script>
 </body>
 </html>
