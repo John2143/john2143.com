@@ -89,19 +89,27 @@ export function createCompatReqx(c: Context, res?: CompatRes) {
     // Get IP from x-forwarded-for or socket
     const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
 
+    // Forward all headers from the Node.js incoming request.
+    // @hono/node-server's req.raw.headers is a minimal object (only
+    // get/set), not a Web Headers. The real IncomingMessage is on
+    // c.env.incoming with the standard Node.js headers dict.
+    const reqHeaders: Record<string, string> = {};
+    const incoming = (c.env as any)?.incoming;
+    if (incoming?.headers) {
+        Object.assign(reqHeaders, incoming.headers);
+    } else {
+        // Fallback: pull individual headers from Hono context
+        for (const [key, val] of Object.entries(c.req.header() || {})) {
+            reqHeaders[key] = val || "";
+        }
+    }
+
     // Build a minimal req-like object that juush expects
     const req = {
         socket: {
             remoteAddress: ip,
         },
-        headers: {
-            host: c.req.header("host") || "",
-            referer: c.req.header("referer") || "",
-            range: c.req.header("range") || "",
-            cookie: c.req.header("cookie") || "",
-            "x-forwarded-for": c.req.header("x-forwarded-for") || "",
-            "x-forwarded-proto": c.req.header("x-forwarded-proto") || "https",
-        },
+        headers: reqHeaders,
         method: c.req.method,
         url: c.req.url,
     };

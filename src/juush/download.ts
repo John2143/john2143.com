@@ -370,6 +370,7 @@ const download = async function(server, reqx){
         const __result = await setMimeType(uploadID, "deleted");
         reqx.doHTML("File successfully deleted. It will still appear in your user page.");
     }else if(disposition === "info"){
+        const res = reqx.res;
         const data = await U.query.index.findOne({_id: uploadID});
         if(!data){
             res.writeHead(404, {
@@ -380,8 +381,6 @@ const download = async function(server, reqx){
         }
 
         const user = await U.query.keys.findOne({_id: data.keyid});
-
-        const res = reqx.res;
 
         res.writeHead(200, {
             "Content-Type": "text/html",
