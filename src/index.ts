@@ -100,17 +100,7 @@ if (serverConst.dbstring) {
     await juush.startdb();
     serverLog("Creating juush");
 
-    // Download routes
-    app.get("/f/:id{.*}", async (c) => juush.handleDownload(c));
-    app.get("/:name{[^/]+}/:filename", async (c) => juush.handleDownload(c));
-
-    // Upload
-    app.get("/uf", async (c) => juush.handleUpload(c));
-
-    // New user
-    app.get("/nuser/:name", async (c) => juush.handleNewUser(c));
-
-    // Juush API
+    // Juush API — MUST be before generic download catch-all
     const juushAPI = new Hono();
     juushAPI.get("/whoami", (c) => juush.handleWhoami(c));
     juushAPI.get("/users", (c) => juush.handleUsers(c));
@@ -120,6 +110,16 @@ if (serverConst.dbstring) {
     juushAPI.get("/isadmin", (c) => juush.handleIsAdmin(c));
     juushAPI.get("/usersetting/:id/:setting/:value", (c) => juush.handleUserSetting(c));
     app.route("/juush", juushAPI);
+
+    // Download routes
+    app.get("/f/:id{.*}", async (c) => juush.handleDownload(c));
+    app.get("/:name{[^/]+}/:filename", async (c) => juush.handleDownload(c));
+
+    // Upload
+    app.get("/uf", async (c) => juush.handleUpload(c));
+
+    // New user
+    app.get("/nuser/:name", async (c) => juush.handleNewUser(c));
 
     // Not-found → git (after juush routes mounted)
     app.notFound((c) => c.redirect("//github.com/John2143/", 301));
