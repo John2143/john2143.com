@@ -316,7 +316,7 @@ function app() {
                 ? ul.filename.substring(0, 12) + '...'
                 : (ul.filename || '');
 
-            return { ...ul, type, dispDate, timeAgo, filenameShort, deleting: false, renaming: false, hiding: false, newName: '', err: '' };
+            return { ...ul, type, dispDate, timeAgo, filenameShort, deleting: false, renaming: false, hiding: false, newName: '', err: '', modifiers: ul.modifiers || {} };
         },
 
         dateDistance(d) {
