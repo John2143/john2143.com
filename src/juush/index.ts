@@ -1,5 +1,6 @@
 import { serverLog } from "../logger.js";
 
+import { Readable } from "node:stream";
 import { startdb, query, whoami, isAdmin, juushErrorCatch, randomStr } from "./util.js";
 import { createCompatRes, flushCompatRes, createCompatReqx } from "./compat.js";
 import type { Context } from "hono";
@@ -28,11 +29,29 @@ export async function handleDownload(c: Context) {
 export async function handleUpload(c: Context) {
     const res = createCompatRes();
     const reqx = createCompatReqx(c, res);
-    // Use the real Node.js IncomingMessage for upload streaming
-    // (c.env.incoming is the raw Node.js request with on('data')/on('end')/pipe())
-    const incoming = (c.env as any)?.incoming || reqx.req;
+    // Create a clean Node.js Readable from Hono's web body stream.
+    // Using c.env.incoming directly causes racing error events after
+    // the upload completes (client disconnect triggers socket error).
+    const bodyStream = new Readable({ read() {} });
+    const webBody = c.req.raw.body;
+    if (webBody) {
+        const reader = webBody.getReader();
+        const pump = () => {
+            reader.read().then(({ done, value }) => {
+                if (done) {
+                    bodyStream.push(null);
+                } else {
+                    bodyStream.push(Buffer.from(value));
+                    pump();
+                }
+            }).catch((e) => bodyStream.destroy(e));
+        };
+        pump();
+    } else {
+        bodyStream.push(null);
+    }
     try {
-        await uploadOriginal(null as any, { ...reqx, req: incoming, res });
+        await uploadOriginal(null as any, { ...reqx, req: bodyStream, res });
     } catch (e: any) {
         juushErrorCatch(res)(e);
     }
