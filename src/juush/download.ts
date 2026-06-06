@@ -381,15 +381,16 @@ const download = async function(server, reqx){
         }
 
         const user = await U.query.keys.findOne({_id: data.keyid});
+        const esc = (s: string) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
         res.writeHead(200, {
             "Content-Type": "text/html",
         });
-        res.write("Filename: " + data.filename);
+        res.write("Filename: " + esc(data.filename));
         res.write("<br>Upload date: " + data.uploaddate);
-        res.write("<br>Uploaded by: " + user.name);
+        res.write("<br>Uploaded by: " + esc(user.name));
         res.write("<br>Downloads: " + data.downloads);
-        res.write("<br>File Type: " + data.mimetype);
+        res.write("<br>File Type: " + esc(data.mimetype));
         res.end();
     }else if(disposition === "rename"){
         if(await accessCheck(uploadID, reqx)) return;

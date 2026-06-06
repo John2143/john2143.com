@@ -70,7 +70,7 @@ jobs:
     needs: [build, update-dev]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ !contains(github.event.head_commit.message, '[direct-prod]') && 'production' || '' }}
     env:
       NEW_TAG: ${{ needs.build.outputs.image_tag }}
     steps:
