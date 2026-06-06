@@ -33,6 +33,9 @@ export async function handleUpload(c: Context) {
     // Using c.env.incoming directly causes racing error events after
     // the upload completes (client disconnect triggers socket error).
     const bodyStream = new Readable({ read() {} });
+    // Blend compat req headers onto the Readable — upload handler
+    // accesses reqx.req.headers for content-type parsing and host URLs
+    Object.assign(bodyStream, reqx.req);
     const webBody = c.req.raw.body;
     if (webBody) {
         const reader = webBody.getReader();
