@@ -12,25 +12,29 @@ export { startdb };
 
 // --- Download handler ---
 export async function handleDownload(c: Context) {
-    const reqx = createCompatReqx(c);
     const res = createCompatRes();
+    const reqx = createCompatReqx(c, res);
     try {
         await downloadOriginal(null as any, { ...reqx, res });
     } catch (e: any) {
         juushErrorCatch(res)(e);
     }
+    // Wait for streaming to finish (pipe may still be flowing)
+    await new Promise<void>((resolve) => res.on("finish", resolve));
     return flushCompatRes(c, res);
 }
 
 // --- Upload handler ---
 export async function handleUpload(c: Context) {
-    const reqx = createCompatReqx(c);
     const res = createCompatRes();
+    const reqx = createCompatReqx(c, res);
     try {
         await uploadOriginal(null as any, { ...reqx, res });
     } catch (e: any) {
         juushErrorCatch(res)(e);
     }
+    // Wait for streaming to finish
+    await new Promise<void>((resolve) => res.on("finish", resolve));
     return flushCompatRes(c, res);
 }
 
@@ -51,12 +55,13 @@ export async function handleNewUser(c: Context) {
             res.setHeader("Content-Type", "text/plain");
             res.end(key);
         } catch (e: any) {
-            return juushErrorCatch(res)(e);
+            juushErrorCatch(res)(e);
         }
     } else {
         res.writeHead(401, { "Content-Type": "text/html" });
         res.end("You cannot make users");
     }
+    await new Promise<void>((resolve) => res.on("finish", resolve));
     return flushCompatRes(c, res);
 }
 
