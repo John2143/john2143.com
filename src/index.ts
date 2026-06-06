@@ -115,9 +115,10 @@ if (serverConst.dbstring) {
     app.get("/f/:id{.*}", async (c) => juush.handleDownload(c));
     app.get("/:name{[^/]+}/:filename", async (c) => juush.handleDownload(c));
 
-    // Upload
+    // Upload — accepts GET, POST, PUT (juush client uses PUT)
     app.get("/uf", async (c) => juush.handleUpload(c));
-
+    app.post("/uf", async (c) => juush.handleUpload(c));
+    app.put("/uf", async (c) => juush.handleUpload(c));
     // New user
     app.get("/nuser/:name", async (c) => juush.handleNewUser(c));
 
