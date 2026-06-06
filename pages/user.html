@@ -268,7 +268,9 @@ function app() {
         },
 
         onSelectChange() {
-            this.selected = this.users.find(u => u._id === this.selectedId) || null;
+            // <select> values are always strings, but MongoDB _id values
+            // are numbers. Use loose equality for the comparison.
+            this.selected = this.users.find(u => u._id == this.selectedId) || null;
             if (!this.selected) return;
             localStorage.setItem('juush_selected_user', this.selected._id);
             this.page = 0;
