@@ -604,14 +604,7 @@ export default async function(server, reqx){
         let diff = lenw - lenm;
         //If slice is true then it means the boundry was found at the end
         //of the data segment, else all the data should be written
-        let slice = true;
-        for(let i = 0; i < lenm; i++){
-            //Compare the data to the boundry char by char
-            if(write[diff + i] != boundary[i]){
-                slice = false;
-                break;
-            }
-        }
+        let slice = write.indexOf(boundary, diff) === diff;
 
         let curData = write;
         let curDataLen = 0;

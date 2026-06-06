@@ -262,6 +262,15 @@ const processDownload = async function(reqx, data, disposition){
             codisp = "attachment";
         }
     }
+    // CDN redirect for thumbnails — avoids downloading full file
+    if(disposition === "thumb" && data.cdn){
+        reqx.extraLog = "CDN thumb".yellow;
+        reqx.res.writeHead(302, {
+            "Location": data.cdn,
+        });
+        reqx.res.end();
+        return;
+    }
 
     //Send filename with content-disposition
     codisp += '; filename="' + data.filename + '"';
