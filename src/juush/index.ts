@@ -28,8 +28,11 @@ export async function handleDownload(c: Context) {
 export async function handleUpload(c: Context) {
     const res = createCompatRes();
     const reqx = createCompatReqx(c, res);
+    // Use the real Node.js IncomingMessage for upload streaming
+    // (c.env.incoming is the raw Node.js request with on('data')/on('end')/pipe())
+    const incoming = (c.env as any)?.incoming || reqx.req;
     try {
-        await uploadOriginal(null as any, { ...reqx, res });
+        await uploadOriginal(null as any, { ...reqx, req: incoming, res });
     } catch (e: any) {
         juushErrorCatch(res)(e);
     }
