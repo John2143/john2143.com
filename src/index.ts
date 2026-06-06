@@ -82,19 +82,10 @@ app.get("/blank", (c) => c.text(""));
 // Mount auth routes
 app.route("/auth", authRoutes);
 
-// Default not-found → git redirect (before DB loads)
+// Default not-found → git redirect
 app.notFound((c) => c.redirect("//github.com/John2143/", 301));
 
-// Start HTTP server immediately
-const port = Number(serverConst.HTTPPORT) || 3000;
-serverLog(`Starting http server on ${port}`);
-serve({
-    fetch: app.fetch,
-    port,
-    hostname: serverConst.IP || "0.0.0.0",
-});
-
-// Mount juush routes after DB connection (lazy, non-blocking)
+// Mount juush routes after DB connection
 if (serverConst.dbstring) {
     const juush = await import("./juush/index.js");
     await juush.startdb();
@@ -119,9 +110,16 @@ if (serverConst.dbstring) {
     app.get("/uf", async (c) => juush.handleUpload(c));
     app.post("/uf", async (c) => juush.handleUpload(c));
     app.put("/uf", async (c) => juush.handleUpload(c));
+
     // New user
     app.get("/nuser/:name", async (c) => juush.handleNewUser(c));
-
-    // Not-found → git (after juush routes mounted)
-    app.notFound((c) => c.redirect("//github.com/John2143/", 301));
 }
+
+// Start HTTP server — all routes must be registered FIRST
+const port = Number(serverConst.HTTPPORT) || 3000;
+serverLog(`Starting http server on ${port}`);
+serve({
+    fetch: app.fetch,
+    port,
+    hostname: serverConst.IP || "0.0.0.0",
+});
