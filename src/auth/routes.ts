@@ -85,12 +85,20 @@ async function upsertUser(provider: OAuthProvider, oauthData: Record<string, unk
         is_admin = adminIds.includes(String(oauthData.id));
     }
 
+    // Generate a random juush_user_id (8-9 digit number, unique)
+    let juush_user_id: number;
+    for (let attempts = 0; attempts < 10; attempts++) {
+        juush_user_id = 10000000 + Math.floor(Math.random() * 90000000);
+        const clash = await query.users.findOne({ juush_user_id }, { projection: { _id: 1 } });
+        if (!clash) break;
+    }
+
     const userDoc: any = {
         _id: randomStr(10),
         username,
         primary_provider: provider.id,
         oauth: { [provider.id]: oauthData },
-        juush_user_id: await query.counter("keyid"),
+        juush_user_id,
         key: randomStr(32),
         display_name: provider.suggestUsername(userinfoResponse || oauthData),
         autohide: false,
