@@ -12,7 +12,7 @@ export { startdb };
 
 // --- Download handler ---
 export async function handleDownload(c: Context) {
-    const res = createCompatRes();
+    const res = createCompatRes(c);
     const reqx = createCompatReqx(c, res);
     try {
         await downloadOriginal(null as any, { ...reqx, res });
