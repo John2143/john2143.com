@@ -153,6 +153,13 @@ export async function handleMergeApply(
         setFields["_merged_keys"] = mergedKeys;
     }
 
+    // Clear source's oauth BEFORE setting oauth on target → avoids unique index conflict
+    // (oauth.pocketid.sub_1 and oauth.discord.id_1 are unique sparse indexes)
+    await usersCol.updateOne(
+        { _id: sourceId },
+        { $unset: { oauth: "" } },
+    );
+
     await usersCol.updateOne({ _id: targetId }, { $set: setFields });
 
     // Migrate index entries from source → target
