@@ -202,29 +202,38 @@ export async function startdb() {
     await query.sessions.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 });
     await query.oauth_states.createIndex({ created_at: 1 }, { expireAfterSeconds: 600 }); // 10min TTL
 
-    // Migrate legacy "keys" collection → "users" (idempotent)
-    const oldKeys = await legacyKeysCol.find({}).toArray();
-    let migrated = 0;
-    for (const key of oldKeys) {
-        const existing = await query.users.findOne({ juush_user_id: key._id });
-        if (existing) continue;
-        await query.users.insertOne({
-            _id: randomStr(10),
-            juush_user_id: key._id,
-            username: "legacy_" + (key.name || "unknown"),
-            display_name: key.name || "unknown",
-            key: key.key,
-            autohide: key.autohide || false,
-            customURL: key.customURL || null,
-            primary_provider: null,
-            oauth: {},
-            is_admin: false,
-            disabled: false,
-            created_at: new Date(),
-        });
-        migrated++;
+    // Migrate legacy "keys" collection → "users" (idempotent, best-effort)
+    try {
+        const oldKeys = await legacyKeysCol.find({}).toArray();
+        let migrated = 0;
+        for (const key of oldKeys) {
+            try {
+                if (!key || key._id == null) continue;
+                const existing = await query.users.findOne({ juush_user_id: key._id });
+                if (existing) continue;
+                await query.users.insertOne({
+                    _id: randomStr(10) as any,
+                    juush_user_id: key._id,
+                    username: "legacy_" + (key.name || "unknown"),
+                    display_name: key.name || "unknown",
+                    key: key.key || null,
+                    autohide: key.autohide || false,
+                    customURL: key.customURL || null,
+                    primary_provider: null,
+                    oauth: {},
+                    is_admin: false,
+                    disabled: false,
+                    created_at: new Date(),
+                });
+                migrated++;
+            } catch (e) {
+                console.error("Failed to migrate key", key?._id, e);
+            }
+        }
+        if (migrated > 0) console.log(`Migrated ${migrated} legacy keys to users collection`);
+    } catch (e) {
+        console.error("Legacy keys migration failed (non-fatal):", e);
     }
-    if (migrated > 0) console.log(`Migrated ${migrated} legacy keys to users collection`);
     if(global.it) global.query = query;
 }
 
