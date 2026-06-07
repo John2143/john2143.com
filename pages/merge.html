@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Merge Users — Juush Admin</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <script src="https://use.fontawesome.com/ed4d2de3d2.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+body { padding: 20px; }
+.auth-section { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; max-width: 300px; }
+.btn-pocketid { background:#4f46e5; color:white; display:block; width:100%; padding:8px 16px; border:none; border-radius:6px; cursor:pointer; text-decoration:none; text-align:center; font-size:0.85rem; }
+.btn-discord { background:#5865f2; color:white; display:block; width:100%; padding:8px 16px; border:none; border-radius:6px; cursor:pointer; text-decoration:none; text-align:center; font-size:0.85rem; }
+.user-card { border:1px solid #ddd; border-radius:6px; padding:10px; margin:4px 0; cursor:pointer; transition:background 0.15s; }
+.user-card:hover { background:#f5f5f5; }
+.user-card.selected { background:#d4edda; border-color:#28a745; }
+.user-card.source { background:#f8d7da; border-color:#dc3545; }
+.search-box { width:100%; padding:10px; font-size:1rem; border:1px solid #ccc; border-radius:6px; margin-bottom:10px; }
+.diff-table { width:100%; border-collapse:collapse; margin:10px 0; }
+.diff-table th, .diff-table td { border:1px solid #ddd; padding:8px; text-align:left; }
+.diff-table th { background:#f5f5f5; }
+.diff-table tr.diff { background:#fff3cd; }
+.target-col { background:#d4edda; }
+.source-col { background:#f8d7da; }
+.diff-radio { margin:0 6px; }
+.result-box { margin-top:10px; padding:10px; border-radius:6px; }
+.result-box.success { background:#d4edda; border:1px solid #28a745; }
+.result-box.error { background:#f8d7da; border:1px solid #dc3545; }
+    </style>
+</head>
+<body>
+<div x-data="mergeApp()" x-init="init()" class="container">
+    <h1>Merge Users <small>Admin Panel</small></h1>
+    <hr>
+
+    <!-- State 1: Not logged in -->
+    <template x-if="!checked">
+        <p><i class="fa fa-spinner fa-spin"></i> Checking session...</p>
+    </template>
+
+    <template x-if="checked && !authUser">
+        <div>
+            <p>You need to log in as an admin to access this page.</p>
+            <div class="auth-section">
+                <a href="/auth/login/pocketid?redirect=/merge" class="btn-pocketid">Login with Pocket ID</a>
+                <a href="/auth/login/discord?redirect=/merge" class="btn-discord">Login with Discord</a>
+            </div>
+        </div>
+    </template>
+
+    <!-- State 2: Logged in, not admin -->
+    <template x-if="checked && authUser && !authUser.is_admin">
+        <div>
+            <p>You do not have permission to use this page.</p>
+            <p>You are logged in as <strong x-text="authUser.username || authUser.display_name"></strong> but you are not an admin.</p>
+            <a href="/user" class="btn btn-default">Go to User Page</a>
+        </div>
+    </template>
+
+    <!-- State 3: Logged in, admin — full interface -->
+    <template x-if="checked && authUser && authUser.is_admin">
+        <div>
+            <p>Logged in as <strong x-text="authUser.username || authUser.display_name"></strong>
+            (<a href="/auth/logout">logout</a>)</p>
+
+            <!-- Step 1: Search users -->
+            <h3>1. Search Users</h3>
+            <p>Search by key prefix, username, display name, juush_user_id, or OAuth email.</p>
+            <input type="text" class="search-box" placeholder="Type at least 2 characters to search..."
+                   x-model="searchQuery" @input.debounce.300ms="search()">
+
+            <template x-if="searching">
+                <p><i class="fa fa-spinner fa-spin"></i> Searching...</p>
+            </template>
+
+            <template x-if="!searching && searchResults.length > 0">
+                <div>
+                    <p><strong x-text="searchResults.length"></strong> result(s). Click a user to toggle selection.</p>
+
+                    <!-- Target selection -->
+                    <h4>Target (keep)</h4>
+                    <template x-for="u in searchResults" :key="u._id">
+                        <div class="user-card" :class="{ selected: targetUser?._id === u._id, source: sourceUser?._id === u._id }"
+                             @click="toggleSelect(u)">
+                            <strong x-text="u.display_name || u.username || '(unnamed)'"></strong>
+                            <span class="text-muted">
+                                <template x-if="u.juush_user_id">#<span x-text="u.juush_user_id"></span></template>
+                                <template x-if="u.key_prefix"> · key: <span x-text="u.key_prefix"></span></template>
+                                <template x-if="u.primary_provider"> · <span x-text="u.primary_provider"></span></template>
+                            </span>
+                            <span class="pull-right">
+                                <span x-show="targetUser?._id === u._id" class="label label-success">TARGET</span>
+                                <span x-show="sourceUser?._id === u._id" class="label label-danger">SOURCE</span>
+                            </span>
+                        </div>
+                    </template>
+
+                    <!-- Step 2: Preview -->
+                    <template x-if="targetUser && sourceUser">
+                        <div>
+                            <hr>
+                            <h3>2. Preview Merge</h3>
+                            <p>Target: <strong x-text="targetUser.display_name || targetUser.username"></strong>
+                               ← Source: <strong x-text="sourceUser.display_name || sourceUser.username"></strong></p>
+                            <button class="btn btn-primary" @click="preview()" :disabled="previewLoading">
+                                <i class="fa fa-search"></i> Preview Diff
+                            </button>
+                        </div>
+                    </template>
+                </div>
+            </template>
+
+            <template x-if="!searching && searchQuery.length >= 2 && searchResults.length === 0">
+                <p class="text-muted">No users found.</p>
+            </template>
+
+            <!-- Step 3: Diff and merge -->
+            <template x-if="previewData">
+                <div>
+                    <hr>
+                    <h3>3. Choose Fields</h3>
+                    <p>Select which user's values to keep for each differing field.</p>
+
+                    <table class="diff-table">
+                        <thead>
+                            <tr>
+                                <th>Field</th>
+                                <th class="target-col">Target</th>
+                                <th class="source-col">Source</th>
+                                <th>Keep</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Always-diff fields -->
+                            <tr :class="{ diff: previewData.diffs.includes('juush_user_id') }">
+                                <td>juush_user_id</td>
+                                <td class="target-col"><code><span x-text="previewData.user1.juush_user_id ?? '(none)'"></span></code></td>
+                                <td class="source-col"><code><span x-text="previewData.user2.juush_user_id ?? '(none)'"></span></code></td>
+                                <td class="text-muted"><i>auto: target keeps its ID</i></td>
+                            </tr>
+                            <tr :class="{ diff: previewData.diffs.includes('display_name') }">
+                                <td>display_name</td>
+                                <td class="target-col"><code><span x-text="previewData.user1.display_name ?? '(none)'"></span></code></td>
+                                <td class="source-col"><code><span x-text="previewData.user2.display_name ?? '(none)'"></span></code></td>
+                                <td>
+                                    <label><input type="radio" class="diff-radio" name="f_display_name" value="target" x-model="fieldChoices.display_name"> Target</label>
+                                    <label><input type="radio" class="diff-radio" name="f_display_name" value="source" x-model="fieldChoices.display_name"> Source</label>
+                                </td>
+                            </tr>
+                            <tr :class="{ diff: previewData.diffs.includes('username') }">
+                                <td>username</td>
+                                <td class="target-col"><code><span x-text="previewData.user1.username ?? '(none)'"></span></code></td>
+                                <td class="source-col"><code><span x-text="previewData.user2.username ?? '(none)'"></span></code></td>
+                                <td>
+                                    <label><input type="radio" class="diff-radio" name="f_username" value="target" x-model="fieldChoices.username"> Target</label>
+                                    <label><input type="radio" class="diff-radio" name="f_username" value="source" x-model="fieldChoices.username"> Source</label>
+                                </td>
+                            </tr>
+                            <tr :class="{ diff: previewData.diffs.includes('key') }">
+                                <td>key (API key)</td>
+                                <td class="target-col"><code><span x-text="previewData.user1.key_prefix ?? '(none)'"></span></code></td>
+                                <td class="source-col"><code><span x-text="previewData.user2.key_prefix ?? '(none)'"></span></code></td>
+                                <td>
+                                    <label><input type="radio" class="diff-radio" name="f_key" value="target" x-model="fieldChoices.key"> Target</label>
+                                    <label><input type="radio" class="diff-radio" name="f_key" value="source" x-model="fieldChoices.key"> Source</label>
+                                    <br><small class="text-muted">Source key is backed up in target's <code>_merged_keys</code></small>
+                                </td>
+                            </tr>
+                            <tr :class="{ diff: previewData.diffs.includes('autohide') }">
+                                <td>autohide</td>
+                                <td class="target-col"><code><span x-text="previewData.user1.autohide ?? 'false'"></span></code></td>
+                                <td class="source-col"><code><span x-text="previewData.user2.autohide ?? 'false'"></span></code></td>
+                                <td>
+                                    <label><input type="radio" class="diff-radio" name="f_autohide" value="target" x-model="fieldChoices.autohide"> Target</label>
+                                    <label><input type="radio" class="diff-radio" name="f_autohide" value="source" x-model="fieldChoices.autohide"> Source</label>
+                                </td>
+                            </tr>
+                            <tr :class="{ diff: previewData.diffs.includes('customURL') }">
+                                <td>customURL</td>
+                                <td class="target-col"><code><span x-text="previewData.user1.customURL ?? '(none)'"></span></code></td>
+                                <td class="source-col"><code><span x-text="previewData.user2.customURL ?? '(none)'"></span></code></td>
+                                <td>
+                                    <label><input type="radio" class="diff-radio" name="f_customURL" value="target" x-model="fieldChoices.customURL"> Target</label>
+                                    <label><input type="radio" class="diff-radio" name="f_customURL" value="source" x-model="fieldChoices.customURL"> Source</label>
+                                </td>
+                            </tr>
+                            <tr :class="{ diff: previewData.diffs.includes('primary_provider') }">
+                                <td>primary_provider</td>
+                                <td class="target-col"><code><span x-text="previewData.user1.primary_provider ?? '(none)'"></span></code></td>
+                                <td class="source-col"><code><span x-text="previewData.user2.primary_provider ?? '(none)'"></span></code></td>
+                                <td>
+                                    <label><input type="radio" class="diff-radio" name="f_primary_provider" value="target" x-model="fieldChoices.primary_provider"> Target</label>
+                                    <label><input type="radio" class="diff-radio" name="f_primary_provider" value="source" x-model="fieldChoices.primary_provider"> Source</label>
+                                </td>
+                            </tr>
+                            <tr :class="{ diff: previewData.diffs.includes('is_admin') }">
+                                <td>is_admin</td>
+                                <td class="target-col"><code><span x-text="previewData.user1.is_admin ?? 'false'"></span></code></td>
+                                <td class="source-col"><code><span x-text="previewData.user2.is_admin ?? 'false'"></span></code></td>
+                                <td class="text-muted"><i>auto: true if either is admin</i></td>
+                            </tr>
+                            <tr :class="{ diff: previewData.diffs.includes('disabled') }">
+                                <td>disabled</td>
+                                <td class="target-col"><code><span x-text="previewData.user1.disabled ?? 'false'"></span></code></td>
+                                <td class="source-col"><code><span x-text="previewData.user2.disabled ?? 'false'"></span></code></td>
+                                <td class="text-muted"><i>auto: true if either is disabled</i></td>
+                            </tr>
+                            <tr :class="{ diff: previewData.diffs.includes('oauth') }">
+                                <td>oauth providers</td>
+                                <td class="target-col"><code><span x-text="previewData.user1.oauth_providers?.join(', ') || '(none)'"></span></code></td>
+                                <td class="source-col"><code><span x-text="previewData.user2.oauth_providers?.join(', ') || '(none)'"></span></code></td>
+                                <td class="text-muted"><i>auto: both combined</i></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- Apply button -->
+                    <button class="btn btn-danger btn-lg" @click="confirmAndApply()" :disabled="applying">
+                        <i class="fa fa-compress"></i>
+                        <span x-text="applying ? 'Applying...' : 'Apply Merge'"></span>
+                    </button>
+                    <button class="btn btn-default" @click="reset()">Cancel</button>
+                </div>
+            </template>
+
+            <!-- Result display -->
+            <template x-if="result">
+                <div class="result-box" :class="result.success ? 'success' : 'error'">
+                    <template x-if="result.success">
+                        <div>
+                            <h4><i class="fa fa-check-circle"></i> Merge Successful</h4>
+                            <p>Target user updated. Source user disabled and marked as merged.</p>
+                            <pre x-text="JSON.stringify(result.target, null, 2)"></pre>
+                            <button class="btn btn-primary" @click="reset()">Perform Another Merge</button>
+                        </div>
+                    </template>
+                    <template x-if="!result.success">
+                        <div>
+                            <h4><i class="fa fa-times-circle"></i> Merge Failed</h4>
+                            <p x-text="result.error"></p>
+                            <button class="btn btn-default" @click="result = null">Dismiss</button>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </template>
+</div>
+
+<script>
+function mergeApp() {
+    return {
+        checked: false,
+        authUser: null,
+        searchQuery: '',
+        searching: false,
+        searchResults: [],
+        targetUser: null,
+        sourceUser: null,
+        previewLoading: false,
+        previewData: null,
+        fieldChoices: {
+            display_name: 'target',
+            username: 'target',
+            key: 'target',
+            autohide: 'target',
+            customURL: 'target',
+            primary_provider: 'target',
+        },
+        applying: false,
+        result: null,
+
+        async init() {
+            try {
+                const res = await fetch('/auth/me');
+                if (res.ok) this.authUser = await res.json();
+            } catch (e) {
+                // not logged in
+            }
+            this.checked = true;
+        },
+
+        async search() {
+            const q = this.searchQuery.trim();
+            if (q.length < 2) {
+                this.searchResults = [];
+                return;
+            }
+            this.searching = true;
+            try {
+                const res = await fetch('/juush/merge/search?q=' + encodeURIComponent(q));
+                if (!res.ok) {
+                    if (res.status === 401 || res.status === 403) {
+                        this.searchResults = [];
+                        return;
+                    }
+                    throw new Error('Search failed: ' + res.status);
+                }
+                this.searchResults = await res.json();
+            } catch (e) {
+                console.error('Search error', e);
+                this.searchResults = [];
+            }
+            this.searching = false;
+        },
+
+        toggleSelect(u) {
+            // If clicking the already-selected target, deselect
+            if (this.targetUser?._id === u._id) {
+                this.targetUser = null;
+                this.previewData = null;
+                return;
+            }
+            // If clicking the already-selected source, deselect
+            if (this.sourceUser?._id === u._id) {
+                this.sourceUser = null;
+                this.previewData = null;
+                return;
+            }
+            // If no target yet, set as target
+            if (!this.targetUser) {
+                this.targetUser = u;
+                return;
+            }
+            // If this would make target === source, swap source to target
+            if (this.sourceUser?._id === u._id) {
+                return; // already handled above
+            }
+            // Set as source
+            this.sourceUser = u;
+            this.previewData = null;
+        },
+
+        async preview() {
+            if (!this.targetUser || !this.sourceUser) return;
+            this.previewLoading = true;
+            try {
+                const res = await fetch(`/juush/merge/preview/${this.targetUser._id}/${this.sourceUser._id}`);
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ error: 'Preview failed' }));
+                    this.result = { success: false, error: err.error || 'Preview failed' };
+                    this.previewLoading = false;
+                    return;
+                }
+                this.previewData = await res.json();
+            } catch (e) {
+                this.result = { success: false, error: e.message };
+            }
+            this.previewLoading = false;
+        },
+
+        confirmAndApply() {
+            if (!confirm('Are you sure you want to merge "' +
+                (this.sourceUser.display_name || this.sourceUser.username) +
+                '" into "' +
+                (this.targetUser.display_name || this.targetUser.username) +
+                '"? This cannot be undone easily.')) {
+                return;
+            }
+            this.apply();
+        },
+
+        async apply() {
+            this.applying = true;
+            this.result = null;
+            try {
+                const res = await fetch('/juush/merge/apply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        targetId: this.targetUser._id,
+                        sourceId: this.sourceUser._id,
+                        fieldChoices: this.fieldChoices,
+                    }),
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ error: 'Merge failed: ' + res.status }));
+                    this.result = { success: false, error: err.error || 'Merge failed' };
+                    this.applying = false;
+                    return;
+                }
+                this.result = await res.json();
+            } catch (e) {
+                this.result = { success: false, error: e.message };
+            }
+            this.applying = false;
+        },
+
+        reset() {
+            this.searchQuery = '';
+            this.searchResults = [];
+            this.targetUser = null;
+            this.sourceUser = null;
+            this.previewData = null;
+            this.result = null;
+            this.fieldChoices = {
+                display_name: 'target',
+                username: 'target',
+                key: 'target',
+                autohide: 'target',
+                customURL: 'target',
+                primary_provider: 'target',
+            };
+        },
+    };
+}
+</script>
+</body>
+</html>

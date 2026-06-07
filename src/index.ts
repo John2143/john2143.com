@@ -88,8 +88,24 @@ app.notFound((c) => c.redirect("//github.com/John2143/", 301));
 // Register juush routes BEFORE serve() — Hono locks its matcher on first fetch
 if (serverConst.dbstring) {
     const juush = await import("./juush/index.js");
+    const juushMerge = await import("./juush/merge.js");
 
     const juushAPI = new Hono();
+
+    // Admin session check for merge endpoints
+    const requireMergeAdmin = async (c: any) => {
+        try {
+            const { requireUser } = await import("./auth/middleware.js");
+            const { createCompatReqx } = await import("./juush/compat.js");
+            const user = await requireUser(createCompatReqx(c));
+            if (!user) return c.json({ error: "Not authenticated" }, 401);
+            if (!user.is_admin) return c.json({ error: "You must be an admin" }, 403);
+            return null;
+        } catch {
+            return c.json({ error: "Not authenticated" }, 401);
+        }
+    };
+
     juushAPI.get("/whoami", (c) => juush.handleWhoami(c));
     juushAPI.get("/users", (c) => juush.handleUsers(c));
     juushAPI.get("/uploads/:userid/:page?", (c) => juush.handleUploads(c));
@@ -97,6 +113,27 @@ if (serverConst.dbstring) {
     juushAPI.get("/deluser/:id", (c) => juush.handleDelUser(c));
     juushAPI.get("/isadmin", (c) => juush.handleIsAdmin(c));
     juushAPI.get("/usersetting/:id/:setting/:value", (c) => juush.handleUserSetting(c));
+
+    // Admin merge panel routes
+    juushAPI.get("/merge/search", async (c) => {
+        const auth = await requireMergeAdmin(c);
+        if (auth) return auth;
+        const { query } = await import("./juush/util.js");
+        return c.json(await juushMerge.handleMergeSearch(query.users, c.req.query("q") || ""));
+    });
+    juushAPI.get("/merge/preview/:id1/:id2", async (c) => {
+        const auth = await requireMergeAdmin(c);
+        if (auth) return auth;
+        const { query } = await import("./juush/util.js");
+        return c.json(await juushMerge.handleMergePreview(query.users, c.req.param("id1"), c.req.param("id2")));
+    });
+    juushAPI.post("/merge/apply", async (c) => {
+        const auth = await requireMergeAdmin(c);
+        if (auth) return auth;
+        const { query } = await import("./juush/util.js");
+        const body = await c.req.json();
+        return c.json(await juushMerge.handleMergeApply(query.users, query.index, body.targetId, body.sourceId, body.fieldChoices));
+    });
     app.route("/juush", juushAPI);
 
     // Download routes
