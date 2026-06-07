@@ -61,8 +61,11 @@ const serveStreamRequest = async function(reqx, uploadID, filepath, data){
 
     reqx.res.writeHead(206, { //Partial content
         "Content-Type": data?.mimetype || "application/octet-stream",
+        "Content-Disposition": "inline" + (data?.filename ? `; filename="${data.filename}"` : ""),
         "Content-Length": contentLength,
         "Content-Range": `bytes ${bytesString}`,
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "max-age=300",
     });
 
     let f = await fs.open(filepath, "r");
