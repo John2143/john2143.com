@@ -305,7 +305,7 @@ if(global.it){
     isAdmin = async (reqx: any) => {
         // Check OAuth session for is_admin flag
         try {
-            const { requireUser } = await import("../auth/middleware.js");
+            const requireUser = await getRequireUser();
             const user = await requireUser(reqx);
             if (user && user.is_admin) return true;
         } catch (_) {
@@ -314,7 +314,6 @@ if(global.it){
         return false;
     };
 }
-
 export const IPEqual = (a, b) => a && b && a.split("/")[0] === b.split("/")[0];
 export const getFilename = id => "./juushFiles/" + id;
 
@@ -349,10 +348,25 @@ export const setModifier = async (uploadID, modifier, value) => {
         }
     });
 };
+// Lazy-load requireUser to avoid repeated dynamic imports
+// (circular: middleware.ts imports query from here)
+let _requireUserFn: any = null;
+let _requireUserLoading: Promise<any> | null = null;
+async function getRequireUser(): Promise<any> {
+    if (_requireUserFn) return _requireUserFn;
+    if (!_requireUserLoading) {
+        _requireUserLoading = import("../auth/middleware.js").then(m => {
+            _requireUserFn = m.requireUser;
+            return _requireUserFn;
+        });
+    }
+    return _requireUserLoading;
+}
 
 export const whoami = async (c: any): Promise<number[]> => {
     try {
-        const { requireUser } = await import("../auth/middleware.js");
+        if (!query) return []; // DB not ready yet
+        const requireUser = await getRequireUser();
         const user = await requireUser(c);
         if (user?.juush_user_id != null) return [user.juush_user_id];
     } catch (_) {}

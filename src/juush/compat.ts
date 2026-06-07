@@ -82,7 +82,14 @@ export function createCompatRes(c?: Context): CompatRes {
         autoDestroy: true,
     });
 
+    // Prevent Node.js from crashing on stream errors (client disconnect, etc.)
+    writable.on("error", (_err: Error) => {
+        // Swallow — juush handlers manage their own error reporting
+    });
+
     const res = writable as CompatRes;
+
+
 
     res._headers = headers;
     res._statusCode = statusCode;
