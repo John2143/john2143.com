@@ -19,8 +19,6 @@ export async function handleDownload(c: Context) {
     } catch (e: any) {
         juushErrorCatch(res)(e);
     }
-    // Wait for streaming to finish (pipe may still be flowing)
-    await new Promise<void>((resolve) => res.on("finish", resolve));
     return flushCompatRes(c, res);
 }
 

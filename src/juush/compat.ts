@@ -1,11 +1,7 @@
 // Bridge between Hono Context and the old juush reqx/res API
 import type { Context } from "hono";
-import { Writable } from "node:stream";
+import { Writable, PassThrough } from "node:stream";
 import { Buffer } from "node:buffer";
-import { createReadStream, createWriteStream, unlinkSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { randomBytes } from "node:crypto";
 
 export interface CompatRes extends Writable {
     setHeader(name: string, value: string | number): void;
@@ -13,58 +9,25 @@ export interface CompatRes extends Writable {
     statusCode: number;
     _headers: Record<string, string>;
     _statusCode: number;
-    _chunks: Buffer[];
-    _responseReady: boolean;
-    _spillPath: string | null;
-    _spillStream: any | null;
-    _totalBytes: number;
+    _passthrough: PassThrough;
 }
 
-const MEMORY_LIMIT = 65536; // 64KB — buffer in memory, spill larger to disk
-
-// Create a response adapter. Buffers small responses in memory;
-// spills large ones (file downloads) to a temp file for streaming.
+// Create a response adapter that streams directly through a PassThrough.
+// Headers are captured via writeHead/setHeader and flushed to Hono.
+// Body bytes flow: file → passthrough → c.body(passthrough) → Hono → socket.
+// PassThrough's internal buffer (64KB highWaterMark) applies backpressure,
+// preventing unbounded memory growth.
 export function createCompatRes(): CompatRes {
-    const chunks: Buffer[] = [];
-    let statusCode = 200;
+    const passthrough = new PassThrough();
     const headers: Record<string, string> = {};
-    let responseReady = false;
-    let spillPath: string | null = null;
-    let spillStream: any = null;
-    let totalBytes = 0;
+    let statusCode = 200;
 
     const writable = new Writable({
         write(chunk: Buffer | string, _encoding: string, callback: (error?: Error | null) => void) {
-            const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-            totalBytes += buf.length;
-
-            if (spillStream) {
-                spillStream.write(buf, callback);
-            } else if (totalBytes > MEMORY_LIMIT) {
-                // Spill to disk — flush buffered chunks, then stream remainder
-                spillPath = join(tmpdir(), "juush-res-" + randomBytes(8).toString("hex"));
-                spillStream = createWriteStream(spillPath);
-                spillStream.on("error", () => {});
-                // Write buffered chunks to spill file
-                const drained = spillStream.write(Buffer.concat(chunks));
-                chunks.length = 0; // free memory
-                if (drained) {
-                    spillStream.write(buf, callback);
-                } else {
-                    spillStream.once("drain", () => spillStream.write(buf, callback));
-                }
-            } else {
-                chunks.push(buf);
-                callback();
-            }
+            passthrough.write(chunk, callback);
         },
         final(callback: (error?: Error | null) => void) {
-            responseReady = true;
-            if (spillStream) {
-                spillStream.end(callback);
-            } else {
-                callback();
-            }
+            passthrough.end(callback);
         },
         autoDestroy: true,
     });
@@ -73,16 +36,15 @@ export function createCompatRes(): CompatRes {
     writable.on("error", (_err: Error) => {
         // Swallow — juush handlers manage their own error reporting
     });
+    passthrough.on("error", (_err: Error) => {
+        // Client disconnect during streaming — safe to ignore
+    });
 
     const res = writable as CompatRes;
 
     res._headers = headers;
     res._statusCode = statusCode;
-    res._chunks = chunks;
-    res._responseReady = responseReady;
-    res._spillPath = spillPath;
-    res._spillStream = spillStream;
-    res._totalBytes = totalBytes;
+    res._passthrough = passthrough;
     res.statusCode = 200;
 
     res.setHeader = function(name: string, value: string | number) {
@@ -103,7 +65,8 @@ export function createCompatRes(): CompatRes {
 }
 
 // Flush the compat response to Hono Context.
-// Small responses: in-memory Buffer. Large: streamed from disk.
+// Returns a streaming Response — the PassThrough is piped directly by Hono.
+// Node.js stream backpressure ensures only 64KB is ever buffered.
 export function flushCompatRes(c: Context, res: CompatRes): Response {
     for (const [name, value] of Object.entries(res._headers)) {
         if (name === "transfer-encoding") continue;
@@ -111,36 +74,7 @@ export function flushCompatRes(c: Context, res: CompatRes): Response {
     }
     c.status(res._statusCode as any);
 
-    const spillPath = (res as CompatRes)._spillPath;
-
-    if (spillPath && existsSync(spillPath)) {
-        // Large response — stream from temp file, clean up after
-        const stream = createReadStream(spillPath, { autoClose: true });
-        stream.on("close", () => {
-            try { unlinkSync(spillPath); } catch (_) {}
-        });
-        stream.on("error", () => {
-            try { unlinkSync(spillPath); } catch (_) {}
-        });
-        // Convert Node.js Readable to Web ReadableStream for Hono
-        const webStream = new ReadableStream({
-            start(controller) {
-                stream.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
-                stream.on("end", () => controller.close());
-                stream.on("error", (err: Error) => controller.error(err));
-            },
-            cancel() {
-                stream.destroy();
-            },
-        });
-        return c.body(webStream);
-    }
-
-    if (res._chunks.length > 0) {
-        const body = Buffer.concat(res._chunks);
-        return c.body(body);
-    }
-    return c.body(null);
+    return c.body(res._passthrough as any);
 }
 
 // Create a compat reqx object from Hono Context
