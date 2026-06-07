@@ -111,8 +111,6 @@ if (serverConst.dbstring) {
     app.post("/uf", async (c) => juush.handleUpload(c));
     app.put("/uf", async (c) => juush.handleUpload(c));
 
-    // New user
-    app.get("/nuser/:name", async (c) => juush.handleNewUser(c));
 }
 
 // Start HTTP server — all routes must be registered FIRST

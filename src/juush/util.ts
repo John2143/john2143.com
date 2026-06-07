@@ -20,7 +20,6 @@ export let mongoclient = new MongoClient(serverConst.dbstring);
 export let query;
 
 export let db_index;
-export let db_keys;
 
 export let s3_client: S3Client;
 export let minio_client: S3Client;
@@ -166,11 +165,11 @@ export async function startdb() {
 
     const counters = db.collection("counters");
     console.log("Connected to database.");
-    db_keys = db.collection("keys");
     db_index = db.collection("index");
+    const legacyKeysCol = db.collection("keys"); // old collection — for one-time migration
 
     query = {
-        keys: db.collection("keys"),
+        keys: db.collection("users"),
         index: db.collection("index"),
         users: db.collection("users"),
         sessions: db.collection("sessions"),
@@ -198,10 +197,34 @@ export async function startdb() {
     // Ensure OAuth indexes
     await query.users.createIndex({ "oauth.pocketid.sub": 1 }, { unique: true, sparse: true });
     await query.users.createIndex({ "oauth.discord.id": 1 }, { unique: true, sparse: true });
-    await query.users.createIndex({ juush_user_id: 1 }, { sparse: true });
+    await query.users.createIndex({ juush_user_id: 1 }, { unique: true, sparse: true });
+    await query.users.createIndex({ key: 1 }, { unique: true, sparse: true });
     await query.sessions.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 });
     await query.oauth_states.createIndex({ created_at: 1 }, { expireAfterSeconds: 600 }); // 10min TTL
 
+    // Migrate legacy "keys" collection → "users" (idempotent)
+    const oldKeys = await legacyKeysCol.find({}).toArray();
+    let migrated = 0;
+    for (const key of oldKeys) {
+        const existing = await query.users.findOne({ juush_user_id: key._id });
+        if (existing) continue;
+        await query.users.insertOne({
+            _id: randomStr(10),
+            juush_user_id: key._id,
+            username: "legacy_" + (key.name || "unknown"),
+            display_name: key.name || "unknown",
+            key: key.key,
+            autohide: key.autohide || false,
+            customURL: key.customURL || null,
+            primary_provider: null,
+            oauth: {},
+            is_admin: false,
+            disabled: false,
+            created_at: new Date(),
+        });
+        migrated++;
+    }
+    if (migrated > 0) console.log(`Migrated ${migrated} legacy keys to users collection`);
     if(global.it) global.query = query;
 }
 
@@ -257,9 +280,8 @@ if(global.it){
     global.testIsAdmin = true;
     isAdmin = _reqx => global.testIsAdmin;
 }else{
-    const ADMIN_KEY = process.env.ADMIN_KEY;
     isAdmin = async (reqx: any) => {
-        // First check OAuth session for is_admin flag
+        // Check OAuth session for is_admin flag
         try {
             const { requireUser } = await import("../auth/middleware.js");
             const user = await requireUser(reqx);
@@ -267,8 +289,6 @@ if(global.it){
         } catch (_) {
             // Middleware not available (before DB init) — fall through
         }
-        // Fallback: legacy admin_key query param
-        if (ADMIN_KEY && reqx.urldata.query.admin_key === ADMIN_KEY) return true;
         return false;
     };
 }
@@ -308,4 +328,11 @@ export const setModifier = async (uploadID, modifier, value) => {
     });
 };
 
-export const whoami = async ip => (await query.index.distinct("keyid", {ip}));
+export const whoami = async (c: any): Promise<number[]> => {
+    try {
+        const { requireUser } = await import("../auth/middleware.js");
+        const user = await requireUser(c);
+        if (user?.juush_user_id != null) return [user.juush_user_id];
+    } catch (_) {}
+    return [];
+};

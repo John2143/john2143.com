@@ -25,15 +25,25 @@ describe("Database + server", function(){
     });
 
     it("should be able to make new users", async function(){
-        let user;
-        user = await req().get("/nuser/use");
-        user.body.should.be.ok;
-        user = await req().get("/nuser/user2");
-        user.body.should.be.ok;
-        user = await req().get("/nuser/user3");
-        user.body.should.be.ok;
+        // Insert 3 test users directly (newuser route removed — keys auto-created on OAuth login)
+        for (let i = 1; i <= 3; i++) {
+            await query.users.insertOne({
+                _id: "test_runner_id_" + i,
+                juush_user_id: i,
+                username: "test_user" + i,
+                display_name: i === 1 ? "use" : "user" + i,
+                key: Math.random().toString(36).slice(2),
+                autohide: false,
+                customURL: null,
+                primary_provider: null,
+                oauth: {},
+                is_admin: false,
+                disabled: false,
+                created_at: new Date(),
+            });
+        }
 
-        await query.keys.updateOne({_id: 1}, {$set:{"key": uploadKey}});
+        await query.users.updateOne({juush_user_id: 1}, {$set: {"key": uploadKey}});
     });
 
 describe("API", function(){
@@ -169,7 +179,7 @@ describe("Upload/Download", function(){
 
         it("autohide should work", async function(){
             await req().get("/juush/usersetting/1/autohide/true");
-            let user = await query.keys.findOne({_id: 1});
+            let user = await query.users.findOne({juush_user_id: 1});
             if(!user.autohide) throw "didnt stick";
             let res = await req().post("/uf").attach(uploadKey, Buffer.from(""), "autohide test");
             let item = await query.index.findOne({_id: res.text.split("/").pop()});
@@ -400,11 +410,7 @@ describe("error", function(){
     });
 
     it("upload errors");
-    it("should not be able to make new users", async function(){
-        global.testIsAdmin = false;
-        return req().get("/nuser/user2")
-            .should.eventually.be.rejected;
-    });
+
 });
 
 });

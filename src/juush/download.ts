@@ -389,7 +389,7 @@ const download = async function(server, reqx){
             return;
         }
 
-        const user = await U.query.keys.findOne({_id: data.keyid});
+        const user = await U.query.users.findOne({juush_user_id: data.keyid});
         const esc = (s: string) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
         res.writeHead(200, {
@@ -397,7 +397,7 @@ const download = async function(server, reqx){
         });
         res.write("Filename: " + esc(data.filename));
         res.write("<br>Upload date: " + data.uploaddate);
-        res.write("<br>Uploaded by: " + esc(user.name));
+        res.write("<br>Uploaded by: " + esc(user.display_name));
         res.write("<br>Downloads: " + data.downloads);
         res.write("<br>File Type: " + esc(data.mimetype));
         res.end();

@@ -1,13 +1,12 @@
 import { serverLog } from "../logger.js";
 
 import { Readable } from "node:stream";
-import { startdb, query, whoami, isAdmin, juushErrorCatch, randomStr } from "./util.js";
+import { startdb, query, whoami, juushErrorCatch, randomStr } from "./util.js";
 import { createCompatRes, flushCompatRes, createCompatReqx } from "./compat.js";
 import type { Context } from "hono";
 
 import downloadOriginal from "./download.js";
 import uploadOriginal from "./upload.js";
-import newUserOriginal from "./newuser.js";
 
 export { startdb };
 
@@ -63,32 +62,7 @@ export async function handleUpload(c: Context) {
     return flushCompatRes(c, res);
 }
 
-// --- NewUser handler ---
-export async function handleNewUser(c: Context) {
-    const reqx = createCompatReqx(c);
-    const res = createCompatRes();
 
-    if (await isAdminCompat(c)) {
-        const key = randomStr(32);
-        const name = c.req.param("name");
-        try {
-            await query.keys.insertOne({
-                name, key,
-                _id: await query.counter("keyid"),
-            });
-            serverLog("A new user has been created", name, key);
-            res.setHeader("Content-Type", "text/plain");
-            res.end(key);
-        } catch (e: any) {
-            juushErrorCatch(res)(e);
-        }
-    } else {
-        res.writeHead(401, { "Content-Type": "text/html" });
-        res.end("You cannot make users");
-    }
-    await new Promise<void>((resolve) => res.on("finish", resolve));
-    return flushCompatRes(c, res);
-}
 
 // --- Juush API handlers (rewritten for Hono) ---
 
@@ -103,15 +77,14 @@ interface UploadEntry {
 
 // /juush/whoami
 export async function handleWhoami(c: Context) {
-    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
-    const users = await whoami(ip);
+    const users = await whoami(c);
     return c.json(users);
 }
 
 // /juush/users
 export async function handleUsers(c: Context) {
-    const users = await query.keys.find({}, { projection: { _id: 1, name: 1 } }).toArray();
-    return c.json(users);
+    const users = await query.users.find({}, { projection: { juush_user_id: 1, display_name: 1 } }).toArray();
+    return c.json(users.map(u => ({ _id: u.juush_user_id, name: u.display_name })));
 }
 
 // /juush/uploads/:userid/:page?
@@ -122,11 +95,9 @@ export async function handleUploads(c: Context) {
 
     const queryObj: any = { keyid: userid };
 
-    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
-
     // Hidden uploads check
     if (c.req.query("hidden")) {
-        const userlist = await whoami(ip);
+        const userlist = await whoami(c);
         const isUserAdmin = await isAdminCompat(c);
         if (!userlist.includes(userid) && !isUserAdmin) {
             return c.text("You cannot see hidden uploads for this user", 403);
@@ -145,10 +116,9 @@ export async function handleUploads(c: Context) {
 // /juush/userinfo/:id
 export async function handleUserInfo(c: Context) {
     const _id = Number(c.req.param("id"));
-    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
 
     try {
-        const projection: any = { name: 1, autohide: 1, customURL: 1 };
+        const projection: any = { display_name: 1, autohide: 1, customURL: 1 };
 
         if (c.req.query("key")) {
             const isUserAdmin = await isAdminCompat(c);
@@ -158,7 +128,7 @@ export async function handleUserInfo(c: Context) {
             projection.key = 1;
         }
 
-        const user = await query.keys.findOne({ _id }, { projection });
+        const user = await query.users.findOne({ juush_user_id: _id }, { projection });
 
         if (!user) {
             return c.json({ error: `User ${_id} not found` });
@@ -174,10 +144,10 @@ export async function handleUserInfo(c: Context) {
             .next() || ({} as any);
 
         return c.json({
-            name: user.name,
-            key: (user as any).key,
-            customURL: (user as any).customURL,
-            autohide: (user as any).autohide,
+            name: user.display_name,
+            key: user.key,
+            customURL: user.customURL,
+            autohide: user.autohide,
             downloads: stats.total || 0,
             total: stats.count || 0,
         });
@@ -195,21 +165,26 @@ export async function handleDelUser(c: Context) {
     }
 
     const _id = Number(c.req.param("id"));
-    const result = await query.keys.deleteOne({ _id });
+    const result = await query.users.deleteOne({ juush_user_id: _id });
     return c.json({ success: result.deletedCount >= 1 });
 }
 
 // /juush/isadmin
 export async function handleIsAdmin(c: Context) {
-    return c.text("false");
+    try {
+        const { requireUser } = await import("../auth/middleware.js");
+        const user = await requireUser(createCompatReqx(c));
+        return c.text(user?.is_admin ? "true" : "false");
+    } catch {
+        return c.text("false");
+    }
 }
 
 // /juush/usersetting/:id/:setting/:value
 export async function handleUserSetting(c: Context) {
     const _id = Number(c.req.param("id"));
-    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
 
-    const userlist = await whoami(ip);
+    const userlist = await whoami(c);
     if (!userlist.includes(_id)) {
         return c.text("You cannot change settings for this user", 403);
     }
@@ -219,7 +194,7 @@ export async function handleUserSetting(c: Context) {
 
     if (setting === "autohide") {
         const newvalue = value === "true";
-        await query.keys.updateOne({ _id }, { $set: { autohide: newvalue } });
+        await query.users.updateOne({ juush_user_id: _id }, { $set: { autohide: newvalue } });
         serverLog(`setting changed for ${_id}: '${setting}' = '${newvalue}'`);
         return c.text(`setting changed for ${_id}: '${setting}' = '${newvalue}'`);
     }
@@ -227,17 +202,15 @@ export async function handleUserSetting(c: Context) {
     return c.text("unknown option", 405);
 }
 
-// Admin check — try OAuth session, fall back to query param
+// Admin check — OAuth session (with test mode support)
 async function isAdminCompat(c: Context): Promise<boolean> {
-    // Try OAuth session first
+    if ((globalThis as any).testIsAdmin !== undefined) return (globalThis as any).testIsAdmin;
     try {
         const { requireUser } = await import("../auth/middleware.js");
         const reqx = createCompatReqx(c);
         const user = await requireUser(reqx);
-        if (user?.is_admin) return true;
+        return user?.is_admin === true;
     } catch {
-        // OAuth not initialized or no session
+        return false;
     }
-    // Fall back to query param (legacy)
-    return false;
 }

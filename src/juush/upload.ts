@@ -546,7 +546,7 @@ export default async function(server, reqx){
             //Check the uploaders key (Sharex passes this as 'name="xxxx"')
             //console.log(headers);
             const ip = reqx.req.socket.remoteAddress;
-            U.query.keys.findOne({key: headers.key}).then(item => {
+            U.query.users.findOne({key: headers.key}).then(item => {
                 if(!item) {
                     error("You must supply a valid key in order to upload.");
                     return;
@@ -560,7 +560,7 @@ export default async function(server, reqx){
                 //     headerSize: 193
                 // }
                 //console.log(reqx.req.headers);
-                reqx.extraLog = url.green + " " + String(item.name).blue + " " + String(humanFileSize(headers.contentLength)).blue;
+                reqx.extraLog = url.green + " " + String(item.display_name).blue + " " + String(humanFileSize(headers.contentLength)).blue;
                 returnPromise.resolve();
 
                 // Global per-domain URL mapping (replaces per-user customURL)
@@ -586,7 +586,7 @@ export default async function(server, reqx){
                     _id: url, uploaddate: new Date(), ip,
                     filename: headers.filename || "upload.bin",
                     mimetype: headers.mimetype || "application/octet-stream",
-                    keyid: item._id,
+                    keyid: item.juush_user_id,
                     modifiers,
                     downloads: 0,
                 };

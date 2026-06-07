@@ -57,7 +57,7 @@
                     <div class="list-group-item">
                         <select x-model="selectedId" x-on:change="onSelectChange" :class="{dank: memify}">
                             <template x-for="user in users" :key="user._id">
-                                <option :value="user._id" x-text="user.name"></option>
+                                <option :value="user._id" x-text="user.display_name || user.name"></option>
                             </template>
                         </select><br>
                     </div>
@@ -105,9 +105,6 @@
                             <div class="list-group-item list-group-item-info">Logged in</div>
                             <div class="list-group-item">
                                 <i class="fa fa-fw fa-user"></i> <span x-text="authUser.username"></span>
-                            </div>
-                            <div class="list-group-item" x-show="authUser.juush_user_id === null">
-                                <em>No juush account linked</em>
                             </div>
                             <a href="/auth/logout" class="list-group-item list-group-item-action">Logout</a>
                         </ul>
