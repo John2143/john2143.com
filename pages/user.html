@@ -95,6 +95,7 @@
                     <div class="auth-section">
                         <a href="/auth/login/pocketid?redirect=/user" class="btn-pocketid">Login with Pocket ID</a>
                         <a href="/auth/login/discord?redirect=/user" class="btn-discord">Login with Discord</a>
+                        <a href="https://au.2143.me?redirect=https://2143.me/user" class="btn btn-default" style="display:block;width:100%;padding:8px 16px;border-radius:6px;text-decoration:none;text-align:center;font-size:0.85rem;color:#333;">Create Account</a>
                     </div>
                 </template>
 
@@ -132,6 +133,7 @@
                             <div class="list-group-item list-group-item-info">Admin Menu</div>
                             <button class="list-group-item list-group-item-action list-group-item-default" @click="toggleHidden()" :class="{'active': adminShowHidden}">Show Hidden</button>
                             <button class="list-group-item list-group-item-action list-group-item-danger" @click="deleteThisUser()">Delete this user</button>
+                            <a href="/merge" class="list-group-item list-group-item-action list-group-item-warning">Merge Users</a>
                         </ul>
                     </div>
                 </template>
