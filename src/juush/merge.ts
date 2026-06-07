@@ -172,10 +172,13 @@ export async function handleMergeApply(
         serverLog(`Merge index migration: ${idxResult.modifiedCount} entries moved from ${source.juush_user_id} to ${target.juush_user_id}`);
     }
 
-    // Mark source as merged
+    // Mark source as merged — clear juush_user_id so it disappears from the dropdown
     await usersCol.updateOne(
         { _id: sourceId },
-        { $set: { _merged_into: targetId, disabled: true } },
+        {
+            $set: { _merged_into: targetId, disabled: true },
+            $unset: { juush_user_id: "" },
+        },
     );
 
     const updatedTarget = await usersCol.findOne({ _id: targetId });

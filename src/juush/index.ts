@@ -82,7 +82,7 @@ export async function handleWhoami(c: Context) {
 // /juush/users
 export async function handleUsers(c: Context) {
     const users = await query.users.find(
-        { juush_user_id: { $ne: null }, display_name: { $exists: true } },
+        { juush_user_id: { $ne: null }, display_name: { $exists: true }, disabled: { $ne: true } },
         { projection: { juush_user_id: 1, display_name: 1 } }
     ).toArray();
     return c.json(users.map(u => ({ _id: u.juush_user_id, name: u.display_name })));
