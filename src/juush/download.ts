@@ -68,7 +68,8 @@ const serveStreamRequest = async function(reqx, uploadID, filepath){
 
     let f = await fs.open(filepath, "r");
     const filePipe = f.createReadStream({start: rangeStart, end: rangeEnd});
-    reqx.res.on("error", () => filePipe.end());
+    reqx.res.on("error", () => { try { filePipe.destroy(); } catch (_) {} });
+    filePipe.on("close", () => { void f.close().catch(() => {}); });
     filePipe.pipe(reqx.res);
 };
 
@@ -299,6 +300,7 @@ const processDownload = async function(reqx, data, disposition){
     //Stream file from disk directly
     let f = await fs.open(filepath, "r");
     const stream = f.createReadStream();
+    stream.on("close", () => { void f.close().catch(() => {}); });
     stream.pipe(reqx.res);
 };
 
