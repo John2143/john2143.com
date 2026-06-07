@@ -212,7 +212,7 @@ export async function startdb() {
     await safeCreateIndex(query.users, { "oauth.pocketid.sub": 1 }, { unique: true, sparse: true });
     await safeCreateIndex(query.users, { "oauth.discord.id": 1 }, { unique: true, sparse: true });
     await safeCreateIndex(query.users, { juush_user_id: 1 }, { unique: true, partialFilterExpression: { juush_user_id: { $type: "number" } } });
-    await safeCreateIndex(query.users, { key: 1 }, { unique: true, partialFilterExpression: { key: { $exists: true, $ne: null } } });
+    await safeCreateIndex(query.users, { key: 1 }, { unique: true, partialFilterExpression: { key: { $exists: true } } });
     await safeCreateIndex(query.sessions, { expires_at: 1 }, { expireAfterSeconds: 0 });
     await safeCreateIndex(query.oauth_states, { created_at: 1 }, { expireAfterSeconds: 600 });
     // Migrate legacy "keys" collection → "users" (idempotent, best-effort)
