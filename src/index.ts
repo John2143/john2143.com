@@ -85,38 +85,7 @@ app.route("/auth", authRoutes);
 // Default not-found → git redirect
 app.notFound((c) => c.redirect("//github.com/John2143/", 301));
 
-// Mount juush routes after DB connection
-if (serverConst.dbstring) {
-    try {
-        const juush = await import("./juush/index.js");
-        await juush.startdb();
-        serverLog("Creating juush");
-
-        // Juush API — MUST be before generic download catch-all
-        const juushAPI = new Hono();
-        juushAPI.get("/whoami", (c) => juush.handleWhoami(c));
-        juushAPI.get("/users", (c) => juush.handleUsers(c));
-        juushAPI.get("/uploads/:userid/:page?", (c) => juush.handleUploads(c));
-        juushAPI.get("/userinfo/:id", (c) => juush.handleUserInfo(c));
-        juushAPI.get("/deluser/:id", (c) => juush.handleDelUser(c));
-        juushAPI.get("/isadmin", (c) => juush.handleIsAdmin(c));
-        juushAPI.get("/usersetting/:id/:setting/:value", (c) => juush.handleUserSetting(c));
-        app.route("/juush", juushAPI);
-
-        // Download routes
-        app.get("/f/:id{.*}", async (c) => juush.handleDownload(c));
-        app.get("/:name{[^/]+}/:filename", async (c) => juush.handleDownload(c));
-
-        // Upload — accepts GET, POST, PUT (juush client uses PUT)
-        app.get("/uf", async (c) => juush.handleUpload(c));
-        app.post("/uf", async (c) => juush.handleUpload(c));
-        app.put("/uf", async (c) => juush.handleUpload(c));
-    } catch (e) {
-        serverLog("Failed to start juush (DB not available?)", e);
-    }
-}
-
-// Start HTTP server — all routes must be registered FIRST
+// Start HTTP server immediately — health check must respond before DB connects
 const port = Number(serverConst.HTTPPORT) || 3000;
 serverLog(`Starting http server on ${port}`);
 serve({
@@ -124,3 +93,38 @@ serve({
     port,
     hostname: serverConst.IP || "0.0.0.0",
 });
+
+// Mount juush routes after DB connection (async — non-blocking for health probe)
+if (serverConst.dbstring) {
+    (async () => {
+        try {
+            const juush = await import("./juush/index.js");
+            await juush.startdb();
+            serverLog("Creating juush");
+
+            // Juush API — MUST be before generic download catch-all
+            const juushAPI = new Hono();
+            juushAPI.get("/whoami", (c) => juush.handleWhoami(c));
+            juushAPI.get("/users", (c) => juush.handleUsers(c));
+            juushAPI.get("/uploads/:userid/:page?", (c) => juush.handleUploads(c));
+            juushAPI.get("/userinfo/:id", (c) => juush.handleUserInfo(c));
+            juushAPI.get("/deluser/:id", (c) => juush.handleDelUser(c));
+            juushAPI.get("/isadmin", (c) => juush.handleIsAdmin(c));
+            juushAPI.get("/usersetting/:id/:setting/:value", (c) => juush.handleUserSetting(c));
+            app.route("/juush", juushAPI);
+
+            // Download routes
+            app.get("/f/:id{.*}", async (c) => juush.handleDownload(c));
+            app.get("/:name{[^/]+}/:filename", async (c) => juush.handleDownload(c));
+
+            // Upload — accepts GET, POST, PUT (juush client uses PUT)
+            app.get("/uf", async (c) => juush.handleUpload(c));
+            app.post("/uf", async (c) => juush.handleUpload(c));
+            app.put("/uf", async (c) => juush.handleUpload(c));
+
+            serverLog("Juush routes mounted");
+        } catch (e) {
+            serverLog("Failed to start juush (DB not available?)", e);
+        }
+    })();
+}
