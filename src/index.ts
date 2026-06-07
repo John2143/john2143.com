@@ -148,6 +148,10 @@ if (serverConst.dbstring) {
     // Connect to DB in background (non-blocking for health probe)
     juush.startdb().then(() => {
         serverLog("Juush DB ready, routes active");
+        // Start the disk cache pruner (periodic scoring-based cleanup)
+        import("./juush/prune.js").then(m => m.startPruner()).catch(e =>
+            serverLog("Failed to start pruner", e)
+        );
     }).catch((e: any) => {
         serverLog("Failed to start juush DB", e);
     });
