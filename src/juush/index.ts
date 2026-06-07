@@ -12,7 +12,7 @@ export { startdb };
 
 // --- Download handler ---
 export async function handleDownload(c: Context) {
-    const res = createCompatRes(c);
+    const res = createCompatRes();
     const reqx = createCompatReqx(c, res);
     try {
         await downloadOriginal(null as any, { ...reqx, res });
@@ -83,7 +83,10 @@ export async function handleWhoami(c: Context) {
 
 // /juush/users
 export async function handleUsers(c: Context) {
-    const users = await query.users.find({}, { projection: { juush_user_id: 1, display_name: 1 } }).toArray();
+    const users = await query.users.find(
+        { juush_user_id: { $ne: null }, display_name: { $exists: true } },
+        { projection: { juush_user_id: 1, display_name: 1 } }
+    ).toArray();
     return c.json(users.map(u => ({ _id: u.juush_user_id, name: u.display_name })));
 }
 

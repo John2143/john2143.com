@@ -66,6 +66,7 @@ async function upsertUser(provider: OAuthProvider, oauthData: Record<string, unk
             setFields.is_admin = groups.includes(adminGroup);
         }
 
+
         await query.users.updateOne({ _id: existing._id }, { $set: setFields });
         return existing;
     }

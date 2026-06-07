@@ -2,7 +2,6 @@
 import type { Context } from "hono";
 import { Writable } from "node:stream";
 import { Buffer } from "node:buffer";
-import { stream } from "hono/streaming";
 
 export interface CompatRes extends Writable {
     setHeader(name: string, value: string | number): void;
@@ -12,72 +11,27 @@ export interface CompatRes extends Writable {
     _statusCode: number;
     _chunks: Buffer[];
     _responseReady: boolean;
-    _streamWriter: any; // Hono stream writer for direct streaming (no buffering)
 }
 
-// Create a response adapter. If a Hono Context is provided, large responses
-// will be streamed directly instead of buffered in memory.
-export function createCompatRes(c?: Context): CompatRes {
+// Create a response adapter that collects output via stream piping and can be flushed to Hono Context
+export function createCompatRes(): CompatRes {
     const chunks: Buffer[] = [];
     let statusCode = 200;
     const headers: Record<string, string> = {};
     let responseReady = false;
-    let streamWriter: any = null;
-
-    // If Hono context available, prepare a streaming writer for large responses
-    if (c) {
-        streamWriter = (() => {
-            let writer: any = null;
-            let writerReady: Promise<void>;
-            let writerResolve: () => void;
-            writerReady = new Promise<void>(r => { writerResolve = r; });
-
-            // Start the Hono stream — this runs async, writer is available after first yield
-            const streamPromise = stream(c, async (w) => {
-                writer = w;
-                writerResolve();
-                // Keep the stream open until the response finishes
-                await new Promise<void>(r => {
-                    (w as any)._onClose = r;
-                });
-            });
-
-            return {
-                write: async (chunk: Buffer) => {
-                    await writerReady;
-                    await writer.write(chunk);
-                },
-                close: async () => {
-                    await writerReady;
-                    // writer.close() is called when we're done
-                    if ((writer as any)?._onClose) (writer as any)._onClose();
-                },
-            };
-        })();
-    }
 
     const writable = new Writable({
         write(chunk: Buffer | string, _encoding: string, callback: (error?: Error | null) => void) {
-            if (streamWriter) {
-                // Stream directly — don't buffer
-                const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-                streamWriter.write(buf).then(() => callback()).catch(callback);
+            if (Buffer.isBuffer(chunk)) {
+                chunks.push(chunk);
             } else {
-                if (Buffer.isBuffer(chunk)) {
-                    chunks.push(chunk);
-                } else {
-                    chunks.push(Buffer.from(chunk));
-                }
-                callback();
+                chunks.push(Buffer.from(chunk));
             }
+            callback();
         },
         final(callback: (error?: Error | null) => void) {
             responseReady = true;
-            if (streamWriter) {
-                streamWriter.close().then(() => callback()).catch(callback);
-            } else {
-                callback();
-            }
+            callback();
         },
         autoDestroy: true,
     });
@@ -89,13 +43,10 @@ export function createCompatRes(c?: Context): CompatRes {
 
     const res = writable as CompatRes;
 
-
-
     res._headers = headers;
     res._statusCode = statusCode;
     res._chunks = chunks;
     res._responseReady = responseReady;
-    res._streamWriter = streamWriter;
     res.statusCode = 200;
 
     res.setHeader = function(name: string, value: string | number) {
@@ -115,19 +66,14 @@ export function createCompatRes(c?: Context): CompatRes {
     return res;
 }
 
-// Flush the compat response to Hono Context.
-// If streaming was used, the response was already sent — just finalize.
+// Flush the compat response to Hono Context
 export function flushCompatRes(c: Context, res: CompatRes): Response {
     for (const [name, value] of Object.entries(res._headers)) {
+        // Don't set transfer-encoding: chunked — Hono handles this
         if (name === "transfer-encoding") continue;
         c.header(name, value);
     }
     c.status(res._statusCode as any);
-
-    if (res._streamWriter) {
-        // Streamed response — headers and body already sent via Hono stream()
-        return c.body(null);
-    }
 
     if (res._chunks.length > 0) {
         const body = Buffer.concat(res._chunks);
@@ -135,8 +81,6 @@ export function flushCompatRes(c: Context, res: CompatRes): Response {
     }
     return c.body(null);
 }
-
-
 
 // Create a compat reqx object from Hono Context
 export function createCompatReqx(c: Context, res?: CompatRes) {
