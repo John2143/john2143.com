@@ -15,7 +15,7 @@ const isStreamRequest = req => req.headers.referer && req.headers.range;
 
 //This will serve a stream request. It does no kind of validation to see
 //if the user can actually access that content.
-const serveStreamRequest = async function(reqx, uploadID, filepath){
+const serveStreamRequest = async function(reqx, uploadID, filepath, data){
     const rangeRequestRegex = /bytes=(\d*)-(\d*)/;
 
     let stat;
@@ -60,8 +60,7 @@ const serveStreamRequest = async function(reqx, uploadID, filepath){
     }
 
     reqx.res.writeHead(206, { //Partial content
-        //Ignoring Content-Type to not need a db request
-        //Add it back in if this ever requires db stuff
+        "Content-Type": data?.mimetype || "application/octet-stream",
         "Content-Length": contentLength,
         "Content-Range": `bytes ${bytesString}`,
     });
@@ -372,7 +371,7 @@ const download = async function(server, reqx){
 
 
     if(isStreamRequest(reqx.req)){
-        return serveStreamRequest(reqx, uploadID, U.getFilename(uploadID));
+        return serveStreamRequest(reqx, uploadID, U.getFilename(uploadID), result);
     }
 
     if(disposition === "delete"){
