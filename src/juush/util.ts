@@ -194,14 +194,27 @@ export async function startdb() {
         }
     };
 
-    // Ensure OAuth indexes
-    await query.users.createIndex({ "oauth.pocketid.sub": 1 }, { unique: true, sparse: true });
-    await query.users.createIndex({ "oauth.discord.id": 1 }, { unique: true, sparse: true });
-    await query.users.createIndex({ juush_user_id: 1 }, { unique: true, sparse: true });
-    await query.users.createIndex({ key: 1 }, { unique: true, sparse: true });
-    await query.sessions.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 });
-    await query.oauth_states.createIndex({ created_at: 1 }, { expireAfterSeconds: 600 }); // 10min TTL
-
+    // Ensure OAuth indexes (drop conflicting indexes from prior failed deploys)
+    const safeCreateIndex = async (col: any, spec: any, opts: any = {}) => {
+        try {
+            await col.createIndex(spec, opts);
+        } catch (e: any) {
+            if (e?.code === 86) {
+                // Index exists with different options — drop and recreate
+                const idxName = Object.keys(spec).join("_") + "_1";
+                try { await col.dropIndex(idxName); } catch (_) {}
+                await col.createIndex(spec, opts);
+            } else {
+                throw e;
+            }
+        }
+    };
+    await safeCreateIndex(query.users, { "oauth.pocketid.sub": 1 }, { unique: true, sparse: true });
+    await safeCreateIndex(query.users, { "oauth.discord.id": 1 }, { unique: true, sparse: true });
+    await safeCreateIndex(query.users, { juush_user_id: 1 }, { unique: true, sparse: true });
+    await safeCreateIndex(query.users, { key: 1 }, { unique: true, sparse: true });
+    await safeCreateIndex(query.sessions, { expires_at: 1 }, { expireAfterSeconds: 0 });
+    await safeCreateIndex(query.oauth_states, { created_at: 1 }, { expireAfterSeconds: 600 });
     // Migrate legacy "keys" collection → "users" (idempotent, best-effort)
     try {
         const oldKeys = await legacyKeysCol.find({}).toArray();
