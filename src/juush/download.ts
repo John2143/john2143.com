@@ -249,8 +249,23 @@ const processDownload = async function(reqx, data, disposition){
         return;
     }
 
+
+
     //Do the database call to increment downloads
     let incDL = true;
+
+    // CDN redirect: if we have a CDN copy, redirect browsers to it.
+    // Skip for explicit download requests (dl) which force attachment.
+    if(data.cdn && disposition !== "dl"){
+        reqx.extraLog = "CDN serve".yellow;
+        U.query.index.updateOne({_id: uploadID}, {
+            $inc: {downloads: 1},
+            $set: {lastdownload: new Date()},
+        }).catch(() => {});
+        reqx.res.writeHead(302, { "Location": data.cdn });
+        reqx.res.end();
+        return;
+    }
     //What to do with the content:
     //  inline, attachment (download)
     let codisp = "inline";
@@ -273,6 +288,15 @@ const processDownload = async function(reqx, data, disposition){
         }
     }
     // CDN redirect for thumbnails — avoids downloading full file
+    // Serve generated thumbnail from CDN if available
+    if(disposition === "thumb" && data.thumb){
+        reqx.extraLog = "CDN thumb".yellow;
+        reqx.res.writeHead(302, {
+            "Location": data.thumb,
+        });
+        reqx.res.end();
+        return;
+    }
     if(disposition === "thumb" && data.cdn){
         reqx.extraLog = "CDN thumb".yellow;
         reqx.res.writeHead(302, {

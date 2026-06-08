@@ -2,6 +2,8 @@ import { serverLog } from "../logger.js";
 
 import { Readable } from "node:stream";
 import { startdb, query, whoami, juushErrorCatch, randomStr } from "./util.js";
+import { guessFileExtension } from "./util.js";
+
 import { createCompatRes, flushCompatRes, createCompatReqx } from "./compat.js";
 import type { Context } from "hono";
 
@@ -214,4 +216,27 @@ async function isAdminCompat(c: Context): Promise<boolean> {
     } catch {
         return false;
     }
+}
+
+// --- Reprocess handler ---
+export async function handleReprocess(c: Context) {
+    const id = c.req.param("id");
+    if (!id) return c.text("Missing id", 400);
+
+    // Look up the upload
+    const data = await query.index.findOne({ _id: id });
+    if (!data) return c.text("Not found", 404);
+
+    // Auth: must be owner or admin
+    const userlist = await whoami(c);
+    const isAdmin = await isAdminCompat(c);
+    if (!userlist.includes(data.keyid) && !isAdmin) {
+        return c.text("Forbidden", 403);
+    }
+
+    const ext = guessFileExtension(data.filename || "");
+    const { enqueueReprocess } = await import("./jobs.js");
+    await enqueueReprocess(id, data.mimetype, ext);
+
+    return c.text("queued");
 }

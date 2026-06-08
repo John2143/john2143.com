@@ -78,7 +78,8 @@ const maxConcurrentParts = 4;
 export async function uploadToS3(url: string, mimeType: string, numTry: number = 0) {
     const filepath = U.getFilename(url);
     let st = await fs.stat(filepath);
-    if(st.size > 1024 * 1024 * 25) {
+    if(st.size > 1024 * 1024 * 150) {
+
         console.error(`File too large to upload to s3: ${url} ${st.size}`);
         return;
     }
@@ -476,11 +477,10 @@ export default async function(server, reqx){
 
         reqx.res.end(path);
 
-        if(U.s3_client) {
-            // async
-            await new Promise(r => setTimeout(r, 2000));
-            uploadToS3(url, headers.mimetype).catch(e => console.error("Background S3 upload failed:", e));
-        }
+        // Enqueue post-upload jobs (upload-to-rustfs runs on server, ffmpeg/backup on worker)
+        const { enqueueJobs } = await import("./jobs.js");
+        enqueueJobs(url, headers.mimetype, fileExtension).catch(e =>
+            console.error("Failed to enqueue post-upload jobs:", e));
     });
 
     //Arbirary

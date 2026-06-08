@@ -7,6 +7,9 @@ import { serverLog } from "./logger.js";
 import * as serverConst from "./const.js";
 import * as fs from "node:fs/promises";
 import authRoutes from "./auth/routes.js";
+const RUN_MODE = (process.env.RUN_MODE || "server") as "server" | "worker";
+
+
 
 // Load favicon in memory (preserve existing behavior)
 let favicon: Buffer;
@@ -140,6 +143,10 @@ if (serverConst.dbstring) {
     app.get("/f/:id{.*}", async (c) => juush.handleDownload(c));
     app.get("/:name{[^/]+}/:filename", async (c) => juush.handleDownload(c));
 
+    // Reprocess existing upload (auth-gated)
+    app.post("/f/:id/reprocess", async (c) => juush.handleReprocess(c));
+
+
     // Upload — accepts GET, POST, PUT (juush client uses PUT)
     app.get("/uf", async (c) => juush.handleUpload(c));
     app.post("/uf", async (c) => juush.handleUpload(c));
@@ -151,6 +158,18 @@ if (serverConst.dbstring) {
         // Start the disk cache pruner (periodic scoring-based cleanup)
         import("./juush/prune.js").then(m => m.startPruner()).catch(e =>
             serverLog("Failed to start pruner", e)
+        );
+        // Start job queue processor — server handles upload-to-rustfs, worker handles ffmpeg/backup
+        import("./juush/jobs.js").then(async m => {
+            await m.initJobQueue();
+            if (RUN_MODE !== "worker") {
+                m.startQueueProcessor("server");
+            }
+            if (RUN_MODE !== "server") {
+                m.startQueueProcessor("worker");
+            }
+        }).catch(e =>
+            serverLog("Failed to start job queue", e)
         );
     }).catch((e: any) => {
         serverLog("Failed to start juush DB", e);
