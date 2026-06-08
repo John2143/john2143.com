@@ -282,6 +282,14 @@ const processDownload = async function(reqx, data, disposition){
         return;
     }
 
+    // Non-image thumbnails without CDN: don't serve the full file
+    if(disposition === "thumb" && !data.mimetype?.startsWith("image/")){
+        reqx.extraLog = "thumb skip".yellow;
+        reqx.res.writeHead(204, {});
+        reqx.res.end();
+        return;
+    }
+
     //Send filename with content-disposition
     codisp += '; filename="' + data.filename + '"';
 
