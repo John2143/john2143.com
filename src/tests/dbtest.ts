@@ -371,6 +371,28 @@ describe("Upload/Download", function(){
                 .and.have.status(416);
         });
 
+        it("should accept stream requests without Referer", async function(){
+            const index = 2;
+            const resource = `/f/${keys[index]}`;
+            const start = 9, end = 40;
+
+            let res = await req().get(resource);
+            const contentLen = res.header["content-length"];
+
+            // Range request WITHOUT Referer header
+            res = await req().get(resource)
+                .set("Range", `bytes=${start}-${end}`);
+
+            res.should.have.status(206);
+            res.should.have.header("Content-Range",
+                `bytes ${start}-${end}/${contentLen}`
+            );
+            res.should.have.header("Content-Length", String(end - start + 1));
+
+            const expected = files[index].slice(start, end + 1);
+            Buffer.from(res.text).should.deep.equal(expected);
+        });
+
         it("should accept and work with download dispotision", function(){
             return req().get(`/f/${keys[2]}/dl`)
                 .should.eventually.have.header("Content-Disposition", /attachment/);

@@ -10,8 +10,8 @@ import { humanFileSize } from "./upload.js";
 
 let curDownloading = {};
 
-//You will get a referer and range if you are trying to stream an audio/video
-const isStreamRequest = req => req.headers.referer && req.headers.range;
+//A Range header indicates a streaming request — serves 206 Partial Content
+const isStreamRequest = req => !!req.headers.range;
 
 //This will serve a stream request. It does no kind of validation to see
 //if the user can actually access that content.
@@ -23,6 +23,7 @@ const serveStreamRequest = async function(reqx, uploadID, filepath, data){
         if(curDownloading[uploadID]){
             console.log("Waiting for download to finish... ", uploadID);
             await curDownloading[uploadID];
+            stat = await fs.stat(filepath);
         } else {
             //statSync fails if filepath does not exist
             stat = await fs.stat(filepath);
