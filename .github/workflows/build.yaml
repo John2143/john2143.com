@@ -37,6 +37,16 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
+    - name: Build and push worker
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: Dockerfile.worker
+        push: true
+        tags: "${{ env.registry }}/${{ env.repo }}-worker:${{ github.run_number }}"
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
     - name: Set image tag output
       id: meta
       run: echo "version=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
