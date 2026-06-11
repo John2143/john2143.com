@@ -477,7 +477,7 @@ async function handleS3Backup(job: JobDoc): Promise<void> {
         serverLog(`JobQueue: S3 backup using original file ${job.url}`);
     }
 
-    await uploadToS3(job.url, job.mimetype);
+    await uploadToS3(job.url, job.mimetype, 0, uploadPath);
 
     // Set CDN URL on the index document
     const folder = process.env.FOLDER || "public-prod";
@@ -533,8 +533,19 @@ async function handleUploadArtifacts(job: JobDoc): Promise<void> {
         }));
         artifacts.thumbnail = `${bucket}/${thumbKey}`;
 
-        // Also set the CDN thumb URL if S3 backup ran
+        // Also upload thumbnail to S3 Spaces so CDN can serve it
         const folder = process.env.FOLDER || "public-prod";
+        if (U.s3_client) {
+            await U.s3_client.send(new PutObjectCommand({
+                Bucket: bucket,
+                Key: `${folder}/${job.url}.thumb.jpg`,
+                Body: createReadStream(thumbPath),
+                ACL: "public-read",
+                ContentType: "image/jpeg",
+            }));
+        }
+
+        // Also set the CDN thumb URL
         const cdnBase = process.env.CDN_BASE || `https://imagehost-files.nyc3.cdn.digitaloceanspaces.com/${folder}`;
         await U.query.index.updateOne(
             { _id: job.url },

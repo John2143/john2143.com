@@ -75,8 +75,8 @@ export function humanFileSize(size) {
 let numTotalConnections = 0;
 const maxConcurrentParts = 4;
 
-export async function uploadToS3(url: string, mimeType: string, numTry: number = 0) {
-    const filepath = U.getFilename(url);
+export async function uploadToS3(url: string, mimeType: string, numTry: number = 0, filepath?: string) {
+    if (!filepath) filepath = U.getFilename(url);
     let st = await fs.stat(filepath);
     if(st.size > 1024 * 1024 * 150) {
 
@@ -88,7 +88,7 @@ export async function uploadToS3(url: string, mimeType: string, numTry: number =
     let key = `${process.env.FOLDER}/${url}`;
     try {
         s = await beginS3Upload(key, mimeType);
-        await uploadToS3Inner(url, key, mimeType, s);
+        await uploadToS3Inner(url, key, mimeType, s, filepath);
 
     } catch (e) {
         console.error(`===Failed to upload to s3=== : ${key} - ${s?.UploadId}`);
@@ -113,7 +113,7 @@ export async function uploadToS3(url: string, mimeType: string, numTry: number =
             console.error(`Retrying : ${key} ${numTry + 1}/${maxTries}`);
 
             try {
-                return uploadToS3(url, mimeType, numTry + 1);
+                return uploadToS3(url, mimeType, numTry + 1, filepath);
             } catch (e) {
                 console.error(`Failed retry internal stack: ${key} ${numTry + 1}/${maxTries}`);
             }
@@ -217,8 +217,8 @@ setInterval(() => {
     runNextInQueue();
 }, 10_000);
 
-export async function uploadToS3Inner(url: string, key: string, mimeType: string, currentMultipartUpload: CreateMultipartUploadCommandOutput) {
-    const filepath = U.getFilename(url);
+export async function uploadToS3Inner(url: string, key: string, mimeType: string, currentMultipartUpload: CreateMultipartUploadCommandOutput, filepath?: string) {
+    if (!filepath) filepath = U.getFilename(url);
     let st = await fs.stat(filepath);
     let size = st.size;
 
