@@ -510,11 +510,10 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
       <template x-if="authUser">
         <table border="0" cellpadding="4" cellspacing="0">
           <tr>
-            <td><label for="keyInput"><b>Upload Key:</b></label></td>
+            <td><label for="keyInput"><b>Upload Key:</b></label><br><a href="#" @click.prevent="toggleKey()" style="font-size:10px;" x-text="showKey ? 'hide' : 'show'"></a></td>
             <td>
-              <input type="text" id="keyInput" x-model="uploadKey" value="ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
-                     placeholder="Enter your upload key">
-            </td>
+              <input id="keyInput" :type="showKey ? 'text' : 'password'" x-model="uploadKey" value="ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
+                     placeholder="Enter your upload key" style="width:250px;font-family:monospace;">
             <td>
               <span style="font-size:10px;color:#666666;">
                 <span x-show="keyLoaded" class="green">(loaded from account)</span>
@@ -979,16 +978,18 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
       authUser: null,
       uploadKey: '',
       keyLoaded: false,
+      showKey: false,
+      toggleKey() { this.showKey = !this.showKey; },
       async init() {
         try {
           const r = await fetch('/auth/me');
           if (r.ok) {
             this.authUser = await r.json();
-            const infoR = await fetch('/juush/userinfo/' + this.authUser.juush_user_id);
-            if (infoR.ok) {
-              const info = await infoR.json();
-              if (info.key) {
-                this.uploadKey = info.key;
+            const keyR = await fetch('/juush/mykey');
+            if (keyR.ok) {
+              const data = await keyR.json();
+              if (data.key) {
+                this.uploadKey = data.key;
                 this.keyLoaded = true;
               }
             }
@@ -1001,7 +1002,7 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
           if (val) localStorage.setItem('juush_upload_key', val.trim());
         });
       }
-  });
+  }));
 
 
 })();

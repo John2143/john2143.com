@@ -192,7 +192,21 @@ export async function handleIsAdmin(c: Context) {
     }
 }
 
-// /juush/usersetting/:id/:setting/:value
+// /juush/mykey
+export async function handleMyKey(c: Context) {
+    try {
+        const { requireUser } = await import("../auth/middleware.js");
+        const user = await requireUser(createCompatReqx(c));
+        if (!user) {
+            return c.json({ error: "Not authenticated" }, 401);
+        }
+        return c.json({ key: user.key || null });
+    } catch (e: any) {
+        serverLog("Failed mykey: ", e);
+        return c.json({ error: e.message }, 500);
+    }
+}
+
 export async function handleUserSetting(c: Context) {
     const _id = Number(c.req.param("id"));
 

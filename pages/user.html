@@ -109,6 +109,11 @@
                             <div class="list-group-item">
                                 <i class="fa fa-fw fa-user"></i> <span x-text="authUser.username"></span>
                             </div>
+                            <div class="list-group-item">
+                                <i class="fa fa-fw fa-key"></i>
+                                <span x-text="showKey ? uploadKey : '\u2022'.repeat(uploadKey.length || 32)"></span>
+                                <a href="#" @click.prevent="toggleKey()" class="pull-right" style="font-size:11px;" x-text="showKey ? 'Hide' : 'Show'"></a>
+                            </div>
                             <a href="/auth/logout?redirect=/user" class="list-group-item list-group-item-action">Logout</a>
                         </ul>
                     </div>
@@ -238,6 +243,9 @@ const lead0 = n => n < 10 ? "0" + n : n;
 function app() {
     return {
         authUser: null,
+        uploadKey: '',
+        showKey: false,
+        toggleKey() { this.showKey = !this.showKey; },
         users: [],
         selectedId: null,
         selected: null,
@@ -248,13 +256,17 @@ function app() {
         adminShowHidden: false,
         memify: false,
         blockUserURL: false,
-
         async init() {
             try {
                 const meRes = await fetch('/auth/me');
                 if (meRes.ok) {
                     this.authUser = await meRes.json();
                     this.whoami = this.authUser.juush_user_id;
+                    const keyR = await fetch('/juush/mykey');
+                    if (keyR.ok) {
+                        const data = await keyR.json();
+                        if (data.key) this.uploadKey = data.key;
+                    }
                 } else {
                     this.whoami = false;
                 }

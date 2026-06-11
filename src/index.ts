@@ -142,7 +142,7 @@ if (serverConst.dbstring) {
     juushAPI.get("/deluser/:id", async (c) => requireDb(c) || juush.handleDelUser(c));
     juushAPI.get("/isadmin", async (c) => requireDb(c) || juush.handleIsAdmin(c));
     juushAPI.get("/usersetting/:id/:setting/:value", async (c) => requireDb(c) || juush.handleUserSetting(c));
-
+    juushAPI.get("/mykey", async (c) => requireDb(c) || juush.handleMyKey(c));
     // Admin merge panel routes
     juushAPI.get("/merge/search", async (c) => {
         const auth = requireDb(c) || await requireMergeAdmin(c);
