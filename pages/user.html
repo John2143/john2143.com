@@ -160,7 +160,7 @@
                         <a :href="'/f/' + pic._id" :title="pic.filename">
                             <center>
                                 <img x-show="pic.type === 'image'" class="card-img-top cons" :src="'/f/' + pic._id + '/thumb'" />
-                                <img x-show="pic.type === 'video'" class="card-img-top consv" src="https://2143.me/f/gqKBv.png" />
+                                <img x-show="pic.type === 'video'" class="card-img-top consv" :src="'/f/' + pic._id + '/thumb'" @error="$el.src = 'https://2143.me/f/gqKBv.png'; $el.onerror = null" />
                                 <audio x-show="pic.type === 'audio'" class="card-img-top" controls preload="none" :src="'/f/' + pic._id"></audio>
                                 <div x-show="pic.type !== 'image' && pic.type !== 'video' && pic.type !== 'audio'" class="card-img-top" x-text="pic.filename"></div>
                             </center>
