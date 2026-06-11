@@ -35,6 +35,8 @@
     0%  {-webkit-transform:rotate(0deg);}
     100% {-webkit-transform:rotate(360deg);}
 }
+.video-card { background: rgba(255,0,0,0.07); }
+.other-card { background: rgba(255,165,0,0.07); }
 .auth-section { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
 .btn-pocketid {
     background:#4f46e5; color:white; display:block; width:100%; padding:8px 16px;
@@ -156,7 +158,7 @@
         <div class="col-xs-10">
             <div class="row">
                 <template x-for="pic in uploads" :key="pic._id">
-                    <div class="col-lg-3 col-sm-12" style="padding:40px;" :class="{hiddenUpload: pic.modifiers?.hidden}">
+                    <div class="col-lg-3 col-sm-12" style="padding:40px;" :class="{hiddenUpload: pic.modifiers?.hidden, 'video-card': pic.type === 'video', 'other-card': pic.type !== 'image' && pic.type !== 'video' && pic.type !== 'deleted'}">
                         <a :href="'/f/' + pic._id" :title="pic.filename">
                             <center>
                                 <img x-show="pic.type === 'image'" class="card-img-top cons" :src="'/f/' + pic._id + '/thumb'" />
