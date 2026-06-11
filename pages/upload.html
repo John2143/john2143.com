@@ -441,7 +441,16 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
 #noscript-form fieldset {
   text-align: center;
 }
+/* ---- Auth & Nav (v2.2) ---- */
+.auth-section { margin: 8px 0; display: flex; gap: 8px; }
+.auth-section a { font-family: Arial, sans-serif; font-size: 11px; padding: 4px 12px; border: 2px outset #D4D0C8; background: #D4D0C8; color: #000; text-decoration: none; }
+.auth-section a:hover { background: #C0C0C0; }
+.top-nav { margin-bottom: 8px; font-family: Arial, sans-serif; font-size: 11px; }
+.top-nav a { color: #0000CC; margin-right: 12px; }
+.green { color: #006600; }
 </style>
+    <script src="https://use.fontawesome.com/ed4d2de3d2.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body bgcolor="#FFFFFF" text="#000000" link="#0000CC" vlink="#551A8B" alink="#FF0000">
 
@@ -478,26 +487,44 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
      MAIN APPLICATION
      ============================================================ -->
 <div id="app">
+  <div class="top-nav" x-data="nav()" x-init="init()">
+    <a href="/user">&#9664; User Page</a>
+    <span x-show="authUser"><b x-text="authUser.username"></b> <span class="green">&#9679;</span></span>
+  </div>
 
   <h1>&#9656; Upload Files to Repository</h1>
 
   <!-- Authentication -->
   <fieldset>
     <legend>Authentication</legend>
-    <table border="0" cellpadding="4" cellspacing="0">
-      <tr>
-        <td><label for="keyInput"><b>Upload Key:</b></label></td>
-        <td>
-          <input type="text" id="keyInput" value="ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
-                 placeholder="Enter your upload key">
-        </td>
-        <td>
-          <span style="font-size:10px;color:#666666;">
-            (stored in browser cookie)
-          </span>
-        </td>
-      </tr>
-    </table>
+    <div x-data="auth()" x-init="init()">
+      <!-- Not logged in -->
+      <template x-if="!authUser">
+        <div class="auth-section">
+          <a href="/auth/login/pocketid?redirect=/upload">Login with Pocket ID</a>
+          <a href="/auth/login/discord?redirect=/upload">Login with Discord</a>
+          <a href="https://au.2143.me?redirect=https://2143.me/upload" style="background:#F0F0F0;">Create Account</a>
+        </div>
+      </template>
+      <!-- Logged in -->
+      <template x-if="authUser">
+        <table border="0" cellpadding="4" cellspacing="0">
+          <tr>
+            <td><label for="keyInput"><b>Upload Key:</b></label></td>
+            <td>
+              <input type="text" id="keyInput" x-model="uploadKey" value="ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
+                     placeholder="Enter your upload key">
+            </td>
+            <td>
+              <span style="font-size:10px;color:#666666;">
+                <span x-show="keyLoaded" class="green">(loaded from account)</span>
+                <span x-show="!keyLoaded">(enter manually)</span>
+              </span>
+            </td>
+          </tr>
+        </table>
+      </template>
+    </div>
   </fieldset>
 
   <!-- File Drop Zone -->
@@ -940,13 +967,43 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
     }
   }
 
-  // ---- Initial state ----
-  var savedKey = localStorage.getItem('juush_upload_key');
-  if (savedKey) {
-    keyInput.value = savedKey;
-  }
+  // ---- Alpine auth components ----
+  document.addEventListener('alpine:init', () => {
+    Alpine.data('nav', () => ({
+      authUser: null,
+      async init() {
+        try { const r = await fetch('/auth/me'); if (r.ok) this.authUser = await r.json(); } catch(e) {}
+      }
+    }));
+    Alpine.data('auth', () => ({
+      authUser: null,
+      uploadKey: '',
+      keyLoaded: false,
+      async init() {
+        try {
+          const r = await fetch('/auth/me');
+          if (r.ok) {
+            this.authUser = await r.json();
+            const infoR = await fetch('/juush/userinfo/' + this.authUser.juush_user_id);
+            if (infoR.ok) {
+              const info = await infoR.json();
+              if (info.key) {
+                this.uploadKey = info.key;
+                this.keyLoaded = true;
+              }
+            }
+          }
+        } catch(e) {}
+        if (!this.uploadKey) {
+          this.uploadKey = localStorage.getItem('juush_upload_key') || '';
+        }
+      }
+    }));
+  });
 
-  keyInput.addEventListener('change', function() {
+  // ---- Upload key persistence (sync from Alpine to localStorage) ----
+  var keyInput = document.getElementById('keyInput');
+  keyInput.addEventListener('input', function() {
     localStorage.setItem('juush_upload_key', keyInput.value.trim());
   });
 })();
