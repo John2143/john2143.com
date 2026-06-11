@@ -489,7 +489,7 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
 <div id="app">
   <div class="top-nav" x-data="nav()" x-init="init()">
     <a href="/user">&#9664; User Page</a>
-    <template x-if="authUser"><span><b x-text="authUser.username"></b> <span class="green">&#9679;</span></span></template>
+    <template x-if="authUser"><span><b x-text="authUser.username"></b> <span class="green">&#9679;</span> <a href="/auth/logout?redirect=/upload" style="color:#FFFFFF;font-size:10px;">logout</a></span></template>
   </div>
 
   <h1>&#9656; Upload Files to Repository</h1>
@@ -590,7 +590,7 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
 (function(){
   var dropZone = document.getElementById('dropZone');
   var fileInput = document.getElementById('fileInput');
-  var keyInput = document.getElementById('keyInput');
+  // keyInput is inside Alpine x-if template, query at use time
   var progressBar = document.getElementById('progressBar');
   var progressFill = document.getElementById('progressFill');
   var resultsEl = document.getElementById('results');
@@ -800,7 +800,9 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
 
   // ---- Submit / Clear ----
   function submitUploads() {
-    var key = keyInput.value.trim();
+    var keyEl = document.getElementById('keyInput');
+    if (!keyEl) { alert('Please log in first.'); return; }
+    var key = keyEl.value.trim();
     if (!key) {
       alert('Please enter an upload key.');
       return;
