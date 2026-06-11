@@ -1,7 +1,9 @@
 FROM node:22 AS builder
 
 WORKDIR /app
+RUN mkdir -p scripts
 COPY package-lock.json package.json ./
+COPY scripts/patch-hono-node-server.cjs ./scripts/
 RUN npm ci
 COPY . .
 RUN npm run build

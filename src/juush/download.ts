@@ -3,7 +3,7 @@ import { serverLog } from "../logger.js";
 import { createReadStream, createWriteStream, Stats } from "node:fs";
 import * as U from "./util.js";
 import fs from "node:fs/promises";
-import {pipeline} from "node:stream";
+import { pipeline, Readable } from "node:stream";
 import { GetObjectCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createHash } from "node:crypto";
 import { humanFileSize } from "./upload.js";
@@ -141,15 +141,19 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
         }
 
         console.log(`Writing to local cache : ${uploadID} ${humanFileSize(s3Size)}`);
+        // Use pipeline with Readable.fromWeb to properly handle lifecycle
+        // of the S3 response body. Raw .pipe() can cause undici to
+        // double-close the underlying ReadableStream on cleanup.
         const body = s3GetRequest.Body as any;
-        await body.pipe(writeStream);
-        await new Promise((resolve, reject) => {
-            body.on("end", () => {
-                writeStream.end();
-                resolve(null);
+        const nodeBody = body?.getReader
+            ? Readable.fromWeb(body)
+            : (body as import("node:stream").Readable);
+        await new Promise<void>((resolve, reject) => {
+            pipeline(nodeBody, writeStream, (err) => {
+                if (err) reject(err);
+                else resolve();
             });
-            body.on("error", reject);
-        }).catch(reject);
+        });
         // sleep for 10ms to allow the write to complete
         await new Promise(resolve => setTimeout(resolve, 10));
 

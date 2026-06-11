@@ -9,6 +9,22 @@ import * as fs from "node:fs/promises";
 import authRoutes from "./auth/routes.js";
 const RUN_MODE = (process.env.RUN_MODE || "server") as "server" | "worker";
 
+// Prevent crashes from undici ReadableStream double-close race condition.
+// @hono/node-server v2.0.4 can call reader.cancel() twice when a client
+// disconnects during streaming (both 'close' and 'error' events fire on the
+// writable).  This is a known upstream issue:
+//   https://github.com/honojs/node-server/issues/233
+// Upgrade @hono/node-server once a fix is released; this handler is a safety net.
+process.on("uncaughtException", (err) => {
+    if (err instanceof TypeError && (err as any).code === "ERR_INVALID_STATE" &&
+        err.message?.includes("ReadableStream")) {
+        serverLog("Suppressed undici ReadableStream double-close", err.message);
+        return;
+    }
+    serverLog("FATAL uncaughtException", err);
+    process.exit(1);
+});
+
 
 
 // Load favicon in memory (preserve existing behavior)

@@ -17,6 +17,7 @@ import { uploadToS3, humanFileSize } from "./upload.js";
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import { createReadStream } from "node:fs";
+import { Readable, pipeline } from "node:stream";
 import { ObjectId } from "mongodb";
 
 // --- Types ---
@@ -337,14 +338,17 @@ async function downloadFromMinio(key: string, destPath: string): Promise<void> {
 
     await fs.mkdir(TEMP_DIR, { recursive: true });
     const file = await fs.open(destPath, "w");
-    // Body is a Readable stream in SDK v3
-    const stream = body as any;
+    // Wrap S3 response body with Readable.fromWeb to prevent undici from
+    // double-closing the underlying ReadableStream after pipe completes.
+    const nodeBody = (body as any)?.getReader
+        ? Readable.fromWeb(body as any)
+        : (body as import("node:stream").Readable);
     await new Promise<void>((resolve, reject) => {
         const writeStream = file.createWriteStream();
-        stream.pipe(writeStream);
-        writeStream.on("finish", resolve);
-        writeStream.on("error", reject);
-        stream.on("error", reject);
+        pipeline(nodeBody, writeStream, (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
     });
     await file.close();
 }

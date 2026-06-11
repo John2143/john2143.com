@@ -38,6 +38,7 @@ export async function handleUpload(c: Context) {
     const webBody = c.req.raw.body;
     if (webBody) {
         const reader = webBody.getReader();
+        let cancelled = false;
         const pump = () => {
             reader.read().then(({ done, value }) => {
                 if (done) {
@@ -46,7 +47,15 @@ export async function handleUpload(c: Context) {
                     bodyStream.push(Buffer.from(value));
                     pump();
                 }
-            }).catch((e) => bodyStream.destroy(e));
+            }).catch((e) => {
+                if (cancelled) return;
+                cancelled = true;
+                // Cancel the reader to release the undici-backed stream cleanly.
+                // Without this, undici may double-close the ReadableStream when
+                // the client disconnects mid-upload.
+                reader.cancel().catch(() => {});
+                bodyStream.destroy(e);
+            });
         };
         pump();
     } else {
