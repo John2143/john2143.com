@@ -316,8 +316,8 @@ auth.get("/logout", async (c) => {
     }
 
     c.header("Set-Cookie", "session_token=; HttpOnly; SameSite=Lax; Secure; Path=/; Max-Age=0");
-    return c.redirect("/", 302);
-});
+    const redirect = c.req.query("redirect") || "/";
+    return c.redirect(redirect, 302);
 
 // --- GET /auth/me ---
 auth.get("/me", async (c) => {
