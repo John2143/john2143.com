@@ -141,14 +141,14 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
         }
 
         console.log(`Writing to local cache : ${uploadID} ${humanFileSize(s3Size)}`);
-
-        await s3GetRequest.Body.pipe(writeStream);
+        const body = s3GetRequest.Body as any;
+        await body.pipe(writeStream);
         await new Promise((resolve, reject) => {
-            s3GetRequest.Body.on("end", () => {
+            body.on("end", () => {
                 writeStream.end();
                 resolve(null);
             });
-            s3GetRequest.Body.on("error", reject);
+            body.on("error", reject);
         }).catch(reject);
         // sleep for 10ms to allow the write to complete
         await new Promise(resolve => setTimeout(resolve, 10));
@@ -158,7 +158,7 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
     });
 }
 
-async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data): Stats {
+async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data: any): Promise<Stats> {
     let origFilepath = filepath;
     filepath = filepath + ".dl";
     let curWriteStream = createWriteStream(filepath);

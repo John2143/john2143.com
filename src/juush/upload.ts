@@ -40,7 +40,7 @@ const parseHeadersFromUpload = function(data, reqHeaders){
         // }
 
         let boundary = "\r\n--" + /boundary=(\S+)/.exec(reqHeaders["content-type"])[1] + "--\r\n";
-        boundary = Buffer.from(boundary, "utf8");
+        boundary = Buffer.from(boundary, "utf8") as any;
 
         const headers  = /[\s\S]+?\r\n\r\n/     .exec(strData)[0];
         const key      = /name="([A-Za-z0-9]+)"/.exec(headers)[1];
@@ -174,7 +174,7 @@ export async function uploadPart(key: string, partParams: UploadPartParams, numT
         console.log(`Uploaded part ${partParams.partNumber} to ${key}`);
         //console.log(res);
         // Must be the upload command
-        return await res;
+        return res as any;
     } catch (e) {
         clearTimeout(too);
         console.error(`Failed to upload part ${partParams.partNumber} to ${key}`);
@@ -388,8 +388,8 @@ export default async function(server, reqx){
     let headers = null;
 
     //Construct a promise in order to properly log the output from uploading
-    const returnPromise = {};
-    returnPromise.promise = new Promise((resolve, reject) => {
+    const returnPromise: any = {};
+    returnPromise.promise = new Promise((resolve: any, reject: any) => {
         returnPromise.resolve = resolve;
         returnPromise.reject = reject;
     });
@@ -410,7 +410,7 @@ export default async function(server, reqx){
         isError = true;
         clearTimeout(timeoutID);
 
-        if(!wstream.finished) wstream.end();
+        if(!(wstream as any).finished) wstream.end();
         if(!reqx.res.finished){
             try{
                 reqx.res.writeHead(errc, {});
@@ -575,7 +575,7 @@ export default async function(server, reqx){
                     customURLSettings = { no_f: true };
                 }
 
-                let modifiers = {};
+                let modifiers: any = {};
                 if(item.autohide){
                     modifiers.hidden = true;
                 }

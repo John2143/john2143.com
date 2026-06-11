@@ -4,7 +4,7 @@ WORKDIR /app
 COPY package-lock.json package.json ./
 RUN npm ci
 COPY . .
-RUN npm run build || true
+RUN npm run build
 
 # Build the final image
 RUN rm -rf node_modules

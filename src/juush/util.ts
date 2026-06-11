@@ -101,7 +101,7 @@ export async function test_multipart_uploads() {
             Bucket: "imagehost-files",
             Key: "test/access_upload_test",
             ContentLength: 1024 * 1024 * 7,
-            Body: Array(1024 * 1024 * 7).fill(32),
+            Body: Array(1024 * 1024 * 7).fill(32) as any,
             UploadId: mpu.UploadId,
             PartNumber: i + 1,
         }));
