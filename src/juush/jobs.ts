@@ -357,13 +357,34 @@ async function handleUploadToRustFS(job: JobDoc): Promise<void> {
     if (!U.minio_client) throw new Error("minio_client not configured");
     const filepath = U.getFilename(job.url);
 
+    // If the upload was created before a pod restart, the file may only
+    // exist in S3 (the local emptyDir is ephemeral).  Download it first.
+    let srcPath = filepath;
+    try {
+        await fs.access(filepath);
+    } catch {
+        serverLog(`JobQueue: ${job.url} not on disk, downloading from S3`);
+        const tempPath = `${TEMP_DIR}/${job.url}.s3dl`;
+        await downloadFromS3(job.url, tempPath);
+        srcPath = tempPath;
+    }
+
     serverLog(`JobQueue: uploading ${job.url} to rustfs`);
     const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+    const stream = createReadStream(srcPath);
+    // Attach a no-op error listener so a missing-file ENOENT doesn't
+    // become an uncaughtException that crashes the process.
+    stream.on("error", () => {});
     await U.minio_client.send(new PutObjectCommand({
         Bucket: process.env.BUCKET || "imagehost-files",
         Key: job.url,
-        Body: createReadStream(filepath),
+        Body: stream,
     }));
+
+    // Clean up temp download
+    if (srcPath !== filepath) {
+        await fs.unlink(srcPath).catch(() => {});
+    }
 
     // Mark backed up
     await U.query.index.updateOne(
@@ -380,6 +401,33 @@ async function handleUploadToRustFS(job: JobDoc): Promise<void> {
 
     // Insert processing jobs for the worker
     await insertProcessingJobs(job.url, job.mimetype, fileExtension);
+}
+
+// Download a file from S3 (DigitalOcean Spaces) to a local path.
+// Used as a fallback when the local emptyDir copy is gone after a restart.
+async function downloadFromS3(key: string, destPath: string): Promise<void> {
+    if (!U.s3_client) throw new Error("s3_client not configured");
+    const cmd = new (await import("@aws-sdk/client-s3")).GetObjectCommand({
+        Bucket: process.env.BUCKET || "imagehost-files",
+        Key: `${process.env.FOLDER || "public-prod"}/${key}`,
+    });
+    const response = await U.s3_client.send(cmd);
+    const body = response.Body;
+    if (!body) throw new Error("Empty response from S3");
+
+    await fs.mkdir(TEMP_DIR, { recursive: true });
+    const file = await fs.open(destPath, "w");
+    const nodeBody = (body as any)?.getReader
+        ? Readable.fromWeb(body as any)
+        : (body as import("node:stream").Readable);
+    await new Promise<void>((resolve, reject) => {
+        const writeStream = file.createWriteStream();
+        pipeline(nodeBody, writeStream, (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+    await file.close();
 }
 
 async function handleFaststart(job: JobDoc): Promise<void> {
