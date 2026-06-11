@@ -582,12 +582,12 @@ export async function enqueueReprocess(url: string, mimetype: string, fileExtens
     });
 
     if (uploadJob && (uploadJob as any).status === "done") {
-        // Reset failed processing jobs to queued
+        // Reset all post-upload jobs to queued so they re-run from scratch
         await jobQueue.updateMany(
-            { url, status: "failed" },
+            { url, jobType: { $ne: "upload-to-rustfs" }, status: { $in: ["done", "failed"] } },
             { $set: { status: "queued", error: null as any, updatedAt: new Date() } }
         );
-        // If no processing jobs exist (or all done), insert fresh ones
+        // If no processing jobs exist, insert fresh ones
         const existing = await jobQueue.find({
             url,
             jobType: { $ne: "upload-to-rustfs" },
