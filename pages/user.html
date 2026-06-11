@@ -209,6 +209,17 @@
                                     <span x-text="pic.err" class="red"></span>
                                 </span>
                             </template>
+
+                            <!-- Admin reprocess -->
+                            <template x-if="authUser?.is_admin && pic.type !== 'deleted'">
+                                <span>
+                                    <a class="btn btn-sm btn-info" @click="juushReprocess(pic)" x-show="!pic.reprocessing">
+                                        <i class="fa fa-refresh"></i> Reprocess
+                                    </a>
+                                    <i x-show="pic.reprocessing" class="fa fa-spin fa-cog"></i>
+                                    <span x-text="pic.reprocessMsg" class="green" style="margin-left:6px;"></span>
+                                </span>
+                            </template>
                         </div>
                     </div>
                 </template>
@@ -317,7 +328,7 @@ function app() {
                 ? ul.filename.substring(0, 12) + '...'
                 : (ul.filename || '');
 
-            return { ...ul, type, dispDate, timeAgo, filenameShort, deleting: false, renaming: false, hiding: false, newName: '', err: '', modifiers: ul.modifiers || {} };
+            return { ...ul, type, dispDate, timeAgo, filenameShort, deleting: false, renaming: false, hiding: false, newName: '', err: '', modifiers: ul.modifiers || {}, reprocessing: false, reprocessMsg: '' };
         },
 
         dateDistance(d) {
@@ -393,6 +404,22 @@ function app() {
                     ul.modifiers.hidden = nowHidden;
                 } else { ul.err = res.statusText; }
             } catch(e) { ul.err = e.message; }
+        },
+
+        async juushReprocess(ul) {
+            ul.reprocessing = true;
+            ul.reprocessMsg = '';
+            try {
+                const res = await fetch('/f/' + ul._id + '/reprocess', { method: 'POST' });
+                if (res.ok) {
+                    ul.reprocessMsg = 'Queued';
+                } else {
+                    ul.reprocessMsg = res.status + ' ' + res.statusText;
+                }
+            } catch(e) {
+                ul.reprocessMsg = e.message;
+            }
+            ul.reprocessing = false;
         },
 
         async deleteThisUser() {
