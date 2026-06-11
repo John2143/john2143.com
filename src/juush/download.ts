@@ -256,7 +256,7 @@ const processDownload = async function(reqx, data, disposition){
 
     // CDN redirect: if we have a CDN copy, redirect browsers to it.
     // Skip for explicit download requests (dl) which force attachment.
-    if(data.cdn && disposition !== "dl"){
+    if(data.cdn && disposition !== "dl" && disposition !== "thumb" && disposition !== "cdn"){
         reqx.extraLog = "CDN serve".yellow;
         U.query.index.updateOne({_id: uploadID}, {
             $inc: {downloads: 1},
