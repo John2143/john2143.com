@@ -489,7 +489,7 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
 <div id="app">
   <div class="top-nav" x-data="nav()" x-init="init()">
     <a href="/user">&#9664; User Page</a>
-    <span x-show="authUser"><b x-text="authUser.username"></b> <span class="green">&#9679;</span></span>
+    <template x-if="authUser"><span><b x-text="authUser.username"></b> <span class="green">&#9679;</span></span></template>
   </div>
 
   <h1>&#9656; Upload Files to Repository</h1>
@@ -997,15 +997,13 @@ button:focus, input[type="submit"]:focus, input[type="button"]:focus {
         if (!this.uploadKey) {
           this.uploadKey = localStorage.getItem('juush_upload_key') || '';
         }
+        this.$watch('uploadKey', val => {
+          if (val) localStorage.setItem('juush_upload_key', val.trim());
+        });
       }
-    }));
   });
 
-  // ---- Upload key persistence (sync from Alpine to localStorage) ----
-  var keyInput = document.getElementById('keyInput');
-  keyInput.addEventListener('input', function() {
-    localStorage.setItem('juush_upload_key', keyInput.value.trim());
-  });
+
 })();
 </script>
 
