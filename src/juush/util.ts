@@ -19,6 +19,8 @@ import { S3Client, PutObjectCommand, UploadPartCommand, CreateMultipartUploadCom
 export let mongoclient = new MongoClient(serverConst.dbstring);
 export let query;
 
+export const isDbReady = () => !!query;
+
 export let db_index;
 
 export let s3_client: S3Client;

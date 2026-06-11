@@ -1,5 +1,6 @@
 // Hono-based server for 2143.me
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { logger as honoLogger } from "hono/logger";
@@ -108,6 +109,15 @@ app.notFound((c) => c.redirect("//github.com/John2143/", 301));
 if (serverConst.dbstring) {
     const juush = await import("./juush/index.js");
     const juushMerge = await import("./juush/merge.js");
+    const { isDbReady } = await import("./juush/util.js");
+
+    // Guard: return 503 until DB is connected (non-blocking startdb below)
+    const requireDb = (c: Context) => {
+        if (!isDbReady()) {
+            return c.text("DB not ready", 503);
+        }
+        return null;
+    };
 
     const juushAPI = new Hono();
 
@@ -125,29 +135,29 @@ if (serverConst.dbstring) {
         }
     };
 
-    juushAPI.get("/whoami", (c) => juush.handleWhoami(c));
-    juushAPI.get("/users", (c) => juush.handleUsers(c));
-    juushAPI.get("/uploads/:userid/:page?", (c) => juush.handleUploads(c));
-    juushAPI.get("/userinfo/:id", (c) => juush.handleUserInfo(c));
-    juushAPI.get("/deluser/:id", (c) => juush.handleDelUser(c));
-    juushAPI.get("/isadmin", (c) => juush.handleIsAdmin(c));
-    juushAPI.get("/usersetting/:id/:setting/:value", (c) => juush.handleUserSetting(c));
+    juushAPI.get("/whoami", async (c) => requireDb(c) || juush.handleWhoami(c));
+    juushAPI.get("/users", async (c) => requireDb(c) || juush.handleUsers(c));
+    juushAPI.get("/uploads/:userid/:page?", async (c) => requireDb(c) || juush.handleUploads(c));
+    juushAPI.get("/userinfo/:id", async (c) => requireDb(c) || juush.handleUserInfo(c));
+    juushAPI.get("/deluser/:id", async (c) => requireDb(c) || juush.handleDelUser(c));
+    juushAPI.get("/isadmin", async (c) => requireDb(c) || juush.handleIsAdmin(c));
+    juushAPI.get("/usersetting/:id/:setting/:value", async (c) => requireDb(c) || juush.handleUserSetting(c));
 
     // Admin merge panel routes
     juushAPI.get("/merge/search", async (c) => {
-        const auth = await requireMergeAdmin(c);
+        const auth = requireDb(c) || await requireMergeAdmin(c);
         if (auth) return auth;
         const { query } = await import("./juush/util.js");
         return c.json(await juushMerge.handleMergeSearch(query.users, c.req.query("q") || ""));
     });
     juushAPI.get("/merge/preview/:id1/:id2", async (c) => {
-        const auth = await requireMergeAdmin(c);
+        const auth = requireDb(c) || await requireMergeAdmin(c);
         if (auth) return auth;
         const { query } = await import("./juush/util.js");
         return c.json(await juushMerge.handleMergePreview(query.users, c.req.param("id1"), c.req.param("id2")));
     });
     juushAPI.post("/merge/apply", async (c) => {
-        const auth = await requireMergeAdmin(c);
+        const auth = requireDb(c) || await requireMergeAdmin(c);
         if (auth) return auth;
         const { query } = await import("./juush/util.js");
         const body = await c.req.json();
@@ -156,17 +166,17 @@ if (serverConst.dbstring) {
     app.route("/juush", juushAPI);
 
     // Download routes
-    app.get("/f/:id{.*}", async (c) => juush.handleDownload(c));
-    app.get("/:name{[^/]+}/:filename", async (c) => juush.handleDownload(c));
+    app.get("/f/:id{.*}", async (c) => requireDb(c) || juush.handleDownload(c));
+    app.get("/:name{[^/]+}/:filename", async (c) => requireDb(c) || juush.handleDownload(c));
 
     // Reprocess existing upload (auth-gated)
-    app.post("/f/:id/reprocess", async (c) => juush.handleReprocess(c));
+    app.post("/f/:id/reprocess", async (c) => requireDb(c) || juush.handleReprocess(c));
 
 
     // Upload — accepts GET, POST, PUT (juush client uses PUT)
-    app.get("/uf", async (c) => juush.handleUpload(c));
-    app.post("/uf", async (c) => juush.handleUpload(c));
-    app.put("/uf", async (c) => juush.handleUpload(c));
+    app.get("/uf", async (c) => requireDb(c) || juush.handleUpload(c));
+    app.post("/uf", async (c) => requireDb(c) || juush.handleUpload(c));
+    app.put("/uf", async (c) => requireDb(c) || juush.handleUpload(c));
 
     // Connect to DB in background (non-blocking for health probe)
     juush.startdb().then(() => {

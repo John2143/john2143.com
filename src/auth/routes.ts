@@ -11,6 +11,14 @@ import { createCompatReqx } from "../juush/compat.js";
 
 const auth = new Hono();
 
+// Guard: return 503 until DB is connected (imported query is a live binding)
+auth.use("*", async (c, next) => {
+    if (!query) {
+        return c.text("DB not ready", 503);
+    }
+    return await next();
+});
+
 // --- PKCE helpers ---
 function randomPKCECodeVerifier(): string {
     return randomBytes(32).toString("base64url");
