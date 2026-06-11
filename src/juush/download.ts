@@ -309,8 +309,9 @@ const processDownload = async function(reqx, data, disposition){
     // Non-image thumbnails without CDN: don't serve the full file
     if(disposition === "thumb" && !data.mimetype?.startsWith("image/")){
         reqx.extraLog = "thumb skip".yellow;
-        reqx.res.writeHead(204, {});
-        reqx.res.end();
+        reqx.res.writeHead(200, { "Content-Type": "image/gif" });
+        // 1x1 transparent GIF — works everywhere, Hono-safe
+        reqx.res.end(Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"));
         return;
     }
 
