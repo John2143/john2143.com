@@ -100,3 +100,24 @@ jobs:
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git diff --quiet && echo "No changes" || (git commit -am "prod: bump john2143.com to ${{ env.NEW_TAG }}" && git push)
+
+  update-argo:
+    needs: [build, update-prod]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: ${{ !contains(github.event.head_commit.message, '[direct-prod]') && 'production' || '' }}
+    env:
+      NEW_TAG: ${{ needs.build.outputs.image_tag }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: 2143-Labs/argo
+        ssh-key: ${{ secrets.DEPLOY_KEY_ARGO }}
+
+    - name: Update image tags in deployment YAMLs
+      run: |
+        sed -i "s|\(ghcr\.io/john2143/john2143\.com:\)[0-9]*|\1${{ env.NEW_TAG }}|g" workloads/imageserver/deployment.yaml
+        sed -i "s|\(ghcr\.io/john2143/john2143\.com-worker:\)[0-9]*|\1${{ env.NEW_TAG }}|g" workloads/john2143-worker/deployment.yaml
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git diff --quiet && echo "No changes" || (git commit -am "bump john2143.com images to ${{ env.NEW_TAG }}" && git push)
