@@ -47,6 +47,21 @@ const S3_MAX_SIZE = 150 * 1024 * 1024;  // 150MB
 const THUMB_MAX_SIZE = 500 * 1024 * 1024;  // 500MB
 const TEMP_DIR = "/tmp/juush-worker";
 
+
+// --- CDN helpers ---
+
+async function clearCdnFields(url: string): Promise<void> {
+    await U.query.index.updateOne(
+        { _id: url },
+        { $unset: { cdn: "", thumb: "", failedCDN: "" } }
+    );
+}
+
+function getCdnUrl(url: string): string {
+    const folder = process.env.FOLDER || "public-prod";
+    const cdnBase = process.env.CDN_BASE || `https://imagehost-files.nyc3.cdn.digitaloceanspaces.com/${folder}`;
+    return `${cdnBase}/${url}`;
+}
 // --- Init ---
 
 let jobQueue: ReturnType<typeof U.query.index.collection> | null = null;
@@ -529,21 +544,25 @@ async function handleS3Backup(job: JobDoc): Promise<void> {
         serverLog(`JobQueue: S3 backup using original file ${job.url}`);
     }
 
-    await uploadToS3(job.url, job.mimetype, 0, uploadPath);
+    try {
+        await uploadToS3(job.url, job.mimetype, 0, uploadPath);
 
-    // Set CDN URL on the index document
-    const folder = process.env.FOLDER || "public-prod";
-    const cdnBase = process.env.CDN_BASE || `https://imagehost-files.nyc3.cdn.digitaloceanspaces.com/${folder}`;
-    const cdnUrl = `${cdnBase}/${job.url}`;
+        // Set CDN URL on the index document (only after successful upload)
+        const cdnUrl = getCdnUrl(job.url);
 
-    await U.query.index.updateOne(
-        { _id: job.url },
-        { $set: { cdn: cdnUrl } }
-    );
+        await U.query.index.updateOne(
+            { _id: job.url },
+            { $set: { cdn: cdnUrl } }
+        );
+
+        serverLog(`JobQueue: S3 backup done ${job.url} → ${cdnUrl}`);
+    } catch (err: any) {
+        serverLog(`JobQueue: S3 backup failed ${job.url}: ${err.message}`);
+        // Don't re-throw — allow downstream jobs (upload-artifacts) to still run
+    }
 
     // Clean up
     await fs.unlink(uploadPath).catch(() => {});
-    serverLog(`JobQueue: S3 backup done ${job.url} → ${cdnUrl}`);
 }
 
 async function handleUploadArtifacts(job: JobDoc): Promise<void> {
@@ -598,10 +617,10 @@ async function handleUploadArtifacts(job: JobDoc): Promise<void> {
         }
 
         // Also set the CDN thumb URL
-        const cdnBase = process.env.CDN_BASE || `https://imagehost-files.nyc3.cdn.digitaloceanspaces.com/${folder}`;
+        const thumbUrl = getCdnUrl(`${job.url}.thumb.jpg`);
         await U.query.index.updateOne(
             { _id: job.url },
-            { $set: { thumb: `${cdnBase}/${job.url}.thumb.jpg` } }
+            { $set: { thumb: thumbUrl } }
         );
 
         serverLog(`JobQueue: uploaded artifact ${thumbKey}`);
@@ -634,6 +653,8 @@ export async function enqueueReprocess(url: string, mimetype: string, fileExtens
     });
 
     if (uploadJob && (uploadJob as any).status === "done") {
+        // Clear any CDN/thumbnail fields from previous run
+        await clearCdnFields(url);
         // Reset all post-upload jobs to queued so they re-run from scratch
         await jobQueue.updateMany(
             { url, jobType: { $ne: "upload-to-rustfs" }, status: { $in: ["done", "failed"] } },
@@ -648,6 +669,8 @@ export async function enqueueReprocess(url: string, mimetype: string, fileExtens
             await insertProcessingJobs(url, mimetype, fileExtension);
         }
     } else {
+        // Clear any CDN/thumbnail fields from previous run
+        await clearCdnFields(url);
         // Upload-to-rustfs not done yet (or failed) — re-enqueue from scratch
         if (uploadJob) {
             await jobQueue.updateOne(

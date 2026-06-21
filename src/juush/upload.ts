@@ -79,9 +79,9 @@ export async function uploadToS3(url: string, mimeType: string, numTry: number =
     if (!filepath) filepath = U.getFilename(url);
     let st = await fs.stat(filepath);
     if(st.size > 1024 * 1024 * 150) {
-
         console.error(`File too large to upload to s3: ${url} ${st.size}`);
-        return;
+        await U.query.index.updateOne({_id: url}, {$set: {failedCDN: true}});
+        throw new Error(`File too large for S3 CDN: ${url} (${st.size} bytes, max 150MB)`);
     }
 
     let s;
@@ -122,6 +122,7 @@ export async function uploadToS3(url: string, mimeType: string, numTry: number =
             await U.query.index.updateOne({_id: url}, {$set: {
                 failedCDN: true,
             }});
+            throw new Error(`S3 upload failed after 3 retries: ${url}`);
         }
     }
 }
@@ -240,6 +241,7 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
             end: Math.min(i + chunkSize, size),
         };
         let currentChunk = createReadStream(filepath, p);
+        currentChunk.on("error", () => {});
         let contentLength = Math.min(chunkSize, size - i);
 
         let uc = {
