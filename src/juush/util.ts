@@ -50,7 +50,6 @@ export async function test_uploads() {
         Bucket: process.env.BUCKET,
         Key: "test/access_upload_test",
         Body: "Hello, World!",
-        ACL: "private",
     }));
     console.log("Uploaded test file to s3");
 
