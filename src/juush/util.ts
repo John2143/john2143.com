@@ -156,7 +156,7 @@ export async function startdb() {
             },
         });
 
-        await test_minio();
+        try { await test_minio(); } catch (e: any) { console.error("test_minio failed (non-fatal):", e?.message || e); }
     }
 
     console.log("Connecting to database...");
