@@ -132,7 +132,7 @@ export async function startdb() {
         console.log("setting up s3 connection");
         s3_client = new S3Client({
             endpoint: `${process.env.S3_ENDPOINT_URL}`,
-            forcePathStyle: false,
+            forcePathStyle: true,
             region: "us-east-1",
             maxAttempts: 5,
             credentials: {
