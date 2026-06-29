@@ -141,7 +141,7 @@ export async function startdb() {
             },
         });
 
-        await test_uploads();
+        try { await test_uploads(); } catch (e: any) { console.error("test_uploads failed (non-fatal):", e?.message || e); }
     }
     if(process.env.MINIO_ENDPOINT_URL){
         console.log(`setting up minio connection to ${process.env.MINIO_ENDPOINT_URL}`);
