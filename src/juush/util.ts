@@ -1,14 +1,9 @@
 /**
  * juush utility module — MongoDB and S3 client initialization.
  *
- * ARCHITECTURE NOTE: Disk cache eviction and S3 backup are handled by
- * Kubernetes sidecar containers, not by this module. See:
- *   2143-k8s/base/prune.fish   (deletes old files after Minio backup)
- *   2143-k8s/base/upload.fish  (uploads new files to Minio/S3)
- *   2143-k8s/overlays/prod/deployment-bastion.yaml (sidecar config)
- *
- * The Node.js app ALSO does an async S3 upload in upload.ts:479.
- * The sidecar provides a safety net for any failures.
+ * ARCHITECTURE NOTE: The app uploads files to SeaweedFS via upload-to-rustfs
+ * jobs and records `rustfsBackedUp` in Mongo on verified success. The disk
+ * pruner (prune.ts) uses this Mongo field to authorize cache eviction.
  */
 import { serverLog } from "../logger.js";
 import * as serverConst from "../const.js";

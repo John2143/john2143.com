@@ -81,21 +81,20 @@ export async function handlePrune(): Promise<void> {
         score: number;
         size: number;
         filePath: string;
-        markerPath: string;
     }> = [];
 
     for (const c of candidates) {
         const filePath = getFilename(c._id);
-        const markerPath = getFilename(`processed_minio/${c._id}`);
 
         try {
-            // Check that both the file and its minio backup marker exist on disk
-            await Promise.all([
-                fs.stat(filePath),
-                fs.access(markerPath),
-            ]);
+            await fs.stat(filePath);
+            const doc = await query.index.findOne(
+                { _id: c._id },
+                { projection: { rustfsBackedUp: 1 } },
+            );
+            if (!doc?.rustfsBackedUp) continue;
         } catch {
-            continue; // file missing or not backed up — skip
+            continue; // file missing, not backed up, or DB error — skip
         }
 
         const stat = await fs.stat(filePath);
@@ -107,7 +106,7 @@ export async function handlePrune(): Promise<void> {
         // score = age * size / (downloads + 1)
         const score = ageMs * size / ((c.downloads || 0) + 1);
 
-        scored.push({ id: c._id, score, size, filePath, markerPath });
+        scored.push({ id: c._id, score, size, filePath });
     }
 
     // Sort highest score first
@@ -126,7 +125,6 @@ export async function handlePrune(): Promise<void> {
 
         try {
             await fs.unlink(candidate.filePath);
-            await fs.unlink(candidate.markerPath).catch(() => {});
             freed += candidate.size;
             deleted++;
         } catch (e) {
@@ -134,29 +132,6 @@ export async function handlePrune(): Promise<void> {
         }
     }
 
-    // Clean up stale markers (markers with no corresponding file)
-    if (deleted > 0 || scored.length > 0) {
-        try {
-            const markerDir = getFilename("processed_minio");
-            const markers = await fs.readdir(markerDir);
-            let staleRemoved = 0;
-            for (const marker of markers) {
-                const filePath = getFilename(marker);
-                try {
-                    await fs.access(filePath);
-                } catch {
-                    // File doesn't exist — marker is stale
-                    await fs.unlink(`${markerDir}/${marker}`).catch(() => {});
-                    staleRemoved++;
-                }
-            }
-            if (staleRemoved > 0) {
-                serverLog(`Pruner: cleaned up ${staleRemoved} stale markers`);
-            }
-        } catch {
-            // marker dir doesn't exist or not accessible
-        }
-    }
 
     const finalPct = await getDiskUsagePct();
     serverLog(`Pruner: deleted ${deleted} files (${(freed / 1024 / 1024).toFixed(1)}MB), disk now at ${finalPct.toFixed(0)}%`);
