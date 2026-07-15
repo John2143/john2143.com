@@ -85,6 +85,25 @@ export async function initJobQueue() {
     if (stale.modifiedCount > 0) {
         serverLog(`JobQueue: reset ${stale.modifiedCount} stale processing jobs to queued`);
     }
+
+    // Reconcile: upload-to-rustfs job completed but rustfsBackedUp stuck at "uploading"
+    if (U.query.index && jobQueue) {
+        try {
+            const staleUploads = await jobQueue.aggregate([
+                { $match: { jobType: "upload-to-rustfs", status: "done" } },
+                { $lookup: { from: "index", localField: "url", foreignField: "_id", as: "doc" } },
+                { $unwind: "$doc" },
+                { $match: { "doc.rustfsBackedUp": "uploading" } },
+                { $project: { url: 1 } },
+            ]).toArray();
+            for (const { url } of staleUploads) {
+                await U.query.index.updateOne({ _id: url }, { $set: { rustfsBackedUp: true } });
+                serverLog(`JobQueue: backfilled rustfsBackedUp for ${url}`);
+            }
+        } catch (e) {
+            serverLog(`JobQueue: reconciliation skipped (${(e as Error).message})`);
+        }
+    }
 }
 
 // --- Enqueue ---
@@ -390,6 +409,12 @@ async function handleUploadToRustFS(job: JobDoc): Promise<void> {
     // Attach a no-op error listener so a missing-file ENOENT doesn't
     // become an uncaughtException that crashes the process.
     stream.on("error", () => {});
+
+    // Mark upload as in-flight so crash recovery can reconcile
+    await U.query.index.updateOne(
+        { _id: job.url },
+        { $set: { rustfsBackedUp: "uploading" } }
+    );
     await U.minio_client.send(new PutObjectCommand({
         Bucket: process.env.BUCKET || "imagehost-files",
         Key: job.url,

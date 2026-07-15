@@ -92,7 +92,7 @@ export async function handlePrune(): Promise<void> {
                 { _id: c._id },
                 { projection: { rustfsBackedUp: 1 } },
             );
-            if (!doc?.rustfsBackedUp) continue;
+            if (doc?.rustfsBackedUp !== true) continue;
         } catch {
             continue; // file missing, not backed up, or DB error — skip
         }
