@@ -129,6 +129,23 @@ export async function enqueueJobs(
         updatedAt: new Date(),
     });
     serverLog(`JobQueue: enqueued upload-to-rustfs for ${url}`);
+    // Start Temporal workflow in parallel (observational, fire-and-forget)
+    (async () => {
+        try {
+            const { getTemporalClient } = await import("./temporal/client.js");
+            const client = getTemporalClient();
+            if (client) {
+                const { UploadToRustFSWorkflow } = await import("./temporal/workflows.js");
+                await client.workflow.start(UploadToRustFSWorkflow, {
+                    args: [url, mimetype],
+                    taskQueue: "john2143-com",
+                    workflowId: `upload-${url}`,
+                });
+            }
+        } catch {
+            // Temporal unavailable — Mongo queue handles everything
+        }
+    })();
 
     // Processing jobs are inserted AFTER upload-to-rustfs completes.
     // We pre-insert nothing here — handleUploadToRustFS inserts them.

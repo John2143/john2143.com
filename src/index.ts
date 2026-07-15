@@ -197,6 +197,10 @@ if (serverConst.dbstring) {
         }).catch(e =>
             serverLog("Failed to start job queue", e)
         );
+        // Start Temporal worker (non-blocking, falls through to Mongo queue if unavailable)
+        import("./juush/temporal/client.js").then(m => m.connectTemporal()).then(() =>
+            import("./juush/temporal/worker.js").then(m => m.startTemporalWorker())
+        ).catch(() => {});
     }).catch((e: any) => {
         serverLog("Failed to start juush DB", e);
     });
