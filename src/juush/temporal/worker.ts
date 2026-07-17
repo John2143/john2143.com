@@ -41,7 +41,11 @@ export async function startTemporalWorker(): Promise<void> {
     let cancelRefresh: (() => void) | null = null;
     try {
         const token = await fetchTemporalAccessToken();
-        connection = await NativeConnection.connect({ address, tls: getTlsConfig(), apiKey: token.token });
+        connection = await NativeConnection.connect({
+            address,
+            tls: getTlsConfig(),
+            apiKey: token ? token.token : undefined,
+        });
         worker = await Worker.create({
             connection,
             namespace: "john2143-com",
@@ -49,10 +53,12 @@ export async function startTemporalWorker(): Promise<void> {
             workflowsPath: new URL("./workflows.js", import.meta.url).pathname,
             activities,
         });
-        cancelRefresh = startTemporalAccessTokenRefresh(
-            async (t) => { connection?.setApiKey(t); },
-            async () => { await worker?.shutdown(); },
-        );
+        if (token) {
+            cancelRefresh = startTemporalAccessTokenRefresh(
+                async (t) => { connection?.setApiKey(t); },
+                async () => { await worker?.shutdown(); },
+            );
+        }
         console.log(`Temporal: worker started on john2143-com queue (${address})`);
         await worker.run();
     } catch (e) {

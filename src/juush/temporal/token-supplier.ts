@@ -4,15 +4,16 @@ export type TemporalAccessToken = { token: string; expiresAt: number };
 
 let cachedToken: TemporalAccessToken | null = null;
 
-export async function fetchTemporalAccessToken(): Promise<TemporalAccessToken> {
+export async function fetchTemporalAccessToken(): Promise<TemporalAccessToken | undefined> {
     const clientId = process.env.POCKETID_TEMPORAL_CLIENT_ID;
+    if (!clientId) {
+        console.warn("Temporal: POCKETID_TEMPORAL_CLIENT_ID not set — connecting without API key");
+        return undefined;
+    }
+
     const tokenUrl = process.env.POCKETID_TOKEN_URL || "https://au.2143.me/api/oidc/token";
     const resource = process.env.POCKETID_TEMPORAL_RESOURCE || "https://temporal.john2143.com";
     const scope = process.env.POCKETID_TEMPORAL_SCOPE || "john2143-com:write";
-
-    if (!clientId) {
-        throw new Error("POCKETID_TEMPORAL_CLIENT_ID not set");
-    }
 
     // Fetch fresh JWT-SVID from Workload API
     const spireClient = createClient();

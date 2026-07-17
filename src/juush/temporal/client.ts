@@ -46,13 +46,15 @@ export async function connectTemporal(): Promise<void> {
         const connection = await Connection.connect({
             address,
             tls: getTlsConfig(),
-            apiKey: currentTemporalAccessToken,
+            apiKey: token ? currentTemporalAccessToken : undefined,
         });
         client = new Client({ connection, namespace: "john2143-com" });
-        startTemporalAccessTokenRefresh(
-            () => {}, // no-op: apiKey callback reads shared cache synchronously
-            async () => { client = null; },
-        );
+        if (token) {
+            startTemporalAccessTokenRefresh(
+                () => {},
+                async () => { client = null; },
+            );
+        }
         console.log(`Temporal: connected to ${address}`);
     } catch (e) {
         console.warn(`Temporal: unavailable at ${address} (${(e as Error).message}) — falling through to Mongo queue`);
