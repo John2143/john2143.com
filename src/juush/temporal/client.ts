@@ -1,22 +1,28 @@
 import { fetchTemporalAccessToken, currentTemporalAccessToken, startTemporalAccessTokenRefresh } from "./token-supplier.js";
 
 import { Client, Connection } from "@temporalio/client";
-import { readFileSync } from "fs";
-
+import { execSync } from "child_process";
+import { mkdtempSync, readFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 
 function getTlsConfig() {
-    const dir = process.env.TEMPORAL_TLS_CERT_DIR;
-    if (!dir) return undefined;
+    const socketPath = (process.env.SPIFFE_ENDPOINT_SOCKET || "").replace("unix://", "");
+    if (!socketPath) return undefined;
     try {
-        return {
+        const svidDir = mkdtempSync(join(tmpdir(), "svid-"));
+        execSync(`spire-agent api fetch x509 -socketPath ${socketPath} -write ${svidDir} -timeout 30s`, { timeout: 35000 });
+        const tlsConfig = {
             clientCertPair: {
-                crt: readFileSync(`${dir}/tls.crt`),
-                key: readFileSync(`${dir}/tls.key`),
+                crt: readFileSync(join(svidDir, "svid.0.pem")),
+                key: readFileSync(join(svidDir, "svid.0.key")),
             },
-            serverRootCACertificate: readFileSync(`${dir}/ca.crt`),
+            serverRootCACertificate: readFileSync(join(svidDir, "bundle.0.pem")),
         };
-    } catch {
-        console.warn("Temporal: TLS cert dir set but files unreadable — connecting without mTLS");
+        console.log("Temporal: fetched SPIRE X.509 SVID for mTLS");
+        return tlsConfig;
+    } catch (e) {
+        console.warn(`Temporal: SVID fetch failed (${(e as Error).message}) — connecting without mTLS`);
         return undefined;
     }
 }

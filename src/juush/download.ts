@@ -37,14 +37,18 @@ const serveStreamRequest = async function(reqx, uploadID, filepath, data){
 
     const range = rangeRequestRegex.exec(reqx.req.headers.range || "");
     const fullContentLength = stat.size;
-    const rangeStart = Number(range[1]);
-    let rangeEnd;
+    let rangeStart: number;
+    let rangeEnd: number;
 
-    if(range[2] === ""){
+    if (range[1] === "" && range[2] !== "") {
+        // suffix range e.g. bytes=-500 → last 500 bytes
         rangeEnd = fullContentLength - 1;
-    }else{
-        rangeEnd = Number(range[2]);
+        rangeStart = fullContentLength - Number(range[2]);
+    } else {
+        rangeStart = Number(range[1]);
+        rangeEnd = range[2] === "" ? fullContentLength - 1 : Number(range[2]);
     }
+
 
     const bytesString = `${rangeStart}-${rangeEnd}/${fullContentLength}`;
     reqx.extraLog = bytesString.green;
@@ -71,6 +75,7 @@ const serveStreamRequest = async function(reqx, uploadID, filepath, data){
 
     let f = await fs.open(filepath, "r");
     const filePipe = f.createReadStream({start: rangeStart, end: rangeEnd});
+    filePipe.on("error", () => { try { filePipe.destroy(); } catch (_) {} });
     reqx.res.on("error", () => { try { filePipe.destroy(); } catch (_) {} });
     filePipe.on("close", () => { void f.close().catch(() => {}); });
     filePipe.pipe(reqx.res);
@@ -202,6 +207,7 @@ async function tryGetBackups(uploadID: string, filepath: string, reqx: any, data
     // https://john2143.com:9000
     const hash = createHash("sha256");
     const input = createReadStream(origFilepath);
+    input.on("error", () => {});
 
     input.on("data", chunk => {
         hash.update(chunk);
@@ -346,6 +352,7 @@ const processDownload = async function(reqx, data, disposition){
     //Stream file from disk directly
     let f = await fs.open(filepath, "r");
     const stream = f.createReadStream();
+    stream.on("error", () => { try { stream.destroy(); } catch (_) {} });
     stream.on("close", () => { void f.close().catch(() => {}); });
     stream.pipe(reqx.res);
 };
