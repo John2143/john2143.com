@@ -11,7 +11,8 @@
     "hono": "^4.12.23",
     "@temporalio/client": "^1.11.0",
     "@temporalio/worker": "^1.11.0",
-    "mongodb": "^7.2.0"
+    "mongodb": "^7.2.0",
+    "spiffe": "0.5.1"
   },
   "devDependencies": {
     "@aws-sdk/types": "^3.973.8",
