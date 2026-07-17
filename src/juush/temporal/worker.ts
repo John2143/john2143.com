@@ -13,12 +13,18 @@ function getTlsConfig() {
     try {
         const svidDir = mkdtempSync(join(tmpdir(), "svid-"));
         execSync(`spire-agent api fetch x509 -socketPath ${socketPath} -write ${svidDir} -timeout 30s`, { timeout: 35000 });
+        // Read Temporal server CA cert for server verification
+        // (SPIRE bundle is only trusted by the server for client auth)
+        const serverCaPath = process.env.TEMPORAL_TLS_CA_PATH;
+        const serverRootCACertificate = serverCaPath
+            ? readFileSync(serverCaPath)
+            : undefined;
         const tlsConfig = {
             clientCertPair: {
                 crt: readFileSync(join(svidDir, "svid.0.pem")),
                 key: readFileSync(join(svidDir, "svid.0.key")),
             },
-            serverRootCACertificate: readFileSync(join(svidDir, "bundle.0.pem")),
+            serverRootCACertificate,
         };
         console.log("Temporal: fetched SPIRE X.509 SVID for mTLS");
         return tlsConfig;
