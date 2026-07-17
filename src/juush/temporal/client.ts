@@ -26,6 +26,7 @@ function getTlsConfig() {
             serverRootCACertificate,
         };
         console.log("Temporal: fetched SPIRE X.509 SVID for mTLS");
+        return tlsConfig;
     } catch (e) {
         console.warn(`Temporal: SVID fetch failed (${(e as Error).message}) — connecting without mTLS`);
         return undefined;
