@@ -13,15 +13,29 @@ function getTlsConfig() {
     try {
         const svidDir = mkdtempSync(join(tmpdir(), "svid-"));
         execSync(`spire-agent api fetch x509 -socketPath ${socketPath} -write ${svidDir} -timeout 30s`, { timeout: 35000 });
+        // Read the SVID cert — may contain only the leaf cert, not the full chain.
+        // Temporal's mTLS server-side validation needs the complete chain (leaf + intermediates).
+        let crt: Buffer = readFileSync(join(svidDir, "svid.0.pem"));
+        const pemBoundaries = crt.toString().match(/-----BEGIN CERTIFICATE-----/g);
+        if (pemBoundaries && pemBoundaries.length === 1) {
+            // Only leaf cert present — fetch the full chain via stdout
+            try {
+                crt = execSync(`spire-agent api fetch x509 -socketPath ${socketPath} -write - -timeout 30s`, { timeout: 35000 });
+                console.log("Temporal: fetched full SVID cert chain (leaf + intermediates)");
+            } catch (chainErr) {
+                console.warn(`Temporal: full chain fetch failed (${(chainErr as Error).message}) — using leaf cert only`);
+                // crt already holds the leaf cert from the file read above
+            }
+        }
         // Read Temporal server CA cert for server verification
         // (SPIRE bundle is only trusted by the server for client auth)
         const serverCaPath = process.env.TEMPORAL_TLS_CA_PATH;
-        const serverRootCACertificate = serverCaPath
+        const serverRootCACertificate: Buffer | undefined = serverCaPath
             ? readFileSync(serverCaPath)
             : undefined;
         const tlsConfig = {
             clientCertPair: {
-                crt: readFileSync(join(svidDir, "svid.0.pem")),
+                crt,
                 key: readFileSync(join(svidDir, "svid.0.key")),
             },
             serverRootCACertificate,
