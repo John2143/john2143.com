@@ -12,7 +12,9 @@ RUN npm run build
 RUN rm -rf node_modules
 RUN npm ci --omit=dev
 
-FROM gcr.io/distroless/nodejs22-debian12 AS runner
+FROM node:22-slim AS runner
+RUN apt-get update && apt-get install -y --no-install-recommends dumb-init && rm -rf /var/lib/apt/lists/*
+COPY --from=ghcr.io/spiffe/spire-agent:1.11.0 /opt/spire/bin/spire-agent /usr/local/bin/spire-agent
 WORKDIR /app
 COPY ./pages/ ./pages/
 COPY ./favicon.ico .
