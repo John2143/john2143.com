@@ -13,19 +13,16 @@ function getTlsConfig() {
     try {
         const svidDir = mkdtempSync(join(tmpdir(), "svid-"));
         execSync(`spire-agent api fetch x509 -socketPath ${socketPath} -write ${svidDir} -timeout 30s`, { timeout: 35000 });
-        // Read the SVID cert — may contain only the leaf cert, not the full chain.
-        // Temporal's mTLS server-side validation needs the complete chain (leaf + intermediates).
-        let crt: Buffer = readFileSync(join(svidDir, "svid.0.pem"));
-        const pemBoundaries = crt.toString().match(/-----BEGIN CERTIFICATE-----/g);
-        if (pemBoundaries && pemBoundaries.length === 1) {
-            // Only leaf cert present — fetch the full chain via stdout
-            try {
-                crt = execSync(`spire-agent api fetch x509 -socketPath ${socketPath} -write - -timeout 30s`, { timeout: 35000 });
-                console.log("Temporal: fetched full SVID cert chain (leaf + intermediates)");
-            } catch (chainErr) {
-                console.warn(`Temporal: full chain fetch failed (${(chainErr as Error).message}) — using leaf cert only`);
-                // crt already holds the leaf cert from the file read above
-            }
+        // Fetch the full SVID cert chain (leaf + intermediates + roots) via stdout.
+        // The file svid.0.pem may contain only leaf + intermediate; the full chain
+        // gives Temporal's server-side mTLS validation everything it needs.
+        let crt: Buffer;
+        try {
+            crt = execSync(`spire-agent api fetch x509 -socketPath ${socketPath} -write - -timeout 30s`, { timeout: 35000 });
+            console.log("Temporal: fetched full SVID cert chain from stdout");
+        } catch (chainErr) {
+            console.warn(`Temporal: full chain stdout fetch failed (${(chainErr as Error).message}) — falling back to file`);
+            crt = readFileSync(join(svidDir, "svid.0.pem"));
         }
         // Read Temporal server CA cert for server verification
         // (SPIRE bundle is only trusted by the server for client auth)
