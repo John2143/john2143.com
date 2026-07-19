@@ -1,60 +1,14 @@
-import { createClient } from "spiffe";
-
 export type TemporalAccessToken = { token: string; expiresAt: number };
 
 let cachedToken: TemporalAccessToken | null = null;
 
+/**
+ * Returns undefined — PocketID JWT-SVID token exchange is deferred (Phase 4).
+ * Linkerd handles mTLS transparently; Temporal connections work without API keys.
+ */
 export async function fetchTemporalAccessToken(): Promise<TemporalAccessToken | undefined> {
-    const clientId = process.env.POCKETID_TEMPORAL_CLIENT_ID;
-    if (!clientId) {
-        console.warn("Temporal: POCKETID_TEMPORAL_CLIENT_ID not set — connecting without API key");
-        return undefined;
-    }
-
-    const tokenUrl = process.env.POCKETID_TOKEN_URL || "https://au.2143.me/api/oidc/token";
-    const resource = process.env.POCKETID_TEMPORAL_RESOURCE || "https://temporal.john2143.com";
-    const scope = process.env.POCKETID_TEMPORAL_SCOPE || "john2143-com:write";
-
-    // Fetch fresh JWT-SVID from Workload API
-    const spireClient = createClient();
-    const svidResponse = await spireClient.fetchJWTSVID({
-        audience: ["https://au.2143.me"],
-        spiffeId: "",
-    });
-    const jwtSvid = svidResponse.response.svids[0].svid;
-
-    // Exchange JWT-SVID for PocketID access token
-    const body = new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        client_id: clientId,
-        client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
-        client_assertion: jwtSvid,
-        resource,
-        scope,
-    });
-
-    const response = await fetch(tokenUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body,
-    });
-
-    if (!response.ok) {
-        throw new Error(`PocketID token exchange failed: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json() as { access_token: string; expires_in: number; token_type: string };
-    if (!data.access_token || !data.expires_in) {
-        throw new Error(`PocketID response missing access_token or expires_in`);
-    }
-
-    const token: TemporalAccessToken = {
-        token: data.access_token,
-        expiresAt: Date.now() + (data.expires_in * 1000) - 60000, // refresh 1 min before expiry
-    };
-
-    cachedToken = token;
-    return token;
+    console.warn("Temporal: connecting without API key (Linkerd handles mTLS; PocketID token exchange deferred)");
+    return undefined;
 }
 
 export function currentTemporalAccessToken(): string {
@@ -74,7 +28,14 @@ export function startTemporalAccessTokenRefresh(
     async function refreshLoop() {
         while (!stopped) {
             try {
-                const { token, expiresAt } = await fetchTemporalAccessToken();
+                const result = await fetchTemporalAccessToken();
+                if (!result) {
+                    // No token available — Linkerd handles mTLS, no refresh needed
+                    console.warn("Temporal: no access token to refresh (Linkerd mTLS mode)");
+                    if (!stopped) await onExpired();
+                    break;
+                }
+                const { token, expiresAt } = result;
                 if (!stopped) {
                     await onToken(token);
                     const delay = Math.max(0, expiresAt - Date.now() - 30000); // refresh 30s before expiry
