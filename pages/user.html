@@ -25,6 +25,309 @@
 .fameme:hover{
     -webkit-animation:spin 4s infinite linear; font-size:1000px; color:red;
 }
+
+/* Memify Extreme is completely opt-in and scoped to this one page.  It uses
+ * only CSS animations: when the class disappears, all transforms and timers
+ * disappear with it. */
+.memify-extreme-active {
+    --memify-cyan: #00ffff;
+    --memify-pink: #ff00aa;
+    --memify-yellow: #fff200;
+    animation: memify-page-wobble .7s ease-in-out infinite;
+    background:
+        radial-gradient(circle at 12% 18%, rgba(255,0,170,.24), transparent 25%),
+        radial-gradient(circle at 88% 72%, rgba(0,255,255,.22), transparent 28%),
+        #fff;
+    min-height: 100vh;
+    overflow-x: hidden;
+    cursor: none !important;
+}
+.memify-hud-canvas { display: none; }
+.memify-extreme-active .memify-hud-canvas {
+    display: block; position: fixed; inset: 0; z-index: 10005;
+    width: 100vw; height: 100vh; pointer-events: none;
+}
+.memify-game-timer { display: none; }
+.memify-extreme-active .memify-game-timer {
+    display: block; position: fixed; top: 18px; right: 24px; z-index: 10007;
+    color: #ff3030; font: bold 28px monospace; text-shadow: 0 0 8px #ff0000, 3px 3px #300000; pointer-events: none;
+    animation: memify-timer-pulse .55s ease-in-out infinite alternate;
+}
+.memify-game-timer.win { color:#49ff00; text-shadow:0 0 12px #49ff00; animation:none; font-size:42px; }
+.memify-invasion-message { display:none; }
+.memify-extreme-active .memify-invasion-message { display:block; position:fixed; inset:0; z-index:10010; align-content:center; text-align:center; color:#ff3030; font:bold clamp(34px,7vw,92px) Impact, sans-serif; text-shadow:5px 5px #190000, 0 0 22px #f00; pointer-events:none; }
+.memify-invasion-message small { display:block; margin-top:18px; font:bold 16px monospace; color:#fff; text-shadow:2px 2px #000; }
+.memify-enemy-counter { display:none; }
+.memify-extreme-active .memify-enemy-counter { display:flex; position:fixed; top:95px; right:24px; z-index:10008; align-items:center; gap:8px; color:#fff; font:bold 14px monospace; pointer-events:none; }
+.memify-mini-enemy { width:24px; height:32px; position:relative; display:inline-block; background:#303943; border:2px solid #0b0d10; border-radius:45% 45% 35% 35%; box-shadow:10px 5px 0 -7px #171a1e; }
+.memify-mini-enemy::before { content:""; position:absolute; width:22px; height:4px; left:-19px; top:12px; background:#171a1e; box-shadow:-7px 0 0 -1px #78838d; }
+.memify-heart-counter { display:block; color:#ff3030; letter-spacing:2px; font-size:18px; margin-top:4px; }
+@keyframes memify-timer-pulse { from { transform:scale(1); } to { transform:scale(1.18); } }
+.memify-death-screen { display: none; }
+.memify-death-screen.active {
+    display: flex; position: fixed; inset: 0; z-index: 10020; align-items: center; justify-content: center; flex-direction: column;
+    background: radial-gradient(circle, rgba(55,0,0,.65), rgba(0,0,0,.94)); color: #b9b9b9; font-family: Georgia, serif; pointer-events: auto;
+}
+.memify-death-screen strong { color: #8d0b0b; font-size: clamp(64px, 14vw, 190px); letter-spacing: .08em; text-shadow: 0 0 14px #f00, 5px 5px #050000; }
+.memify-death-screen span { font-size: 18px; margin-top: 20px; }
+.memify-win-message { display: none; }
+.memify-win-message.active { display: block; position: fixed; top: 8%; left: 50%; transform: translateX(-50%); z-index: 10022; color: #49ff00; font: bold clamp(55px, 12vw, 150px) monospace; text-shadow: 0 0 18px #49ff00, 5px 5px #003300; pointer-events: none; white-space:nowrap; }
+.memify-win-score { display:none; }
+.memify-win-score.active { display:block; position:fixed; top:86%; left:50%; transform:translateX(-50%); z-index:10022; color:#49ff00; font:bold clamp(20px, 4vw, 48px) monospace; text-shadow:0 0 12px #49ff00; pointer-events:none; white-space:nowrap; }
+.memify-win-gif { display: none; }
+.memify-win-gif.active { display: block; position: fixed; left: 50%; top: 50%; z-index: 10021; width: min(480px, 70vw); transform: translate(-50%, -50%); border: 8px solid #49ff00; box-shadow: 0 0 35px #49ff00; pointer-events: none; }
+.memify-game-over > .row,
+.memify-game-over > .memify-error-swarm,
+.memify-game-over > .memify-cat-storm,
+.memify-game-over > .memify-flying-cats { display: none !important; }
+.memify-game-status { display:none; }
+.memify-game-controls { display:none; }
+.memify-extreme-active .memify-game-controls { display:block; position:fixed; bottom:18px; left:18px; z-index:10008; color:#49ff00; background:rgba(0,0,0,.75); padding:8px; font:bold 12px monospace; pointer-events:none; }
+.memify-extreme-active .col-xs-10 a {
+    pointer-events: none;
+    cursor: none;
+}
+
+.memify-extreme-active .row > [class*="col-"] {
+    animation: memify-column-float .5s ease-in-out infinite;
+}
+.memify-extreme-active .row > [class*="col-"]:nth-child(2) {
+    animation-delay: -2.3s;
+}
+.memify-extreme-active .list-group,
+.memify-extreme-active .card-block,
+.memify-extreme-active .btn,
+.memify-extreme-active .list-group-item,
+.memify-extreme-active select,
+.memify-extreme-active input,
+.memify-extreme-active audio {
+    animation: memify-object-chaos .38s ease-in-out infinite;
+}
+.memify-extreme-active .list-group-item:nth-child(3n) { animation-delay: -.8s; }
+.memify-extreme-active .list-group-item:nth-child(3n + 1) { animation-delay: -1.7s; }
+.memify-extreme-active .card-img-top {
+    animation: memify-media-bounce .42s ease-in-out infinite;
+    filter: saturate(2.1) hue-rotate(25deg) drop-shadow(10px 10px 0 rgba(255,0,170,.4));
+}
+.memify-extreme-active a:hover,
+.memify-extreme-active button:hover {
+    animation: memify-hover-explosion .55s steps(2, end) infinite;
+    position: relative;
+    z-index: 3;
+}
+.memify-extreme-active .dank {
+    animation: memify-rainbow .11s linear infinite, memify-object-chaos .24s ease-in-out infinite;
+}
+.memify-extreme-active .fameme {
+    animation: memify-icon-spin .075s linear infinite;
+}
+.memify-extreme-active .list-group-item,
+.memify-extreme-active .btn,
+.memify-extreme-active select,
+.memify-extreme-active .card-block {
+    transform-origin: center;
+}
+.memify-extreme-active .list-group-item:nth-child(2n),
+.memify-extreme-active .btn:nth-child(2n),
+.memify-extreme-active .card-block:nth-child(2n) {
+    animation: memify-fast-spin .24s linear infinite;
+}
+.memify-extreme-active .list-group-item:nth-child(3n),
+.memify-extreme-active select,
+.memify-extreme-active audio {
+    animation: memify-fast-spin-reverse .31s linear infinite;
+}
+.memify-error-swarm { display: none; }
+.memify-extreme-active .memify-error-swarm {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 10005;
+    pointer-events: none;
+    overflow: hidden;
+}
+.memify-error-window {
+    position: absolute;
+    top: calc(var(--error-y) * 1vh);
+    left: calc(var(--error-x) * 1vw);
+    width: clamp(230px, 23vw, 300px);
+    min-height: 120px;
+    color: #000;
+    background: #d4d0c8;
+    border: 2px solid #fff;
+    border-right-color: #404040;
+    border-bottom-color: #404040;
+    box-shadow: 3px 3px 0 #000;
+    font: 12px Tahoma, Arial, sans-serif;
+    opacity: 0;
+    animation: memify-error-appear .1s linear both;
+    animation-delay: calc(3.8s + var(--error-delay));
+}
+.memify-error-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 2px 4px;
+    color: #fff;
+    font-weight: bold;
+    background: linear-gradient(#4f9cf5 0%, #1356bd 45%, #0b3c9c 100%);
+    border: 1px solid #85baf5;
+    overflow: hidden;
+    white-space: nowrap;
+}
+.memify-error-titlebar::before {
+    content: "";
+    width: 15px;
+    height: 15px;
+    flex: 0 0 15px;
+    background: #fff;
+    border: 1px solid #183b74;
+    box-shadow: inset 0 0 0 2px #f00;
+}
+.memify-error-close {
+    margin-left: auto;
+    width: 17px;
+    height: 17px;
+    color: #000;
+    background: #d4d0c8;
+    border: 1px solid #fff;
+    border-right-color: #404040;
+    border-bottom-color: #404040;
+    font: bold 12px Arial;
+    line-height: 12px;
+    text-align: center;
+}
+.memify-error-body {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 62px;
+    padding: 10px;
+}
+.memify-error-icon { color: #f00; font: bold 34px Arial; }
+.memify-error-ok {
+    display: block;
+    margin: 0 auto 8px;
+    min-width: 70px;
+    padding: 2px 12px;
+    background: #d4d0c8;
+    border: 2px solid #fff;
+    border-right-color: #404040;
+    border-bottom-color: #404040;
+    font: 12px Tahoma, Arial, sans-serif;
+}
+.memify-cat-storm { display: none; }
+.memify-extreme-active .memify-cat-storm {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 10001;
+    pointer-events: none;
+    overflow: hidden;
+    animation: memify-storm-fade 3.8s ease-in forwards;
+}
+.memify-cat {
+    position: absolute;
+    width: clamp(42px, 9vw, 145px);
+    height: auto;
+    left: calc(var(--cat-x) * 1%);
+    top: calc(var(--cat-y) * 1%);
+    opacity: 0;
+    transform: scale(.04);
+    animation: memify-cat-burst var(--cat-speed) linear forwards;
+    animation-delay: var(--cat-delay);
+}
+.memify-flying-cats { display: none; }
+.memify-extreme-active .memify-flying-cats {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 10002;
+    pointer-events: none;
+    overflow: hidden;
+}
+.memify-flying-cat {
+    position: absolute;
+    width: clamp(70px, 12vw, 180px);
+    top: calc(var(--fly-y) * 1%);
+    left: -20vw;
+    animation: memify-cat-fly var(--fly-speed) linear infinite;
+    animation-delay: var(--fly-delay);
+}
+@keyframes memify-fast-spin {
+    to { transform: rotate(1turn) scale(1.08); }
+}
+@keyframes memify-fast-spin-reverse {
+    to { transform: rotate(-1turn) scale(1.08); }
+}
+@keyframes memify-error-appear {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes memify-cat-fly {
+    0% { transform: translateX(-25vw) rotate(-20deg) scale(.8); }
+    45% { transform: translateX(55vw) rotate(15deg) scale(1.5); }
+    100% { transform: translateX(150vw) rotate(30deg) scale(1); }
+}
+@keyframes memify-cat-burst {
+    0% { opacity: 0; transform: scale(.04); }
+    12% { opacity: 1; }
+    78% { opacity: 1; transform: scale(4.2); }
+    100% { opacity: 0; transform: scale(4.2); }
+}
+@keyframes memify-storm-fade {
+    0%, 74% { opacity: 1; }
+    100% { opacity: 0; }
+}
+/* Canvas-rendered creatures are drawn by drawMemifyScene(). */
+@keyframes memify-page-wobble {
+    0%, 100% { filter: hue-rotate(0deg); }
+    50% { filter: hue-rotate(35deg); }
+}
+@keyframes memify-object-chaos {
+    0%, 100% { transform: rotate(-1deg) scale(1); }
+    25% { transform: rotate(2deg) scale(1.025); }
+    75% { transform: rotate(-3deg) scale(.98); }
+}
+@keyframes memify-column-float {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    30% { transform: translate(4px, -8px) rotate(1deg); }
+    70% { transform: translate(-5px, 6px) rotate(-1deg); }
+}
+@keyframes memify-media-bounce {
+    0%, 100% { transform: rotate(-2deg) scale(1); }
+    50% { transform: rotate(2deg) scale(1.06); }
+}
+@keyframes memify-hover-explosion {
+    0% { transform: translate(0) rotate(0) scale(1); }
+    50% { transform: translate(7px, -9px) rotate(7deg) scale(1.15); }
+    100% { transform: translate(-5px, 4px) rotate(-5deg) scale(.96); }
+}
+@keyframes memify-rainbow {
+    0% { filter: hue-rotate(0deg); }
+    100% { filter: hue-rotate(360deg); }
+}
+@keyframes memify-icon-spin {
+    to { transform: rotate(1turn) scale(1.35); }
+}
+@keyframes memify-banner-flight {
+    0% { transform: translateX(-20vw) rotate(-14deg); }
+    50% { transform: translateX(75vw) rotate(18deg) scale(1.3); }
+    100% { transform: translateX(125vw) rotate(-14deg); }
+}
+@keyframes memify-banner-flight-reverse {
+    0% { transform: translateX(20vw) rotate(11deg); }
+    50% { transform: translateX(-75vw) rotate(-16deg) scale(1.25); }
+    100% { transform: translateX(-125vw) rotate(11deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .memify-extreme-active *,
+    .memify-extreme-active::before,
+    .memify-extreme-active::after {
+        animation-duration: 8s;
+    }
+}
 .whoamicon.fa-check-circle{ color:green; }
 .whoamicon.fa-times-circle{ color:red; }
 .whoamicon.fa-cog{ color:blue; }
@@ -49,7 +352,41 @@
     </style>
 </head>
 <body>
-<div x-data="app()" x-init="init()" class="container-fluid">
+<div x-data="app()" x-init="init()" class="container-fluid" :class="{'memify-extreme-active': memify, 'memify-game-over': gameDead}" @keydown.escape.window="memify = false" @click.window="fireMemifyShot($event)">
+    <canvas class="memify-hud-canvas" aria-hidden="true"></canvas>
+    <div class="memify-game-timer" :class="{win: gameWon}" x-text="gameWon ? '✓' : (gameTimeRemaining > 0 ? gameTimeRemaining + 's' : '0s')"></div>
+    <div class="memify-enemy-counter"><span class="memify-mini-enemy"></span><span>LEFT: <b x-text="memifyEnemies.filter(enemy => enemy.hp > 0).length"></b><span class="memify-heart-counter" x-text="'♥'.repeat(playerHearts) + '♡'.repeat(5 - playerHearts)"></span></span></div>
+    <div class="memify-invasion-message" x-show="gameIntroDone && !gameDead && !gameWon">COUNTER TERRORISTS ARE INVADING<small>KILL THEM TO SURVIVE</small></div>
+        <div class="memify-game-controls">MOVE: A / D keys along the bottom · CLICK: single-shot fire · DODGE: slow red bullets</div>
+    <div class="memify-death-screen" :class="{active: gameDead}"><strong>YOU DIED</strong><span>Refresh to return to the site</span></div>
+    <div class="memify-win-message" :class="{active: gameWon}">YOU WIN</div>
+    <div class="memify-win-score" :class="{active: gameWon}">+1000000 CREDIT SCORE</div>
+    <img class="memify-win-gif" :class="{active: gameWon}" src="https://media1.tenor.com/m/A8tR56E3bfwAAAAC/bing-chilling-john-cena.gif" alt="John Cena Bing Chilling">
+    <template x-if="memify">
+    <div class="memify-error-swarm" aria-hidden="true">
+        <template x-for="error in memifyErrors" :key="error.id">
+            <div class="memify-error-window" :style="`--error-x:${error.x};--error-y:${error.y};--error-z:${error.z};--error-delay:${error.delay}s`">
+                <div class="memify-error-titlebar"><span x-text="error.title"></span><span class="memify-error-close">×</span></div>
+                <div class="memify-error-body"><span class="memify-error-icon">×</span><span x-text="error.message"></span></div>
+                <button class="memify-error-ok">OK</button>
+            </div>
+        </template>
+    </div>
+    </template>
+    <template x-if="memify">
+    <div class="memify-cat-storm" aria-hidden="true">
+        <template x-for="cat in memifyCats" :key="cat.id">
+            <img class="memify-cat" :src="memifyCatURL" :style="`--cat-x:${cat.x};--cat-y:${cat.y};--cat-rotate:${cat.rotate}deg;--cat-speed:${cat.speed}s;--cat-delay:${cat.delay}s`" alt="">
+        </template>
+    </div>
+    </template>
+    <template x-if="memify">
+    <div class="memify-flying-cats" aria-hidden="true">
+        <template x-for="cat in memifyFlyingCats" :key="cat.id">
+            <img class="memify-flying-cat" :src="memifyCatURL" :style="`--fly-y:${cat.y};--fly-speed:${cat.speed}s;--fly-delay:${cat.delay}s`" alt="">
+        </template>
+    </div>
+    </template>
     <div class="row">
         <!-- Sidebar -->
         <div class="col-xs-2">
@@ -150,7 +487,9 @@
                     <ul class="list-group">
                         <div class="list-group-item list-group-item-info">Menu</div>
                         <a href="/upload" class="list-group-item list-group-item-action"><i class="fa fa-fw fa-upload"></i> Upload Files</a>
-                        <button class="list-group-item list-group-item-action" @click="memify = !memify">Memify</button>
+                        <button class="list-group-item list-group-item-action" @click="toggleMemify()" :aria-pressed="memify">
+                            <span x-text="memify ? 'Memify: EXTREME (click to calm down)' : 'Memify'"></span>
+                        </button>
                         <button class="list-group-item list-group-item-action" @click="blockUserURL = !blockUserURL">
                             <i class="fa fa-fw" :class="!blockUserURL ? 'fa-check green' : 'fa-times red'" :class="{fameme: memify}"></i>
                             <span x-text="!blockUserURL ? 'Allow Cust URL' : 'Block Cust URL'"></span>
@@ -242,6 +581,17 @@ const lead0 = n => n < 10 ? "0" + n : n;
 
 function app() {
     return {
+        hudCanvas: null,
+        hudContext: null,
+        mouseX: 0,
+        mouseY: 0,
+        hudFrame: null,
+        lastMemifyFrameAt: 0,
+        akImage: null,
+        akReady: false,
+        enemyImage: null,
+        enemyReady: false,
+        enemyCutout: null,
         authUser: null,
         uploadKey: '',
         showKey: false,
@@ -255,8 +605,166 @@ function app() {
         uinfo: null,
         adminShowHidden: false,
         memify: false,
+        gameTimeRemaining: 30,
+        gameStartedAt: 0,
+        gameIntroDone: false,
+        gameDead: false,
+        gameWon: false,
+        gameStatus: '',
+        memifyEnemies: [],
+        memifyBullets: [],
+        playerHearts: 5,
+        gunX: .75,
+        moveLeft: false,
+        moveRight: false,
+        toggleMemify() {
+            this.memify = !this.memify;
+            if (this.memify) this.startMemifyGame();
+            else this.stopMemifyGame();
+        },
+
+        startMemifyGame() {
+            this.gameTimeRemaining = 30;
+            this.gameStartedAt = performance.now() + 5500;
+            this.gameIntroDone = false;
+            this.gameDead = false;
+            this.gameWon = false;
+            this.gameStatus = 'ENEMIES LEFT: 5';
+            this.playerHearts = 5;
+            this.lastMemifyFrameAt = performance.now();
+            this.memifyBullets = [];
+            this.memifyEnemies = Array.from({length: 5}, (_, id) => ({
+                id, x: .18 + id * .16, y: .18 + (id % 3) * .25,
+                vx: id % 2 ? -.0012 : .001, vy: id % 2 ? .0008 : -.001,
+                phase: id * 1.7, hp: 1, fireAt: performance.now() + 1600 + id * 900
+            }));
+            this.drawMemifyHUD();
+        },
+
+        stopMemifyGame() {
+            this.gameDead = false;
+            this.gameWon = false;
+            this.gameStatus = '';
+            this.memifyBullets = [];
+            this.hudContext?.clearRect(0, 0, innerWidth, innerHeight);
+        },
+        memifyCatURL: 'https://cdn.7tv.app/emote/01HDHDB3W80004BCCZZPM101A2/4x.avif',
+        memifyCats: Array.from({length: 120}, (_, id) => ({
+            id,
+            x: (id * 47) % 102,
+            y: (id * 73) % 102,
+            rotate: (id * 31) % 360 - 180,
+            speed: .65 + (id % 8) * .045,
+            delay: (id % 30) * .045
+        })),
+        memifyFlyingCats: Array.from({length: 8}, (_, id) => ({
+            id, y: 8 + (id * 13) % 82, speed: 2.2 + (id % 4) * .4, delay: -(id * .8)
+        })),
+        memifyErrors: [
+            ['Memify.exe', 'Memify.exe has encountered a problem and needs to close.'],
+            ['System Error', 'The page is too normal. Please press OK to continue.'],
+            ['Internet Explorer', 'This dialog has performed an illegal operation.'],
+            ['Windows', 'A critical amount of fun has been detected.'],
+            ['Juush', 'The upload gremlins are not responding.'],
+            ['Desktop', 'There are too many buttons on the desktop.'],
+            ['explorer.exe', 'Explorer has stopped exploring.'],
+            ['Error', 'An error occurred while displaying this error.'],
+            ['Microsoft Windows', 'Please wait while Windows waits for you.'],
+            ['Warning', 'Your computer is experiencing computer.'],
+            ['memify.dll', 'The requested meme could not be found.'],
+            ['System32', 'System32 has been replaced with System32.'],
+            ['Control Panel', 'Control Panel has lost control.'],
+            ['Recycle Bin', 'The Recycle Bin is full of unrecycled bins.'],
+            ['Network Error', 'The network is connected to itself.'],
+            ['Task Manager', 'Task Manager is not managing this task.'],
+            ['Blue Screen', 'The blue screen is feeling a little red.'],
+            ['Windows XP', 'Windows XP would like to know what year it is.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.'],
+            ['Task Failed Successfully', 'Task failed successfully.']
+        ].map((entry, id) => ({
+            id, title: entry[0], message: entry[1], x: 2 + (id % 9) * 9,
+            y: 2 + Math.floor(id / 9) * 21 + (id % 9) * 4.2,
+            speed: .7 + (id % 5) * .14, delay: id * .125,
+            z: id + 1
+        })),
         blockUserURL: false,
         async init() {
+            this.hudCanvas = document.querySelector('.memify-hud-canvas');
+            this.hudContext = this.hudCanvas?.getContext('2d');
+            this.akImage = new Image();
+            this.akImage.onload = () => { this.akReady = true; this.drawMemifyHUD(); };
+            this.akImage.src = '/pages/assets/memify-ak.png';
+            this.enemyImage = new Image();
+            this.enemyImage.onload = () => {
+                const cutout = document.createElement('canvas');
+                cutout.width = this.enemyImage.naturalWidth;
+                cutout.height = this.enemyImage.naturalHeight;
+                const cutoutCtx = cutout.getContext('2d');
+                cutoutCtx.drawImage(this.enemyImage, 0, 0);
+                const pixels = cutoutCtx.getImageData(0, 0, cutout.width, cutout.height);
+                for (let i = 0; i < pixels.data.length; i += 4) {
+                    const r = pixels.data[i], g = pixels.data[i + 1], b = pixels.data[i + 2];
+                    // The downloaded source is a flattened checkerboard JPEG.
+                    // Remove near-white/neutral checkerboard pixels while retaining
+                    // the colored soldier, rifle, and red halo.
+                    if (Math.max(r, g, b) > 226 && Math.max(r, g, b) - Math.min(r, g, b) < 12) pixels.data[i + 3] = 0;
+                }
+                cutoutCtx.putImageData(pixels, 0, 0);
+                this.enemyCutout = cutout;
+                this.enemyReady = true;
+                this.drawMemifyHUD();
+            };
+            this.enemyImage.src = '/pages/assets/memify-enemy.jpg';
+            window.addEventListener('mousemove', (event) => {
+                this.mouseX = event.clientX;
+                this.mouseY = event.clientY;
+            });
+            window.addEventListener('keydown', (event) => {
+                if (event.key.toLowerCase() === 'a') this.moveLeft = true;
+                if (event.key.toLowerCase() === 'd') this.moveRight = true;
+            });
+            window.addEventListener('keyup', (event) => {
+                if (event.key.toLowerCase() === 'a') this.moveLeft = false;
+                if (event.key.toLowerCase() === 'd') this.moveRight = false;
+            });
+            window.addEventListener('resize', () => this.resizeMemifyHUD());
+            this.resizeMemifyHUD();
+            const animateMemify = () => {
+                if (this.memify) {
+                    const now = performance.now();
+                    const deltaSeconds = Math.min(.05, Math.max(0, (now - this.lastMemifyFrameAt) / 1000));
+                    this.lastMemifyFrameAt = now;
+                    if (this.moveLeft) this.gunX = Math.max(.08, this.gunX - .72 * deltaSeconds);
+                    if (this.moveRight) this.gunX = Math.min(.92, this.gunX + .72 * deltaSeconds);
+                    const untilStart = this.gameStartedAt - performance.now();
+                    if (untilStart <= 0) this.gameIntroDone = true;
+                    this.gameTimeRemaining = untilStart > 0 ? 30 : Math.max(0, 30 - Math.floor(-untilStart / 1000));
+                    if (untilStart <= 0 && this.gameTimeRemaining === 0 && !this.gameDead && !this.gameWon) {
+                        this.gameDead = true;
+                        this.gameStatus = 'TIME EXPIRED';
+                    }
+                    this.updateMemifyGame(deltaSeconds);
+                    this.drawMemifyHUD();
+                }
+                this.hudFrame = requestAnimationFrame(animateMemify);
+            };
+            animateMemify();
             try {
                 const meRes = await fetch('/auth/me');
                 if (meRes.ok) {
@@ -274,6 +782,221 @@ function app() {
                 this.whoami = false;
             }
             await this.loadUsers();
+        },
+
+        resizeMemifyHUD() {
+            if (!this.hudCanvas) return;
+            const scale = window.devicePixelRatio || 1;
+            this.hudCanvas.width = innerWidth * scale;
+            this.hudCanvas.height = innerHeight * scale;
+            this.hudContext?.setTransform(scale, 0, 0, scale, 0, 0);
+            this.drawMemifyHUD();
+        },
+
+        drawMemifyHUD() {
+            if (!this.hudContext || !this.hudCanvas || !this.memify) return;
+            const ctx = this.hudContext;
+            const crosshairX = this.mouseX || innerWidth * .5;
+            const x = crosshairX;
+            const y = this.mouseY || innerHeight * .45;
+            ctx.clearRect(0, 0, innerWidth, innerHeight);
+            ctx.strokeStyle = '#49ff00';
+            ctx.fillStyle = '#49ff00';
+            ctx.lineWidth = 3;
+            ctx.globalAlpha = .95;
+            ctx.beginPath();
+            ctx.moveTo(0, y); ctx.lineTo(x - 16, y);
+            ctx.moveTo(x + 16, y); ctx.lineTo(innerWidth, y);
+            ctx.moveTo(x, 0); ctx.lineTo(x, y - 16);
+            ctx.moveTo(x, y + 16); ctx.lineTo(x, innerHeight);
+            ctx.stroke();
+            // Neon HUD-style AK silhouette in the lower-right, aimed at the cursor.
+            const gunX = innerWidth * this.gunX, gunY = innerHeight - 90;
+            const aimX = crosshairX, aimY = Math.max(innerHeight * .12, y);
+            const angle = Math.atan2(aimY - gunY, aimX - gunX) + Math.PI;            ctx.save();
+            ctx.translate(gunX, gunY);
+            ctx.rotate(angle + Math.PI * .04);
+            // Draw the supplied first-person AK reference as a translucent HUD sprite.
+            if (this.akReady) {
+                ctx.globalAlpha = .78;
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+                ctx.drawImage(this.akImage, -230, -138, 460, 276);
+            }
+            ctx.restore();
+            this.drawMemifyScene(ctx);
+            this.drawMemifyEnemies(ctx);
+            this.drawMemifyBullets(ctx);
+        },
+
+        drawMemifyEnemies(ctx) {
+            if (!this.gameIntroDone || this.gameDead || this.gameWon) return;
+            for (const enemy of this.memifyEnemies) {
+                if (enemy.hp <= 0) continue;
+                const x = innerWidth * enemy.x, y = innerHeight * enemy.y;
+                ctx.save(); ctx.translate(x, y); ctx.scale(.13, .13);
+                if (this.enemyReady) {
+                    ctx.globalAlpha = 1;
+                    ctx.globalCompositeOperation = 'source-over';
+                    ctx.drawImage(this.enemyCutout || this.enemyImage, -420, -390, 840, 783);
+                }
+                ctx.restore();
+            }
+        },
+
+        updateMemifyGame(deltaSeconds) {
+            if (!this.gameIntroDone || this.gameDead || this.gameWon) return;
+            const now = performance.now();
+            for (const enemy of this.memifyEnemies) {
+                if (enemy.hp <= 0) continue;
+                const t = now / 1000 + enemy.phase;
+                if (enemy.id % 3 === 0) {
+                    enemy.x += Math.sin(t * .55) * .025 * deltaSeconds;
+                    enemy.y += Math.cos(t * .71) * .022 * deltaSeconds;
+                } else if (enemy.id % 3 === 1) {
+                    enemy.x += enemy.vx * 30 * deltaSeconds;
+                    enemy.y = .3 + Math.sin(t * .9) * .24;
+                } else {
+                    enemy.x = .5 + Math.sin(t * .37) * .4;
+                    enemy.y += enemy.vy * 30 * deltaSeconds;
+                }
+                enemy.x = Math.max(.05, Math.min(.92, enemy.x));
+                enemy.y = Math.max(.08, Math.min(.82, enemy.y));
+                if (now > enemy.fireAt) {
+                    const dx = this.gunX - enemy.x, dy = .92 - enemy.y, mag = Math.hypot(dx, dy) || 1;
+                    this.memifyBullets.push({x: enemy.x, y: enemy.y, vx: dx / mag * .055, vy: dy / mag * .055});
+                    enemy.fireAt = now + 3200 + enemy.id * 450;
+                }
+            }
+            for (const bullet of this.memifyBullets) {
+                bullet.x += bullet.vx * deltaSeconds;
+                bullet.y += bullet.vy * deltaSeconds;
+                if (Math.hypot(bullet.x - this.gunX, bullet.y - .92) < .035) {
+                    this.playerHearts = Math.max(0, this.playerHearts - 1);
+                    bullet.x = 2;
+                    if (!this.playerHearts) { this.gameDead = true; this.gameStatus = 'YOU GOT SHOT'; }
+                }
+            }
+            this.memifyBullets = this.memifyBullets.filter(b => b.x >= 0 && b.x <= 1 && b.y >= 0 && b.y <= 1);
+        },
+
+        drawMemifyBullets(ctx) {
+            for (const bullet of this.memifyBullets) {
+                const x = innerWidth * bullet.x, y = innerHeight * bullet.y;
+                ctx.fillStyle = '#ff3322'; ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 4; ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 18;
+                ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 12px monospace'; ctx.fillText('DANGER', x + 16, y + 4);
+            }
+        },
+
+        fireMemifyShot(event) {
+            if (!this.memify || this.gameDead || this.gameWon) return;
+            const x = event.clientX, y = event.clientY;
+            let closest = null, distance = Infinity;
+            for (const enemy of this.memifyEnemies) {
+                if (enemy.hp <= 0) continue;
+                const dx = x - innerWidth * enemy.x, dy = y - innerHeight * enemy.y;
+                const d = Math.hypot(dx, dy);
+                if (d < distance) { distance = d; closest = enemy; }
+            }
+            if (closest && distance < 72) {
+                closest.hp = 0;
+                if (this.memifyEnemies.every(enemy => enemy.hp <= 0)) {
+                    this.gameWon = true;
+                    this.gameStatus = 'NICE SHOT // BING CHILLING';
+                }
+            } else {
+                this.gameStatus = 'ENEMIES LEFT: ' + this.memifyEnemies.filter(enemy => enemy.hp > 0).length;
+            }
+        },
+
+        drawMemifyScene(ctx) {
+            const t = performance.now() / 1000;
+            const creatures = [
+                {x: .42, y: .44, scale: .72, hue: '#ff3b30', phase: 0, type: 'amongus'}
+            ];
+            for (const c of creatures) {
+                const x = innerWidth * c.x + Math.sin(t * (1.1 + c.phase * .04) + c.phase) * (75 + c.phase * 6);
+                const y = innerHeight * c.y + Math.cos(t * (1.5 + c.phase * .03) + c.phase) * (48 + c.phase * 4);
+                const depth = .88 + Math.sin(t * 1.8 + c.phase) * .18;
+                const s = Math.max(.65, c.scale * depth);
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(Math.sin(t * .8 + c.phase) * .24);
+                ctx.scale(s * (1 + Math.sin(t * 2.7 + c.phase) * .08), s * (1 - Math.sin(t * 2.7 + c.phase) * .08));
+                ctx.globalAlpha = .97;
+                ctx.shadowColor = c.hue;
+                ctx.shadowBlur = 28;
+                if (c.type === 'amongus') this.drawCanvasAmongUs(ctx, c.hue, t + c.phase);
+                else if (c.type === 'blob') this.drawCanvasBlob(ctx, c.hue, t + c.phase);
+                else this.drawCanvasSpider(ctx, c.hue, t + c.phase);
+                ctx.restore();
+            }
+        },
+
+        drawCanvasAmongUs(ctx, color, t) {
+            const legWave = Math.sin(t * 10);
+            const body = ctx.createLinearGradient(-55, -80, 55, 80);
+            body.addColorStop(0, '#fff'); body.addColorStop(.12, color); body.addColorStop(.7, color); body.addColorStop(1, '#280018');
+            ctx.fillStyle = 'rgba(0,0,0,.35)';
+            ctx.beginPath(); ctx.ellipse(0, 78, 60, 15, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#210018';
+            ctx.beginPath(); ctx.moveTo(-66, -18); ctx.lineTo(-82, 22); ctx.lineTo(-54, 38); ctx.lineTo(-36, -5); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = body; ctx.strokeStyle = '#190018'; ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(-42, 66); ctx.lineTo(-50, 18); ctx.bezierCurveTo(-76, -50, -32, -94, 20, -80);
+            ctx.bezierCurveTo(70, -68, 70, -12, 40, 18); ctx.lineTo(46, 66);
+            ctx.lineTo(14, 66); ctx.lineTo(7, 34); ctx.lineTo(-5, 34); ctx.lineTo(-13, 66); ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#d9ffff'; ctx.strokeStyle = '#163d5c'; ctx.lineWidth = 6;
+            const visor = ctx.createRadialGradient(0, -42, 3, 0, -32, 46);
+            visor.addColorStop(0, '#fff'); visor.addColorStop(.25, '#bfffff'); visor.addColorStop(1, '#1977a8');
+            ctx.fillStyle = visor; ctx.beginPath(); ctx.ellipse(12, -34, 43, 25, -.18, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#fff'; ctx.globalAlpha = .55; ctx.beginPath(); ctx.ellipse(-2, -42, 12, 6, -.2, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = .97;
+            ctx.strokeStyle = color; ctx.lineWidth = 10; ctx.beginPath();
+            ctx.moveTo(-42, 20); ctx.lineTo(-88, 38 + legWave * 12);
+            ctx.moveTo(42, 20); ctx.lineTo(84, 38 - legWave * 12);
+            ctx.stroke();
+            ctx.fillStyle = '#180018'; ctx.beginPath();
+            ctx.ellipse(-25, 58 + legWave * 3, 17, 25, legWave * .1, 0, Math.PI * 2);
+            ctx.ellipse(25, 58 - legWave * 3, 17, 25, -legWave * .1, 0, Math.PI * 2); ctx.fill();
+        },
+
+        drawCanvasBlob(ctx, color, t) {
+            const pulse = Math.sin(t * 8);
+            ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(0, 62, 58, 14, 0, 0, Math.PI * 2); ctx.fill();
+            const body = ctx.createRadialGradient(-18, -26, 3, 20, 22, 70);
+            body.addColorStop(0, '#fff'); body.addColorStop(.18, color); body.addColorStop(.7, color); body.addColorStop(1, '#140018');
+            ctx.fillStyle = body; ctx.strokeStyle = '#101020'; ctx.lineWidth = 8;
+            ctx.beginPath();
+            for (let i = 0; i < 18; i++) {
+                const a = i / 18 * Math.PI * 2;
+                const r = 48 + Math.sin(t * 6 + i * 1.8) * 11;
+                const px = Math.cos(a) * r, py = Math.sin(a) * r;
+                if (!i) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+            ctx.strokeStyle = color; ctx.lineWidth = 9; ctx.beginPath();
+            ctx.moveTo(-35, 32); ctx.lineTo(-55, 70 + pulse * 10); ctx.lineTo(-76, 62);
+            ctx.moveTo(35, 32); ctx.lineTo(56, 68 - pulse * 10); ctx.lineTo(78, 55); ctx.stroke();
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-17, -10, 11, 0, 7); ctx.arc(17, -10, 11, 0, 7); ctx.fill();
+            ctx.fillStyle = '#101020'; ctx.beginPath(); ctx.arc(-17 + pulse * 3, -10, 5, 0, 7); ctx.arc(17 + pulse * 3, -10, 5, 0, 7); ctx.fill();
+            ctx.strokeStyle = '#101020'; ctx.lineWidth = 7; ctx.beginPath(); ctx.arc(0, 12, 24, 0, Math.PI); ctx.stroke();
+        },
+
+        drawCanvasSpider(ctx, color, t) {
+            const body = ctx.createRadialGradient(-15, -22, 3, 15, 35, 70);
+            body.addColorStop(0, '#fff'); body.addColorStop(.18, color); body.addColorStop(.72, color); body.addColorStop(1, '#190019');
+            ctx.fillStyle = body; ctx.strokeStyle = '#190019'; ctx.lineWidth = 8;
+            ctx.beginPath(); ctx.ellipse(0, 0, 44, 62, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            ctx.strokeStyle = color; ctx.lineWidth = 10;
+            for (let i = 0; i < 4; i++) {
+                const y = -36 + i * 24, bend = Math.sin(t * 9 + i) * 18;
+                ctx.beginPath(); ctx.moveTo(-30, y); ctx.lineTo(-78, y - 28 + bend); ctx.lineTo(-104, y + 15); ctx.moveTo(30, y); ctx.lineTo(78, y - 28 - bend); ctx.lineTo(104, y + 15); ctx.stroke();
+            }
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-15, -15, 14, 0, 7); ctx.arc(15, -15, 14, 0, 7); ctx.fill();
+            ctx.fillStyle = '#190019'; ctx.beginPath(); ctx.arc(-15, -15, 5, 0, 7); ctx.arc(15, -15, 5, 0, 7); ctx.fill();
         },
 
         async loadUsers() {
