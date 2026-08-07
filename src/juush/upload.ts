@@ -480,8 +480,8 @@ export default async function(server, reqx){
         reqx.res.end(path);
 
         // Enqueue post-upload jobs (upload-to-rustfs runs on server, ffmpeg/backup on worker)
-        const { enqueueJobs } = await import("./jobs.js");
-        enqueueJobs(url, headers.mimetype, fileExtension).catch(e =>
+        const { enqueueUploadWorkflow } = await import("./jobs.js");
+        enqueueUploadWorkflow(url, headers.mimetype, fileExtension).catch(e =>
             console.error("Failed to enqueue post-upload jobs:", e));
     });
 

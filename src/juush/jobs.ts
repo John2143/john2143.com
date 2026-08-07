@@ -129,26 +129,35 @@ export async function enqueueJobs(
         updatedAt: new Date(),
     });
     serverLog(`JobQueue: enqueued upload-to-rustfs for ${url}`);
-    // Start Temporal workflow in parallel (observational, fire-and-forget)
-    (async () => {
-        try {
-            const { getTemporalClient } = await import("./temporal/client.js");
-            const client = getTemporalClient();
-            if (client) {
-                const { UploadToRustFSWorkflow } = await import("./temporal/workflows.js");
-                await client.workflow.start(UploadToRustFSWorkflow, {
-                    args: [url, mimetype],
-                    taskQueue: "john2143-com",
-                    workflowId: `upload-${url}`,
-                });
-            }
-        } catch {
-            // Temporal unavailable — Mongo queue handles everything
-        }
-    })();
 
     // Processing jobs are inserted AFTER upload-to-rustfs completes.
     // We pre-insert nothing here — handleUploadToRustFS inserts them.
+}
+
+export async function enqueueUploadWorkflow(url: string, mimetype: string, fileExtension?: string): Promise<void> {
+    try {
+        // Dynamic import: Temporal SDK is only installed on worker pods, not web pods
+        const { getTemporalClient } = await import("./temporal/client.js");
+        const client = getTemporalClient();
+        if (client) {
+            // Dynamic import: Temporal SDK is only installed on worker pods, not web pods
+            const { UploadWorkflow } = await import("./temporal/workflows.js");
+            await client.workflow.start(UploadWorkflow, {
+                args: [url, mimetype, fileExtension],
+                taskQueue: "john2143-com",
+                workflowId: `upload-${url}`,
+            });
+            serverLog(`Temporal: started UploadWorkflow for ${url}`);
+            return;
+        }
+    } catch {
+        serverLog(`Temporal: unavailable, falling back to Mongo queue for ${url}`);
+    }
+    // Fallback: Mongo queue creates upload-to-rustfs + backup-s3 (both by enqueueJobs).
+    // The upload-to-rustfs handler uploads to filer; backup-s3 handler uploads to DO.
+    // If the filer is also unreachable (home cluster down), upload-to-rustfs retries
+    // later; the file lives on the web pod's local PVC until processed or pruned.
+    await enqueueJobs(url, mimetype, fileExtension);
 }
 
 export async function insertProcessingJobs(
