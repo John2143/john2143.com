@@ -114,10 +114,14 @@ jobs:
         repository: 2143-Labs/argo
         ssh-key: ${{ secrets.DEPLOY_KEY_ARGO }}
 
-    - name: Update image tags in deployment YAMLs
+    - name: Update image tags + build IDs in Argo manifests
       run: |
+        # imageserver (web pod — plain Deployment)
         sed -i "s|\(ghcr\.io/john2143/john2143\.com:\)[0-9]*|\1${{ env.NEW_TAG }}|g" workloads/imageserver/deployment.yaml
-        sed -i "s|\(ghcr\.io/john2143/john2143\.com-worker:\)[0-9]*|\1${{ env.NEW_TAG }}|g" workloads/john2143-worker/deployment.yaml
+        # worker (Temporal WorkerDeployment — image + buildId)
+        sed -i "s|\(ghcr\.io/john2143/john2143\.com-worker:\)[0-9]*|\1${{ env.NEW_TAG }}|g" workloads/john2143-worker/workerdeployment.yaml
+        sed -i "s|\(unsafeCustomBuildID: \"\)[^\"]*|\1${{ env.NEW_TAG }}|g" workloads/john2143-worker/workerdeployment.yaml
+        sed -i "s|\(TEMPORAL_WORKER_BUILD_ID, value: \"\)[^\"]*|\1${{ env.NEW_TAG }}|g" workloads/john2143-worker/workerdeployment.yaml
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git diff --quiet && echo "No changes" || (git commit -am "bump john2143.com images to ${{ env.NEW_TAG }}" && git push)

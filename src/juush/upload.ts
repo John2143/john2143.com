@@ -460,6 +460,17 @@ export default async function(server, reqx){
         //Try to guess a file extension (for posting to reddit and stuff)
         let fileExtension = U.guessFileExtension(headers.filename);
 
+        // Durable first hop: PUT to the central filer before responding.
+        // If the filer is unreachable, fall back to the Mongo queue (retries later).
+        let filerOk = false;
+        try {
+            const { uploadToFiler: putToFiler } = await import("./jobs.js");
+            await putToFiler(url);
+            filerOk = true;
+        } catch (e) {
+            console.error("Filer PUT failed for " + url + ", Mongo fallback:", e);
+        }
+
         await returnPromise.promise;
         if(!customURL) return error("no url to give ??? (probably internal error");
 
@@ -481,7 +492,7 @@ export default async function(server, reqx){
 
         // Enqueue post-upload jobs (upload-to-rustfs runs on server, ffmpeg/backup on worker)
         const { enqueueUploadWorkflow } = await import("./jobs.js");
-        enqueueUploadWorkflow(url, headers.mimetype, fileExtension).catch(e =>
+        enqueueUploadWorkflow(url, headers.mimetype, fileExtension, filerOk).catch(e =>
             console.error("Failed to enqueue post-upload jobs:", e));
     });
 

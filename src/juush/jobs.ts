@@ -57,10 +57,35 @@ async function clearCdnFields(url: string): Promise<void> {
     );
 }
 
-function getCdnUrl(url: string): string {
+export function getCdnUrl(url: string): string {
     const folder = process.env.FOLDER || "public-prod";
     const cdnBase = process.env.CDN_BASE || `https://imagehost-files.nyc3.cdn.digitaloceanspaces.com/${folder}`;
     return `${cdnBase}/${url}`;
+}
+
+// Inline durable-first-hop: streams the local file to the filer before the URL
+// is returned.  The caller (upload.ts handler) awaits this so the response is
+// only sent after the file is durably stored on the central filer.
+export async function uploadToFiler(url: string): Promise<void> {
+    if (!U.minio_client) throw new Error("minio_client not configured");
+    const filepath = U.getFilename(url);
+    // Mark in-flight so crash recovery can reconcile
+    await U.query.index.updateOne(
+        { _id: url },
+        { $set: { rustfsBackedUp: "uploading" } },
+    ).catch(() => {});
+    const stream = createReadStream(filepath);
+    stream.on("error", () => {}); // prevent uncaught exception on missing file
+    const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+    await U.minio_client.send(new PutObjectCommand({
+        Bucket: process.env.BUCKET || "imagehost-files",
+        Key: url,
+        Body: stream,
+    }));
+    await U.query.index.updateOne(
+        { _id: url },
+        { $set: { rustfsBackedUp: true } },
+    );
 }
 // --- Init ---
 
@@ -134,29 +159,34 @@ export async function enqueueJobs(
     // We pre-insert nothing here — handleUploadToRustFS inserts them.
 }
 
-export async function enqueueUploadWorkflow(url: string, mimetype: string, fileExtension?: string): Promise<void> {
-    try {
-        // Dynamic import: Temporal SDK is only installed on worker pods, not web pods
-        const { getTemporalClient } = await import("./temporal/client.js");
-        const client = getTemporalClient();
-        if (client) {
+export async function enqueueUploadWorkflow(
+    url: string, mimetype: string, fileExtension?: string, filerOk = true
+): Promise<void> {
+    // The upload handler already PUT'd the file to the filer (durable first hop)
+    // when filerOk is true — start the Temporal workflow for Spaces CDN + processing.
+    if (filerOk) {
+        try {
             // Dynamic import: Temporal SDK is only installed on worker pods, not web pods
-            const { UploadWorkflow } = await import("./temporal/workflows.js");
-            await client.workflow.start(UploadWorkflow, {
-                args: [url, mimetype, fileExtension],
-                taskQueue: "john2143-com",
-                workflowId: `upload-${url}`,
-            });
-            serverLog(`Temporal: started UploadWorkflow for ${url}`);
-            return;
+            const { getTemporalClient } = await import("./temporal/client.js");
+            const client = getTemporalClient();
+            if (client) {
+                // Dynamic import: Temporal SDK is only installed on worker pods, not web pods
+                const { UploadWorkflow } = await import("./temporal/workflows.js");
+                await client.workflow.start(UploadWorkflow, {
+                    args: [url, mimetype, fileExtension],
+                    taskQueue: "john2143-com",
+                    workflowId: `upload-${url}`,
+                });
+                serverLog(`Temporal: started UploadWorkflow for ${url}`);
+                return;
+            }
+        } catch {
+            serverLog(`Temporal: unavailable, falling back to Mongo queue for ${url}`);
         }
-    } catch {
-        serverLog(`Temporal: unavailable, falling back to Mongo queue for ${url}`);
+    } else {
+        serverLog(`Filer PUT failed at ingest — Mongo queue will retry for ${url}`);
     }
-    // Fallback: Mongo queue creates upload-to-rustfs + backup-s3 (both by enqueueJobs).
-    // The upload-to-rustfs handler uploads to filer; backup-s3 handler uploads to DO.
-    // If the filer is also unreachable (home cluster down), upload-to-rustfs retries
-    // later; the file lives on the web pod's local PVC until processed or pruned.
+    // Fallback: Mongo queue — upload-to-rustfs retries the filer PUT, backup-s3 does Spaces.
     await enqueueJobs(url, mimetype, fileExtension);
 }
 
@@ -386,7 +416,7 @@ export function stopQueueProcessor() {
 
 // --- Handlers ---
 
-async function downloadFromMinio(key: string, destPath: string): Promise<void> {
+export async function downloadFromMinio(key: string, destPath: string): Promise<void> {
     if (!U.minio_client) throw new Error("minio_client not configured");
     const cmd = new (await import("@aws-sdk/client-s3")).GetObjectCommand({
         Bucket: process.env.BUCKET || "imagehost-files",
@@ -577,6 +607,16 @@ async function handleThumbnail(job: JobDoc): Promise<void> {
 async function handleS3Backup(job: JobDoc): Promise<void> {
     if (!U.s3_client) {
         serverLog(`JobQueue: S3 backup skip (no s3_client) ${job.url}`);
+        return;
+    }
+
+    // Idempotent: skip if the Temporal workflow already did the Spaces CDN copy.
+    const doc = await U.query.index.findOne(
+        { _id: job.url },
+        { projection: { cdn: 1 } },
+    );
+    if (doc?.cdn) {
+        serverLog(`JobQueue: S3 backup skip (cdn already set by workflow) ${job.url}`);
         return;
     }
 

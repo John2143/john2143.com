@@ -16,12 +16,14 @@ export async function startTemporalWorker(): Promise<void> {
             tls: await getTemporalTlsConfig(),
             apiKey: token ? token.token : undefined,
         });
+        const buildId = process.env.TEMPORAL_WORKER_BUILD_ID;
         worker = await Worker.create({
             connection,
             namespace: "john2143-com",
             taskQueue: "john2143-com",
             workflowsPath: new URL("./workflows.js", import.meta.url).pathname,
             activities,
+            ...(buildId ? { buildId } : {}),
         });
         if (token) {
             cancelRefresh = startTemporalAccessTokenRefresh(

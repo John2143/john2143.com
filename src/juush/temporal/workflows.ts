@@ -1,20 +1,18 @@
 import { proxyActivities } from "@temporalio/workflow";
 import type * as activities from "./activities.js";
 
-const { uploadToFiler, uploadToDOSpaces, markRustfsBackedUp, insertProcessingJobs } =
+const { uploadToDOSpaces, insertProcessingJobs } =
     proxyActivities<typeof activities>({
         startToCloseTimeout: "10 minutes",
         retry: { maximumAttempts: 5 },
     });
 
 export async function UploadWorkflow(url: string, mimetype: string, fileExtension?: string): Promise<void> {
-    // Run both uploads in parallel — they only read the same local file (read-only).
-    // DO Spaces first in the array for intent clarity; execution is concurrent.
-    // If either fails, the workflow retries both (DO PUT is idempotent for same key+content).
-    await Promise.all([
-        uploadToDOSpaces(url, mimetype),   // local file → DO Spaces (multipart, heartbeats)
-        uploadToFiler(url),                // local file → filer (fast, local network)
-    ]);
-    await markRustfsBackedUp(url);                       // Mongo: rustfsBackedUp = true
-    await insertProcessingJobs(url, mimetype, fileExtension); // Mongo: ffmpeg/backup-artifacts
+    // Stateless: download from central filer → put on CDN (≤150 MB only).
+    // The filer already has the file — the web pod did an inline PUT at ingest
+    // (the durable first hop).
+    await uploadToDOSpaces(url, mimetype);
+    // Schedule ffmpeg / thumbnail / artifact jobs via the Mongo queue.
+    // (backup-s3 is idempotent — skips when cdn is already set by the activity above.)
+    await insertProcessingJobs(url, mimetype, fileExtension);
 }
