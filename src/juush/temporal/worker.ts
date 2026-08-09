@@ -17,13 +17,24 @@ export async function startTemporalWorker(): Promise<void> {
             apiKey: token ? token.token : undefined,
         });
         const buildId = process.env.TEMPORAL_WORKER_BUILD_ID;
+        const deploymentName = process.env.TEMPORAL_DEPLOYMENT_NAME;
         worker = await Worker.create({
             connection,
             namespace: "john2143-com",
             taskQueue: "john2143-com",
             workflowsPath: new URL("./workflows.js", import.meta.url).pathname,
             activities,
-            ...(buildId ? { buildId } : {}),
+            // Deployment-based versioning (Temporal WorkerDeployment CRD): the
+            // TWC registers the version server-side; this worker must poll with
+            // the matching deployment version + PINNED behavior so the controller
+            // sees the poller and can route tasks to it.
+            ...(buildId && deploymentName ? {
+                workerDeploymentOptions: {
+                    version: { buildId, deploymentName },
+                    useWorkerVersioning: true,
+                    defaultVersioningBehavior: "PINNED" as const,
+                },
+            } : {}),
         });
         if (token) {
             cancelRefresh = startTemporalAccessTokenRefresh(
