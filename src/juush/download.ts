@@ -425,7 +425,34 @@ const download = async function(server, reqx){
 
 
     if(isStreamRequest(reqx.req)){
-        return serveStreamRequest(reqx, uploadID, U.getFilename(uploadID), result);
+        if(result.mimetype === "deleted"){
+            reqx.doHTML("This file has been deleted.", 410);
+            return;
+        }
+        // Same CDN preference as processDownload: browsers range-request the CDN copy.
+        if(result.cdn && disposition !== "dl" && disposition !== "thumb"){
+            reqx.extraLog = "CDN serve".yellow;
+            U.query.index.updateOne({_id: uploadID}, {
+                $inc: {downloads: 1},
+                $set: {lastdownload: new Date()},
+            }).catch(() => {});
+            reqx.res.writeHead(302, { "Location": result.cdn });
+            reqx.res.end();
+            return;
+        }
+        // Not cached on this pod's disk (e.g. a fresh pod, or i.john2143.com at home): fill from the filer first.
+        const filepath = U.getFilename(uploadID);
+        const cached = await fs.access(filepath).then(() => true, () => false);
+        if(!cached){
+            try {
+                curDownloading[uploadID] ??= tryGetBackups(uploadID, filepath, reqx, result);
+                await curDownloading[uploadID];
+            } catch(e) {
+                reqx.doHTML("This file does not exist", 404);
+                return;
+            }
+        }
+        return serveStreamRequest(reqx, uploadID, filepath, result);
     }
 
     if(disposition === "delete"){

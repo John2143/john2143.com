@@ -65,11 +65,12 @@ export async function test_uploads() {
     //   Initiator: [Object]
     // },
     for(let upload of tr.Uploads || []) {
+        if (!upload.Initiated) continue;
         let upload_age_seconds = (new Date().getTime() - upload.Initiated.getTime()) / 1000;
         if(!upload.Key.startsWith(process.env.FOLDER + "/")){
             continue;
         }
-        if(upload_age_seconds > 60){
+        if(upload_age_seconds > 24 * 3600){
             console.log("Aborting upload: ", upload.UploadId);
             await s3_client.send(new AbortMultipartUploadCommand({
                 Bucket: process.env.BUCKET,
@@ -145,6 +146,9 @@ export async function startdb() {
             forcePathStyle: true,
             region: "us-east-1",
             maxAttempts: 1,
+            // Seaweed: no aws-chunked trailer framing on PUTs.
+            requestChecksumCalculation: "WHEN_REQUIRED",
+            responseChecksumValidation: "WHEN_REQUIRED",
             credentials: {
                 accessKeyId: process.env.MINIO_ACCESS_KEY,
                 secretAccessKey: process.env.MINIO_SECRET_KEY,

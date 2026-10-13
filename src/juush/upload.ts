@@ -5,6 +5,9 @@ import * as U from "./util.js";
 import fs from "node:fs/promises";
 import { PutObjectCommand, UploadPartCommand, CreateMultipartUploadCommand, CompleteMultipartUploadCommand, CreateMultipartUploadCommandOutput, AbortMultipartUploadCommand, UploadPartCommandOutput } from "@aws-sdk/client-s3";
 import { createReadStream } from "node:fs";
+import { uploadToFiler } from "./pipeline.js";
+import { getVolumeId } from "./volume.js";
+import { startUploadWorkflow } from "./temporal/client.js";
 import { error } from "node:console";
 
 //Retreives a database client and randomized url that has not been used before
@@ -362,6 +365,8 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
 
 export default async function(server, reqx){
     const url = await getURL();
+    const volumeId = await getVolumeId();
+    let insertDone: Promise<unknown> | undefined;
 
     if(process.env.IS_HOME) {
         // serve permanant redirect to 2143.me
@@ -457,22 +462,24 @@ export default async function(server, reqx){
         //Move the .dl file to the correct location
         await fs.rename(filepath, U.getFilename(url));
 
+        // Record which volume holds the file only once it is complete on disk: the
+        // ingest reconciler starts workflows from storedAt, never for a partial upload.
+        await returnPromise.promise;
+        if(!customURL) return error("no url to give ??? (probably internal error");
+        await insertDone?.catch(() => {});
+        await U.query.index.updateOne({_id: url}, {$set: {volumeId, storedAt: new Date()}})
+            .catch(e => serverLog(`volumeId write failed for ${url}: ${(e as Error).message}`));
+
         //Try to guess a file extension (for posting to reddit and stuff)
         let fileExtension = U.guessFileExtension(headers.filename);
 
-        // Durable first hop: PUT to the central filer before responding.
-        // If the filer is unreachable, fall back to the Mongo queue (retries later).
-        let filerOk = false;
+        // Best-effort first hop to the central filer before responding. On failure
+        // the workflow's ingest step (on this volume's queue) retries it.
         try {
-            const { uploadToFiler: putToFiler } = await import("./jobs.js");
-            await putToFiler(url);
-            filerOk = true;
+            await uploadToFiler(url);
         } catch (e) {
-            console.error("Filer PUT failed for " + url + ", Mongo fallback:", e);
+            console.error("Filer PUT failed for " + url + ", ingest step will retry:", e);
         }
-
-        await returnPromise.promise;
-        if(!customURL) return error("no url to give ??? (probably internal error");
 
         //Construct return link
         let path;
@@ -490,10 +497,8 @@ export default async function(server, reqx){
 
         reqx.res.end(path);
 
-        // Enqueue post-upload jobs (upload-to-rustfs runs on server, ffmpeg/backup on worker)
-        const { enqueueUploadWorkflow } = await import("./jobs.js");
-        enqueueUploadWorkflow(url, headers.mimetype, fileExtension, filerOk).catch(e =>
-            console.error("Failed to enqueue post-upload jobs:", e));
+        const started = await startUploadWorkflow({ url, volumeId });
+        if (started === "unavailable") serverLog(`Temporal unavailable; reconciler will start ${url}`);
     });
 
     //Arbirary
@@ -604,7 +609,8 @@ export default async function(server, reqx){
                     downloads: 0,
                 };
 
-                return Promise.allSettled([U.query.index.insertOne(mongoData)]);
+                insertDone = U.query.index.insertOne(mongoData);
+                return Promise.allSettled([insertDone]);
             }).catch(errorCatch);
         }
 

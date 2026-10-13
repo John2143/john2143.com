@@ -7,8 +7,18 @@ import { logger as honoLogger } from "hono/logger";
 import { serverLog } from "./logger.js";
 import * as serverConst from "./const.js";
 import * as fs from "node:fs/promises";
+import { setTimeout as sleep } from "node:timers/promises";
 import authRoutes from "./auth/routes.js";
+import { isDbReady } from "./juush/util.js";
+import { startPruner } from "./juush/prune.js";
+import { isWorkerRunning, startMainWorker, startIngestWorker, stopWorkers } from "./juush/temporal/worker.js";
+import { connectTemporal } from "./juush/temporal/client.js";
+import { getVolumeId, ingestTaskQueue } from "./juush/volume.js";
+import { flushVolume, startIngestReconciler } from "./juush/pipeline.js";
 const RUN_MODE = (process.env.RUN_MODE || "server") as "server" | "worker";
+
+let shuttingDown = false;
+let volumeId: string | undefined;
 
 // Prevent crashes from undici ReadableStream double-close race condition.
 // @hono/node-server v2.0.4 can call reader.cancel() twice when a client
@@ -26,6 +36,23 @@ process.on("uncaughtException", (err) => {
     process.exit(1);
 });
 
+// Drain on SIGTERM: leave the Service endpoints first, then put this volume's
+// pending uploads on the filer (its disk may not come back), then stop workers.
+process.on("SIGTERM", async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    serverLog("SIGTERM: draining");
+    setTimeout(() => process.exit(0), 140_000).unref();
+    try {
+        await sleep(10_000);
+        if (RUN_MODE === "server" && volumeId && isDbReady()) await flushVolume(volumeId, 90_000);
+        await stopWorkers(20_000);
+    } catch (e) {
+        serverLog("SIGTERM: drain failed", e);
+    }
+    process.exit(0);
+});
+
 
 
 // Load favicon in memory (preserve existing behavior)
@@ -37,9 +64,16 @@ const app = new Hono();
 // Health check — no logging (mounted before logger)
 app.get("/health", (c) => c.text("OK"));
 
-// Logger middleware (skips /health)
+// Readiness: server pods need the DB, worker pods need a running Temporal worker.
+app.get("/ready", (c) => {
+    if (shuttingDown) return c.text("shutting down", 503);
+    const ready = RUN_MODE === "server" ? isDbReady() : isWorkerRunning("main");
+    return ready ? c.text("OK") : c.text("not ready", 503);
+});
+
+// Logger middleware (skips /health and /ready)
 app.use("*", async (c, next) => {
-    if (c.req.path === "/health") {
+    if (c.req.path === "/health" || c.req.path === "/ready") {
         return await next();
     }
     return honoLogger()(c, next);
@@ -109,7 +143,6 @@ app.notFound((c) => c.redirect("//github.com/John2143/", 301));
 if (serverConst.dbstring) {
     const juush = await import("./juush/index.js");
     const juushMerge = await import("./juush/merge.js");
-    const { isDbReady } = await import("./juush/util.js");
 
     // Guard: return 503 until DB is connected (non-blocking startdb below)
     const requireDb = (c: Context) => {
@@ -179,31 +212,25 @@ if (serverConst.dbstring) {
     app.put("/uf", async (c) => requireDb(c) || juush.handleUpload(c));
 
     // Connect to DB in background (non-blocking for health probe)
-    juush.startdb().then(() => {
+    juush.startdb().then(async () => {
         serverLog("Juush DB ready, routes active");
-        // Start the disk cache pruner (periodic scoring-based cleanup)
-        import("./juush/prune.js").then(m => m.startPruner()).catch(e =>
-            serverLog("Failed to start pruner", e)
-        );
-        // Start job queue processor — server handles upload-to-rustfs, worker handles ffmpeg/backup
-        import("./juush/jobs.js").then(async m => {
-            await m.initJobQueue();
-            if (RUN_MODE !== "worker") {
-                m.startQueueProcessor("server");
-            }
-            if (RUN_MODE !== "server") {
-                m.startQueueProcessor("worker");
-            }
-        }).catch(e =>
-            serverLog("Failed to start job queue", e)
-        );
-        // Start Temporal worker (non-blocking, falls through to Mongo queue if unavailable)
-        import("./juush/temporal/client.js").then(m => m.connectTemporal()).then(() => {
-            if (RUN_MODE !== "server") {
-                return import("./juush/temporal/worker.js").then(m => m.startTemporalWorker());
-            }
-        }).catch(() => {});
-    }).catch((e: any) => {
+        if (RUN_MODE === "worker") {
+            startMainWorker().catch(e => serverLog("main worker loop crashed", e));
+            return;
+        }
+        // Disk cache pruner (periodic scoring-based cleanup)
+        startPruner();
+        try {
+            volumeId = await getVolumeId();
+        } catch (e) {
+            serverLog(`FATAL: ${(e as Error).message}`);
+            process.exit(1);
+        }
+        serverLog(`Juush: volume ${volumeId}, ingest queue ${ingestTaskQueue(volumeId)}`);
+        connectTemporal().catch(e => serverLog("temporal connect loop crashed", e));
+        startIngestWorker(volumeId).catch(e => serverLog("ingest worker loop crashed", e));
+        startIngestReconciler(volumeId);
+    }).catch((e: unknown) => {
         serverLog("Failed to start juush DB", e);
     });
 }

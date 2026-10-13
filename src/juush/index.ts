@@ -2,7 +2,7 @@ import { serverLog } from "../logger.js";
 
 import { Readable } from "node:stream";
 import { startdb, query, whoami, juushErrorCatch, randomStr } from "./util.js";
-import { guessFileExtension } from "./util.js";
+import { startUploadWorkflow } from "./temporal/client.js";
 
 import { createCompatRes, flushCompatRes, createCompatReqx } from "./compat.js";
 import type { Context } from "hono";
@@ -257,9 +257,13 @@ export async function handleReprocess(c: Context) {
         return c.text("Forbidden", 403);
     }
 
-    const ext = guessFileExtension(data.filename || "");
-    const { enqueueReprocess } = await import("./jobs.js");
-    await enqueueReprocess(id, data.mimetype, ext);
-
+    await query.index.updateOne(
+        { _id: id },
+        { $unset: { cdn: "", thumb: "", failedCDN: "", artifacts: "", ingestStatus: "" } },
+    );
+    // volumeId set: the doc may not be on the filer yet, so ingest runs first.
+    const result = await startUploadWorkflow({ url: id, volumeId: data.volumeId }, `reprocess-${id}`);
+    if (result === "exists") return c.text("already processing", 409);
+    if (result === "unavailable") return c.text("temporal unavailable", 503);
     return c.text("queued");
 }

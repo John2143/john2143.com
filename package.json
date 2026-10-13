@@ -6,11 +6,12 @@
   "main": "c/index.js",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1045.0",
+    "@aws-sdk/lib-storage": "3.1054.0",
     "@hono/node-server": "^2.0.4",
-    "colors": "^1.4.0",
-    "hono": "^4.12.23",
     "@temporalio/client": "^1.11.0",
     "@temporalio/worker": "^1.11.0",
+    "colors": "^1.4.0",
+    "hono": "^4.12.23",
     "mongodb": "^7.2.0",
     "spiffe": "0.5.1"
   },
