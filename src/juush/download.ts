@@ -73,12 +73,16 @@ const serveStreamRequest = async function(reqx, uploadID, filepath, data){
         "Cache-Control": "max-age=300",
     });
 
+    if(reqx.req.method === "HEAD"){
+        reqx.res.end();
+        return;
+    }
+
     let f = await fs.open(filepath, "r");
     const filePipe = f.createReadStream({start: rangeStart, end: rangeEnd});
     filePipe.on("error", () => { try { filePipe.destroy(); } catch (_) {} });
-    reqx.res.on("error", () => { try { filePipe.destroy(); } catch (_) {} });
     filePipe.on("close", () => { void f.close().catch(() => {}); });
-    filePipe.pipe(reqx.res);
+    pipeline(filePipe, reqx.res, () => {});
 };
 
 const setMimeType = async function(id, newmime){
@@ -104,6 +108,53 @@ const shouldInline = function(__filedata, __mime){
         //category === "image" || category === "text";
 
     //just let the browser decide
+    return true;
+};
+
+// Streams an object from the filer (web MP4, thumbnail). The filer is reached only
+// through MINIO_ENDPOINT_URL (in-cluster at home, the WireGuard proxy on DO);
+// clients are never redirected to it. Returns false when nothing was written, so
+// the caller can fall back.
+const serveFilerObject = async function(reqx, key: string, contentType: string, disposition: string): Promise<boolean> {
+    const Bucket = process.env.BUCKET || "imagehost-files";
+    const headers: Record<string, string> = {
+        "Content-Type": contentType,
+        "Content-Disposition": disposition,
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "max-age=300",
+    };
+    // Hono runs GET handlers for HEAD and discards the body unread: never open one.
+    if(reqx.req.method === "HEAD"){
+        try {
+            const head = await U.minio_client.send(new HeadObjectCommand({ Bucket, Key: key }));
+            reqx.res.writeHead(200, { ...headers, "Content-Length": String(head.ContentLength) });
+            reqx.res.end();
+            return true;
+        } catch(e) {
+            serverLog(`Filer HEAD ${key} failed: ${e.name}`);
+            return false;
+        }
+    }
+    const range = reqx.req.headers.range || undefined;
+    let obj;
+    try {
+        obj = await U.minio_client.send(new GetObjectCommand({ Bucket, Key: key, Range: range }));
+    } catch(e) {
+        if(range && (e.name === "InvalidRange" || e.$metadata?.httpStatusCode === 416)){
+            reqx.res.writeHead(416, {});
+            reqx.res.end();
+            return true;
+        }
+        serverLog(`Filer GET ${key} failed: ${e.name}`);
+        return false;
+    }
+    if(!obj.Body) return false;
+    const body = obj.Body instanceof Readable ? obj.Body : Readable.fromWeb(obj.Body);
+    if(obj.ContentLength !== undefined) headers["Content-Length"] = String(obj.ContentLength);
+    if(obj.ContentRange) headers["Content-Range"] = obj.ContentRange;
+    reqx.res.writeHead(obj.ContentRange ? 206 : 200, headers);
+    // pipeline destroys the S3 body when the client aborts.
+    pipeline(body, reqx.res, () => {});
     return true;
 };
 
@@ -265,8 +316,8 @@ const processDownload = async function(reqx, data, disposition){
     let incDL = true;
 
     // CDN redirect: if we have a CDN copy, redirect browsers to it.
-    // Skip for explicit download requests (dl) which force attachment.
-    if(data.cdn && disposition !== "dl" && disposition !== "thumb" && disposition !== "cdn"){
+    // Skip for explicit original/download requests (orig, dl) and thumbnails.
+    if(data.cdn && disposition !== "dl" && disposition !== "orig" && disposition !== "thumb" && disposition !== "cdn"){
         reqx.extraLog = "CDN serve".yellow;
         U.query.index.updateOne({_id: uploadID}, {
             $inc: {downloads: 1},
@@ -297,34 +348,6 @@ const processDownload = async function(reqx, data, disposition){
             codisp = "attachment";
         }
     }
-    // CDN redirect for thumbnails — avoids downloading full file
-    // Serve generated thumbnail from CDN if available
-    if(disposition === "thumb" && data.thumb){
-        reqx.extraLog = "CDN thumb".yellow;
-        reqx.res.writeHead(302, {
-            "Location": data.thumb,
-        });
-        reqx.res.end();
-        return;
-    }
-    if(disposition === "thumb" && data.cdn){
-        reqx.extraLog = "CDN thumb".yellow;
-        reqx.res.writeHead(302, {
-            "Location": data.cdn,
-        });
-        reqx.res.end();
-        return;
-    }
-
-    // Non-image thumbnails without CDN: don't serve the full file
-    if(disposition === "thumb" && !data.mimetype?.startsWith("image/")){
-        reqx.extraLog = "thumb skip".yellow;
-        reqx.res.writeHead(200, { "Content-Type": "image/gif" });
-        // 1x1 transparent GIF — works everywhere, Hono-safe
-        reqx.res.end(Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"));
-        return;
-    }
-
     //Send filename with content-disposition
     codisp += '; filename="' + data.filename + '"';
 
@@ -349,12 +372,52 @@ const processDownload = async function(reqx, data, disposition){
         "Accept-Ranges": "bytes",
     });
 
+    if(reqx.req.method === "HEAD"){
+        reqx.res.end();
+        return;
+    }
+
     //Stream file from disk directly
     let f = await fs.open(filepath, "r");
     const stream = f.createReadStream();
     stream.on("error", () => { try { stream.destroy(); } catch (_) {} });
     stream.on("close", () => { void f.close().catch(() => {}); });
-    stream.pipe(reqx.res);
+    pipeline(stream, reqx.res, () => {});
+};
+
+// Thumbnail: the CDN WebP, else the filer copy, else (images only) the image itself.
+// Other types without a thumbnail get a 1x1 GIF instead of the full file.
+const serveThumb = async function(reqx, data){
+    if(data.mimetype === "deleted"){
+        reqx.doHTML("This file has been deleted.", 410);
+        return;
+    }
+    if(data.thumb){
+        reqx.extraLog = "CDN thumb".yellow;
+        reqx.res.writeHead(302, { "Location": data.thumb });
+        reqx.res.end();
+        return;
+    }
+    if(data.artifacts?.thumbnail){
+        const key = U.artifactKey(data.artifacts.thumbnail);
+        if(await serveFilerObject(reqx, key, key.endsWith(".webp") ? "image/webp" : "image/jpeg", "inline")){
+            reqx.extraLog = "filer thumb".yellow;
+            return;
+        }
+    }
+    if(data.mimetype?.startsWith("image/")){
+        if(data.cdn){
+            reqx.extraLog = "CDN thumb".yellow;
+            reqx.res.writeHead(302, { "Location": data.cdn });
+            reqx.res.end();
+            return;
+        }
+        return processDownload(reqx, data, "thumb");
+    }
+    reqx.extraLog = "thumb skip".yellow;
+    reqx.res.writeHead(200, { "Content-Type": "image/gif" });
+    // 1x1 transparent GIF — works everywhere, Hono-safe
+    reqx.res.end(Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"));
 };
 
 //Returns true if there is an auth error. also handles reqx
@@ -382,21 +445,11 @@ const download = async function(server, reqx){
         return;
     }
 
-    if(process.env.IS_HOME) {
-        // serve permanant redirect to 2143.me
-        reqx.res.writeHead(301, {
-            "Location": `https://2143.moe/f/${uploadID}/cdn`,
-        });
-        reqx.extraLog = "@2143.moe".yellow;
-        reqx.res.end();
-        return;
-    }
-
     //ignore extension
     uploadID = uploadID.split(".")[0];
 
     const result = await U.query.index.findOne({_id: uploadID},
-        {mimetype: 1, filename: 1, id: 1, cdn: 1, thumb: 1}
+        { projection: { mimetype: 1, filename: 1, cdn: 1, thumb: 1, artifacts: 1 } }
     );
     if(!result){
         reqx.doHTML("This upload does not exist", 404);
@@ -405,6 +458,9 @@ const download = async function(server, reqx){
 
     //What the user wants to do with the file
     const disposition = reqx.urldata.path[2];
+    const wantsOriginal = disposition === "orig" || disposition === "dl";
+    if(disposition === "thumb") return serveThumb(reqx, result);
+
     if(result.cdn && disposition == "cdn") {
         // Modify extraLog
         reqx.extraLog = "CDN redirect".yellow;
@@ -423,6 +479,21 @@ const download = async function(server, reqx){
         return ;
     }
 
+    // No CDN copy (over 150 MB): serve the web MP4 from the filer; the original stays on /orig and /dl.
+    if(!result.cdn && result.artifacts?.faststart && result.mimetype !== "deleted" && (disposition === undefined || disposition === "cdn")){
+        if(await serveFilerObject(reqx, U.artifactKey(result.artifacts.faststart), "video/mp4", `inline; filename="${result.filename}"`)){
+            reqx.extraLog = "filer web".yellow;
+            const range = reqx.req.headers.range;
+            if(!range || range.startsWith("bytes=0-")){
+                U.query.index.updateOne({_id: uploadID}, {
+                    $inc: {downloads: 1},
+                    $set: {lastdownload: new Date()},
+                }).catch(() => {});
+            }
+            return;
+        }
+    }
+
 
     if(isStreamRequest(reqx.req)){
         if(result.mimetype === "deleted"){
@@ -430,7 +501,7 @@ const download = async function(server, reqx){
             return;
         }
         // Same CDN preference as processDownload: browsers range-request the CDN copy.
-        if(result.cdn && disposition !== "dl" && disposition !== "thumb"){
+        if(result.cdn && !wantsOriginal){
             reqx.extraLog = "CDN serve".yellow;
             U.query.index.updateOne({_id: uploadID}, {
                 $inc: {downloads: 1},

@@ -16,13 +16,10 @@ juush. Access /nuser/<name> to create users and obtain their upload key.
 
 ## Architecture Notes
 
-**Cache eviction and S3 backup** are handled by Kubernetes sidecar containers, NOT by this Node.js application. See `2143-k8s/overlays/prod/deployment-bastion.yaml`:
-
-- **`bastion-pruner`** — Runs `prune.fish` every 60s. When disk usage is high, deletes files older than 24 hours that have been backed up to Minio.
-- **`bastion-minio`** — Runs `upload.fish` every 10s. Uploads new files to Minio (S3-compatible) and creates marker files in `processed_minio/`.
-- **`bastion-s3`** (commented out) — Same pattern for DigitalOcean Spaces.
-
-The Node.js app ALSO does an async S3 upload after each upload (`upload.ts:479`). The sidecar provides a safety net for any failures.
+- Web pods write each upload to their own disk, PUT it to the Seaweed filer via `MINIO_ENDPOINT_URL` (in-cluster at home, the WireGuard `home-tunnel-proxy` on DO, never files.john2143.com), and start `ProcessUploadWorkflow`.
+- Worker pods build the web MP4, the WebP thumbnail and the ≤160-byte preview, store them on the filer, and push the CDN copies to Spaces.
+- `/f/<id>` serves the CDN copy (the web MP4 for video); `/f/<id>/orig` the original inline; `/f/<id>/dl` the original as an attachment; `/f/<id>/thumb` the thumbnail.
+- The disk cache is pruned in-process (`prune.ts`).
 
 ## Sharex Settings
  1. Go to destination settings

@@ -1,15 +1,15 @@
 /**
  * juush utility module — MongoDB and S3 client initialization.
  *
- * ARCHITECTURE NOTE: The app uploads files to SeaweedFS via upload-to-rustfs
- * jobs and records `rustfsBackedUp` in Mongo on verified success. The disk
- * pruner (prune.ts) uses this Mongo field to authorize cache eviction.
+ * ARCHITECTURE NOTE: Web pods PUT each upload to the Seaweed filer
+ * (pipeline.ts uploadToFiler) and set `rustfsBackedUp` in Mongo; the disk
+ * pruner (prune.ts) evicts only files with that flag.
  */
 import { serverLog } from "../logger.js";
 import * as serverConst from "../const.js";
 
 import { MongoClient } from "mongodb";
-import { S3Client, PutObjectCommand, UploadPartCommand, CreateMultipartUploadCommand, CompleteMultipartUploadCommand, ListMultipartUploadsCommand, AbortMultipartUploadCommand, HeadObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, ListMultipartUploadsCommand, AbortMultipartUploadCommand, HeadObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 
 export let mongoclient = new MongoClient(serverConst.dbstring);
 export let query;
@@ -81,47 +81,6 @@ export async function test_uploads() {
     }
 }
 
-export async function test_multipart_uploads() {
-
-    // Create multipart upload
-    let mpu = await s3_client.send(new CreateMultipartUploadCommand({
-        Bucket: process.env.BUCKET,
-        Key: "test/access_upload_test",
-        ACL: "public-read",
-    }));
-
-    let entry = [];
-
-    for(let i = 0; i < 10; i++){
-        // Now start uploading parts
-        let res = await s3_client.send(new UploadPartCommand({
-            Bucket: "imagehost-files",
-            Key: "test/access_upload_test",
-            ContentLength: 1024 * 1024 * 7,
-            Body: Array(1024 * 1024 * 7).fill(32) as any,
-            UploadId: mpu.UploadId,
-            PartNumber: i + 1,
-        }));
-        entry.push({
-            ETag: res.ETag,
-            PartNumber: i + 1,
-        });
-    }
-
-    console.log(entry);
-
-    let res2 = await s3_client.send(new CompleteMultipartUploadCommand({
-        Bucket: "imagehost-files",
-        Key: "a/test3",
-        UploadId: mpu.UploadId,
-        MultipartUpload: {
-            Parts: entry,
-        }
-    }));
-
-    console.log(res2);
-}
-
 export async function startdb() {
     // If the user set this environment variable, we will use s3
     if(process.env.S3_ENDPOINT_URL){
@@ -141,6 +100,8 @@ export async function startdb() {
     }
     if(process.env.MINIO_ENDPOINT_URL){
         console.log(`setting up minio connection to ${process.env.MINIO_ENDPOINT_URL}`);
+        if (new URL(process.env.MINIO_ENDPOINT_URL).hostname === "files.john2143.com")
+            throw new Error("MINIO_ENDPOINT_URL must be the in-cluster seaweedfs-s3 or the WireGuard home-tunnel-proxy, never files.john2143.com");
         minio_client = new S3Client({
             endpoint: `${process.env.MINIO_ENDPOINT_URL}`,
             forcePathStyle: true,
@@ -247,7 +208,6 @@ export async function startdb() {
     } catch (e) {
         console.error("Legacy keys migration failed (non-fatal):", e);
     }
-    if(global.it) global.query = query;
 }
 
 //This works with dbError to end a broken session
@@ -297,25 +257,10 @@ export const guessFileExtension = filename => {
     return fileExtension;
 };
 
-export let isAdmin: any;
-if(global.it){
-    global.testIsAdmin = true;
-    isAdmin = _reqx => global.testIsAdmin;
-}else{
-    isAdmin = async (reqx: any) => {
-        // Check OAuth session for is_admin flag
-        try {
-            const requireUser = await getRequireUser();
-            const user = await requireUser(reqx);
-            if (user && user.is_admin) return true;
-        } catch (_) {
-            // Middleware not available (before DB init) — fall through
-        }
-        return false;
-    };
-}
 export const IPEqual = (a, b) => a && b && a.split("/")[0] === b.split("/")[0];
 export const getFilename = id => "./juushFiles/" + id;
+// Mongo `artifacts.*` values are "<bucket>/<key>".
+export const artifactKey = (p: string): string => p.slice(p.indexOf("/") + 1);
 
 export const ipHasAccess = async (ip, uploadID) => {
     //"SELECT ip FROM index WHERE keyid=(SELECT keyid FROM index WHERE id=$1) GROUP BY ip ORDER BY max(uploaddate)",

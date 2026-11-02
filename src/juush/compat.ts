@@ -39,6 +39,12 @@ export function createCompatRes(): CompatRes {
     passthrough.on("error", (_err: Error) => {
         // Client disconnect during streaming — safe to ignore
     });
+    // Client abort: Hono cancels the body, which destroys the passthrough and strands
+    // the in-flight write. Destroy the writable too, so pipeline() callers release
+    // their source (file handle, S3 body) instead of waiting forever.
+    passthrough.on("close", () => {
+        if (!writable.writableFinished) writable.destroy();
+    });
 
     const res = writable as CompatRes;
 

@@ -1,6 +1,6 @@
 /**
  * Upload pipeline helpers shared by web pods (filer ingest, reconciler, shutdown
- * flush) and worker pods (filer download, ffmpeg).
+ * flush) and worker pods (filer download, artifact PUTs).
  *
  * The only queue is Temporal: ProcessUploadWorkflow ingests the file from the disk
  * that holds it (per-volume task queue), then a worker builds the CDN copy and
@@ -9,7 +9,6 @@
 import { serverLog } from "../logger.js";
 import * as U from "./util.js";
 import { startUploadWorkflow } from "./temporal/client.js";
-import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import { createReadStream, createWriteStream } from "node:fs";
 import { Readable } from "node:stream";
@@ -29,8 +28,21 @@ export function getCdnUrl(url: string): string {
     return `${cdnBase}/${url}`;
 }
 
-// Streams the local file to the filer. lib-storage buffers 16 MiB parts (2 in
+// Streams a local file to the filer. lib-storage buffers 16 MiB parts (2 in
 // flight), so RAM stays bounded and files over 5 GB use multipart.
+export async function putFilerFile(key: string, filepath: string, contentType?: string): Promise<void> {
+    if (!U.minio_client) throw new Error("minio_client not configured");
+    const stream = createReadStream(filepath);
+    stream.on("error", () => {}); // the Upload rejects on its own; avoid an uncaught 'error'
+    await new Upload({
+        client: U.minio_client,
+        params: { Bucket: process.env.BUCKET || "imagehost-files", Key: key, Body: stream, ContentType: contentType },
+        partSize: 16 * 1024 * 1024,
+        queueSize: 2,
+    }).done();
+}
+
+// Puts the upload on the filer and records `rustfsBackedUp` for the pruner.
 export async function uploadToFiler(url: string): Promise<void> {
     if (!U.minio_client) throw new Error("minio_client not configured");
     const filepath = U.getFilename(url);
@@ -39,14 +51,7 @@ export async function uploadToFiler(url: string): Promise<void> {
         { _id: url },
         { $set: { rustfsBackedUp: "uploading" } },
     ).catch(() => {});
-    const stream = createReadStream(filepath);
-    stream.on("error", () => {}); // the Upload rejects on its own; avoid an uncaught 'error'
-    await new Upload({
-        client: U.minio_client,
-        params: { Bucket: process.env.BUCKET || "imagehost-files", Key: url, Body: stream },
-        partSize: 16 * 1024 * 1024,
-        queueSize: 2,
-    }).done();
+    await putFilerFile(url, filepath);
     await U.query.index.updateOne(
         { _id: url },
         { $set: { rustfsBackedUp: true } },
@@ -67,26 +72,6 @@ export async function downloadFromMinio(key: string, destPath: string): Promise<
         : undefined;
     if (!source) throw new Error("Empty response from minio");
     await pipeline(source, createWriteStream(destPath));
-}
-
-export async function runFfmpeg(args: string[], timeoutMs: number): Promise<void> {
-    const { promise, resolve, reject } = Promise.withResolvers<void>();
-    // Output is not read; "ignore" keeps a chatty stderr from filling a pipe and stalling ffmpeg.
-    const proc = spawn("ffmpeg", args, { stdio: "ignore" });
-    const timer = setTimeout(() => {
-        proc.kill();
-        reject(new Error(`ffmpeg timed out after ${timeoutMs} ms`));
-    }, timeoutMs);
-    proc.on("close", (code) => {
-        clearTimeout(timer);
-        if (code === 0) resolve();
-        else reject(new Error(`ffmpeg exit ${code}`));
-    });
-    proc.on("error", (e) => {
-        clearTimeout(timer);
-        reject(e);
-    });
-    return promise;
 }
 
 // Best-effort PUT of this volume's not-yet-ingested files, used on shutdown so the

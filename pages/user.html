@@ -332,6 +332,9 @@
 .whoamicon.fa-times-circle{ color:red; }
 .whoamicon.fa-cog{ color:blue; }
 .card-img-top{ width:100%; height:200px; }
+.thumb-wrap{ position:relative; width:100%; height:200px; overflow:hidden; }
+.thumb-wrap > .thumb-preview{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:blur(12px); transform:scale(1.15); }
+.thumb-wrap > .card-img-top{ position:relative; object-fit:contain; }
 .full-width{ width:100%; min-width:100%; max-width:100%; }
 .hiddenUpload{ background-color:#ffdca5; }
 @-webkit-keyframes spin {
@@ -506,8 +509,11 @@
                     <div class="col-lg-3 col-sm-12" style="padding:40px;" :class="{hiddenUpload: pic.modifiers?.hidden, 'video-card': pic.type === 'video', 'other-card': pic.type !== 'image' && pic.type !== 'video' && pic.type !== 'deleted'}">
                         <a :href="'/f/' + pic._id" :title="pic.filename">
                             <center>
-                                <img x-show="pic.type === 'image'" class="card-img-top cons" :src="'/f/' + pic._id + '/thumb'" />
-                                <img x-show="pic.type === 'video'" class="card-img-top consv" :src="'/f/' + pic._id + '/thumb'" @error="$el.src = 'https://2143.me/f/gqKBv.png'; $el.onerror = null" />
+                                <div x-show="pic.type === 'image' || pic.type === 'video'" class="thumb-wrap">
+                                    <template x-if="pic.preview && !pic.thumbLoaded"><img class="thumb-preview" :src="'data:image/webp;base64,' + pic.preview" alt="" aria-hidden="true" /></template>
+                                    <img x-show="pic.type === 'image'" class="card-img-top cons" loading="lazy" :src="'/f/' + pic._id + '/thumb'" @load="pic.thumbLoaded = true" />
+                                    <img x-show="pic.type === 'video'" class="card-img-top consv" loading="lazy" :src="'/f/' + pic._id + '/thumb'" @load="pic.thumbLoaded = true" @error="$el.src = 'https://2143.me/f/gqKBv.png'; $el.onerror = null" />
+                                </div>
                                 <audio x-show="pic.type === 'audio'" class="card-img-top" controls preload="none" :src="'/f/' + pic._id"></audio>
                                 <div x-show="pic.type !== 'image' && pic.type !== 'video' && pic.type !== 'audio'" class="card-img-top" x-text="pic.filename"></div>
                             </center>
@@ -1066,7 +1072,7 @@ function app() {
                 ? ul.filename.substring(0, 12) + '...'
                 : (ul.filename || '');
 
-            return { ...ul, type, dispDate, timeAgo, filenameShort, deleting: false, renaming: false, hiding: false, newName: '', err: '', modifiers: ul.modifiers || {}, reprocessing: false, reprocessMsg: '' };
+            return { ...ul, type, dispDate, timeAgo, filenameShort, thumbLoaded: false, deleting: false, renaming: false, hiding: false, newName: '', err: '', modifiers: ul.modifiers || {}, reprocessing: false, reprocessMsg: '' };
         },
 
         dateDistance(d) {

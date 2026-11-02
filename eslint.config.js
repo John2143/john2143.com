@@ -14,21 +14,11 @@ export default [
                 setInterval: "readonly",
                 clearInterval: "readonly",
                 setImmediate: "readonly",
-                // Mocha
-                describe: "readonly",
-                it: "readonly",
-                before: "readonly",
-                after: "readonly",
-                beforeEach: "readonly",
-                afterEach: "readonly",
                 // ES6
                 Promise: "readonly",
                 Map: "readonly",
                 Set: "readonly",
                 Symbol: "readonly",
-                chai: "readonly",
-                query: "readonly",
-                expect: "readonly",
             },
         },
         rules: {

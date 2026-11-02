@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# --- Dev environment for john2143.com dual-mode job queue ---
-# Starts minio in a container, then runs server + worker locally.
-# Prerequisites: docker/podman, node, mongodb connection
+# Local dev for john2143.com: MinIO (filer and stand-in CDN) in a container plus a
+# Temporal dev server, then the web server. Start the worker in a second terminal
+# (printed below). Prerequisites: docker/podman, the flake devShell (node,
+# temporal-cli, ffmpeg), and a MongoDB at $DB.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -31,12 +32,25 @@ if $DOCKER exec minio-dev which mc > /dev/null 2>&1; then
   echo "==> Bucket 'imagehost-files' ready"
 fi
 
+echo "==> Starting Temporal dev server (UI http://localhost:8233)..."
+temporal server start-dev --namespace john2143-com --log-level warn > /tmp/john2143-temporal-dev.log 2>&1 &
+TEMPORAL_PID=$!
+trap 'kill $TEMPORAL_PID 2>/dev/null || true' EXIT
+for i in $(seq 1 30); do
+  if temporal operator namespace describe --namespace john2143-com > /dev/null 2>&1; then break; fi
+  sleep 1
+done
+
 # --- Env ---
 export MINIO_ENDPOINT_URL="${MINIO_ENDPOINT_URL:-http://localhost:9000}"
 export MINIO_ACCESS_KEY="${MINIO_ACCESS_KEY:-minioadmin}"
 export MINIO_SECRET_KEY="${MINIO_SECRET_KEY:-minioadmin}"
 export BUCKET="${BUCKET:-imagehost-files}"
 export FOLDER="${FOLDER:-dev}"
+export S3_ENDPOINT_URL="${S3_ENDPOINT_URL:-$MINIO_ENDPOINT_URL}"
+export S3_ACCESS_KEY="${S3_ACCESS_KEY:-$MINIO_ACCESS_KEY}"
+export S3_SECRET_KEY="${S3_SECRET_KEY:-$MINIO_SECRET_KEY}"
+export TEMPORAL_ADDRESS="${TEMPORAL_ADDRESS:-localhost:7233}"
 
 cd "$PROJECT_DIR"
 
@@ -53,8 +67,9 @@ echo "  Bucket:     $BUCKET"
 echo ""
 echo "Run these in separate terminals:"
 echo "  Terminal 1 (server):  RUN_MODE=server node c/index.js"
-echo "  Terminal 2 (worker):  RUN_MODE=worker node c/index.js"
+echo "  Terminal 2 (worker):  RUN_MODE=worker TEMPORAL_WORKER_BUILD_ID=dev TEMPORAL_DEPLOYMENT_NAME=john2143-com-worker node c/index.js"
+echo "    then once:          temporal worker deployment set-current-version --namespace john2143-com --deployment-name john2143-com-worker --build-id dev --yes"
 echo "=============================="
 echo ""
 echo "Starting server (Ctrl-C to stop, then start worker in another terminal):"
-exec env RUN_MODE=server node c/index.js
+env RUN_MODE=server node c/index.js

@@ -20,6 +20,8 @@
             pkgs.fish
             pkgs.jq
             pkgs.mongodb-tools
+            pkgs.temporal-cli
+            pkgs.ffmpeg
           ];
         };
       }

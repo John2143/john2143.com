@@ -8,7 +8,7 @@ import { createReadStream } from "node:fs";
 import { uploadToFiler } from "./pipeline.js";
 import { getVolumeId } from "./volume.js";
 import { startUploadWorkflow } from "./temporal/client.js";
-import { error } from "node:console";
+import { bodySizeMismatch, createBodyTrimmer, parseHeadersFromUpload, type BodyTrimmer } from "./multipart.js";
 
 //Retreives a database client and randomized url that has not been used before
 const getURL = async function(){
@@ -28,41 +28,6 @@ const getURL = async function(){
     }
 };
 
-const parseHeadersFromUpload = function(data, reqHeaders){
-    const strData = data.toString("utf8");
-    try{
-        // reqHeaders = {
-        // {
-        //     host: '2143.me',
-        //     'x-forwarded-for': '123.213.111.222',
-        //     connection: 'close',
-        //     'content-length': '1602',
-        //     'user-agent': 'curl/8.9.1',
-        //     accept: '*/*',
-        //     'content-type': 'multipart/form-data; boundary=------------------------ouBpDMbKKVIyn3W1VXnOhj'
-        // }
-
-        let boundary = "\r\n--" + /boundary=(\S+)/.exec(reqHeaders["content-type"])[1] + "--\r\n";
-        boundary = Buffer.from(boundary, "utf8") as any;
-
-        const headers  = /[\s\S]+?\r\n\r\n/     .exec(strData)[0];
-        const key      = /name="([A-Za-z0-9]+)"/.exec(headers)[1];
-        const filename = /filename="([^"]+)"/   .exec(headers)[1];
-        const mimetype = /Content\-Type: (.+)\r/.exec(headers)[1];
-
-        return {
-            key,
-            filename,
-            mimetype,
-            boundary,
-            headerSize: headers.length,
-            contentLength: reqHeaders["content-length"],
-        };
-    }catch(e){
-        return null;
-    }
-
-};
 // 5 mb
 const minChunkSize = 1024 * 1024 * 5;
 const normalChunkSize = 1024 * 1024 * Number(process.env.S3_CHUNK_SIZE || 15);
@@ -368,13 +333,6 @@ export default async function(server, reqx){
     const volumeId = await getVolumeId();
     let insertDone: Promise<unknown> | undefined;
 
-    if(process.env.IS_HOME) {
-        // serve permanant redirect to 2143.me
-        reqx.res.writeHead(301, {
-            "Location": `https://2143.me/uf`,
-        });
-    }
-
     //Any connection will timeout after 30 seconds of inactivity.
     let timeoutID = null;
 
@@ -393,6 +351,7 @@ export default async function(server, reqx){
 
     //This is used to store the headers sent by the client
     let headers = null;
+    let trimmer: BodyTrimmer | null = null;
 
     //Construct a promise in order to properly log the output from uploading
     const returnPromise: any = {};
@@ -452,12 +411,9 @@ export default async function(server, reqx){
         if(isError) return;
         if(!headers) return error("Bad headers", 400);
 
-        let st = await fs.stat(filepath);
-        let size = st.size;
-        if (Math.abs(size - (headers.contentLength - headers.headersSize)) > 10) {
-            error(`Size mismatch for header Content-Length (${ headers.contentLength }) and body size (${size - headers.headersSize}) is too large (> approx boundary x2)`, 400);
-            return;
-        }
+        const size = (await fs.stat(filepath)).size;
+        const mismatch = bodySizeMismatch(headers, size);
+        if (mismatch) return error(mismatch, 400);
 
         //Move the .dl file to the correct location
         await fs.rename(filepath, U.getFilename(url));
@@ -513,6 +469,7 @@ export default async function(server, reqx){
     reqx.req.on("end", function(){
         if(isError) return;
         clearTimeout(timeoutID);
+        if (trimmer) { const rest = trimmer.finish(); if (rest.length) wstream.write(rest); }
         wstream.end();
     });
 
@@ -559,6 +516,7 @@ export default async function(server, reqx){
             //We dont want to write the header to file, so copy everything
             //after header to file
             write = headerBuffer.slice(headers.headerSize);
+            trimmer = createBodyTrimmer(headers.boundary);
 
             //console.log("Completed header parsing");
             //Check the uploaders key (Sharex passes this as 'name="xxxx"')
@@ -614,35 +572,8 @@ export default async function(server, reqx){
             }).catch(errorCatch);
         }
 
-        //Boundry is always at the end of the data file
-        let boundary = headers.boundary;
-        let lenw = write.length;
-        let lenm = boundary.length;
-        //The length of the data segment will either be this length (diff)
-        //or lenw
-        let diff = lenw - lenm;
-        //If slice is true then it means the boundry was found at the end
-        //of the data segment, else all the data should be written
-        let slice = write.indexOf(boundary, diff) === diff;
-
-        let curData = write;
-        let curDataLen = 0;
-        if(slice){
-            //Only write the portion of the buffer up to the boundary
-            let write2 = Buffer.allocUnsafe(diff);
-            write.copy(write2, 0, 0, diff);
-
-            curData = write2;
-            curDataLen = diff;
-        }else{
-            curData = write;
-            curDataLen = lenw;
-        }
-        wstream.write(curData);
-
-        if (slice) {
-            wstream.end();
-        }
+        const out = trimmer.push(write);
+        if (out.length) wstream.write(out);
     });
 
     return returnPromise.promise;

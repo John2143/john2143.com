@@ -119,7 +119,7 @@ export async function handleUploads(c: Context) {
     }
 
     const results = await query.index.find(queryObj, {
-        projection: { filename: 1, mimetype: 1, downloads: 1, uploaddate: 1, modifiers: 1 },
+        projection: { filename: 1, mimetype: 1, downloads: 1, uploaddate: 1, modifiers: 1, preview: 1 },
     }).sort({ uploaddate: -1 }).skip(page * perPage).limit(perPage).toArray();
 
     return c.json(results);
@@ -228,9 +228,8 @@ export async function handleUserSetting(c: Context) {
     return c.text("unknown option", 405);
 }
 
-// Admin check — OAuth session (with test mode support)
+// Admin check — OAuth session
 async function isAdminCompat(c: Context): Promise<boolean> {
-    if ((globalThis as any).testIsAdmin !== undefined) return (globalThis as any).testIsAdmin;
     try {
         const { requireUser } = await import("../auth/middleware.js");
         const reqx = createCompatReqx(c);
@@ -259,7 +258,7 @@ export async function handleReprocess(c: Context) {
 
     await query.index.updateOne(
         { _id: id },
-        { $unset: { cdn: "", thumb: "", failedCDN: "", artifacts: "", ingestStatus: "" } },
+        { $unset: { cdn: "", thumb: "", preview: "", failedCDN: "", artifacts: "", ingestStatus: "" } },
     );
     // volumeId set: the doc may not be on the filer yet, so ingest runs first.
     const result = await startUploadWorkflow({ url: id, volumeId: data.volumeId }, `reprocess-${id}`);
