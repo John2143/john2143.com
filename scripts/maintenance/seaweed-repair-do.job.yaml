@@ -57,5 +57,7 @@ spec:
             - name: NODE_ENV
               value: production
           resources:
-            requests: {memory: "256Mi", cpu: "200m"}
+            # The single DO node is ~99% CPU-requested; a tiny request lets this schedule and
+            # makes this pod (not the web server) the first OOM/eviction victim under pressure.
+            requests: {memory: "128Mi", cpu: "10m"}
             limits: {memory: "1Gi", cpu: "1000m"}

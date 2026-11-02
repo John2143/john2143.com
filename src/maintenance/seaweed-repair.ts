@@ -561,6 +561,8 @@ async function runScan(): Promise<Record<string, unknown>> {
 // ----------------------------------------------------------------- from-disk
 
 async function firstBytesOfFile(filePath: string, bytes: number): Promise<Buffer> {
+    // `end` is inclusive, so a zero-byte file would give end -1, which createReadStream rejects.
+    if (bytes <= 0) return Buffer.alloc(0);
     const chunks: Buffer[] = [];
     const input = createReadStream(filePath, { start: 0, end: bytes - 1 });
     for await (const chunk of input as AsyncIterable<Buffer>) {
