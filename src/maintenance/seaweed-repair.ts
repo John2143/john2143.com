@@ -318,6 +318,20 @@ async function performWrite(id: string, plan: WritePlan): Promise<string> {
     });
 
     try {
+        // Undo restores `prev` from the journal, so it must describe what is actually being
+        // replaced. Quarantined writes check this in copyVerified and de-frames through their
+        // Guard (the live object is the source); the rest replace an absent or <=32-byte object.
+        if (!plan.quarantine && !plan.captureHeaders) {
+            const cur = await hashObject(id);
+            const same = plan.prevSize === null ? !cur : !!cur && cur.sha256 === plan.prevSha && cur.size === plan.prevSize;
+            if (!same) {
+                const error = `changed since scan (now ${cur ? `${cur.size} bytes` : "absent"})`;
+                await journal.updateOne({ _id: key }, { $set: { state: "aborted", doneAt: new Date(), error } });
+                report.item({ ...base, action: "skipped-changed", error });
+                return "skipped-changed";
+            }
+        }
+
         if (plan.quarantine) {
             await copyVerified(id, plan.quarantine, plan.prevSize as number, plan.prevSha as string);
             const check = await hashObject(plan.quarantine);
@@ -612,7 +626,10 @@ async function runFromDisk(): Promise<Record<string, unknown>> {
         const stat = await fs.stat(filePath).catch(() => null);
         if (!stat || !stat.isFile()) return bumpTo(summary, "local-missing");
         const scanItem = scan.items.get(id);
-        if (scanItem?.raw === "readError") return bumpTo(summary, "unreadable");
+        // Every document that existed when the scan started has a row (`missing` included), so
+        // no row means a newer upload: the scan says nothing about its object, so leave it alone.
+        if (!scanItem) return bumpTo(summary, "not-in-scan");
+        if (scanItem.raw === "readError") return bumpTo(summary, "unreadable");
 
         const head = await firstBytesOfFile(filePath, Math.min(stat.size, C.HEAD_LEN));
         const localState = C.rawState(doc.mimetype, stat.size, head);
@@ -625,7 +642,7 @@ async function runFromDisk(): Promise<Record<string, unknown>> {
             if (!actionAllowed("repair-from-disk")) return bumpTo(summary, "skipped-by-filter");
             // "missing" means there is no object at all; every other state has bytes
             // that undo must be able to put back.
-            const absent = !scanItem || scanItem.raw === "missing";
+            const absent = scanItem.raw === "missing";
             const prevSize = absent ? null : (scanItem?.S ?? null);
             const prevSha = absent ? null : (scanItem?.sha ?? null);
             const action = await performWrite(id, {
@@ -778,11 +795,13 @@ async function runFromSeaweed(): Promise<Record<string, unknown>> {
     const summary: Record<string, number> = {};
     await reconcile(summary);
 
-    // "Already done" means the *current* bytes are still what this campaign wrote:
-    // an object overwritten after its record was committed must be a candidate again.
-    const committedState = new Map<string, { newSha: string; newSize: number }>();
-    for (const rec of await journal.find({ state: "committed" }, { projection: { id: 1, newSha: 1, newSize: 1 } }).toArray()) {
-        committedState.set(String(rec.id), { newSha: String(rec.newSha), newSize: Number(rec.newSize) });
+    // A commit made after the scan started makes the scan's row for that id stale (e.g. scan1 →
+    // from-disk → from-seaweed): it is done. A commit the scan already saw counts as done only
+    // while the scanned bytes are still what was written; otherwise the id is a candidate again.
+    const scanStarted = scan.startedAt ? new Date(scan.startedAt).getTime() : Infinity;
+    const committedState = new Map<string, { newSha: string; newSize: number; at: number }>();
+    for (const rec of await journal.find({ state: "committed" }, { projection: { id: 1, newSha: 1, newSize: 1, at: 1 } }).sort({ at: 1 }).toArray()) {
+        committedState.set(String(rec.id), { newSha: String(rec.newSha), newSize: Number(rec.newSize), at: new Date(rec.at).getTime() });
     }
     const blockedIds = new Set<string>();
     for (const rec of await journal.find({ state: { $in: ["intent", "anomaly"] } }, { projection: { id: 1 } }).toArray()) blockedIds.add(String(rec.id));
@@ -796,7 +815,7 @@ async function runFromSeaweed(): Promise<Record<string, unknown>> {
 
     for (const [id, item] of scan.items) {
         const past = committedState.get(id);
-        if (past && item.sha === past.newSha && Number(item.S ?? -1) === past.newSize) {
+        if (past && (past.at >= scanStarted || (item.sha === past.newSha && Number(item.S ?? -1) === past.newSize))) {
             skip("already-committed");
             continue;
         }
