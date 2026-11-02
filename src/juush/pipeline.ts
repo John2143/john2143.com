@@ -28,12 +28,19 @@ export function getCdnUrl(url: string): string {
     return `${cdnBase}/${url}`;
 }
 
-// Streams a local file to the filer. lib-storage buffers 16 MiB parts (2 in
-// flight), so RAM stays bounded and files over 5 GB use multipart.
-export async function putFilerFile(key: string, filepath: string, contentType?: string): Promise<void> {
+// Streams to the filer: either a local file path or a caller-owned Readable.
+// lib-storage buffers 16 MiB parts (2 in flight), so RAM stays bounded and files
+// over 5 GB use multipart.
+export async function putFilerFile(key: string, body: string | Readable, contentType?: string): Promise<void> {
     if (!U.minio_client) throw new Error("minio_client not configured");
-    const stream = createReadStream(filepath);
-    stream.on("error", () => {}); // the Upload rejects on its own; avoid an uncaught 'error'
+    let stream: Readable;
+    if (typeof body === "string") {
+        stream = createReadStream(body);
+        stream.on("error", () => {}); // the Upload rejects on its own; avoid an uncaught 'error'
+    } else {
+        // The caller owns this stream's errors (lib-storage rejects on them).
+        stream = body;
+    }
     await new Upload({
         client: U.minio_client,
         params: { Bucket: process.env.BUCKET || "imagehost-files", Key: key, Body: stream, ContentType: contentType },

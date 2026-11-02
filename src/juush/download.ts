@@ -4,6 +4,7 @@ import { createReadStream, createWriteStream, Stats } from "node:fs";
 import * as U from "./util.js";
 import fs from "node:fs/promises";
 import { pipeline, Readable } from "node:stream";
+import type { Writable } from "node:stream";
 import { GetObjectCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createHash } from "node:crypto";
 import { humanFileSize } from "./upload.js";
@@ -172,49 +173,62 @@ async function makeS3BackupRequest(uploadID: string, s3Client: S3Client, getWrit
 
     let s3GetRequestPromise = s3Client.send(getObject);
 
-    return new Promise(async (resolve, reject) => {
-        let tryTimeout = setTimeout(() => {
-            console.log(`S3 get request timed out for ${uploadID}`);
-            reject("S3 get request timed out");
-        }, 10000);
+    return new Promise((resolve, reject) => {
+        // An async executor's rejection is unobservable and reaches
+        // index.ts's uncaughtException handler (process.exit(1)). A repair or an
+        // aborted client can truncate the body, so funnel every failure into reject.
+        void (async () => {
+            let writeStream: Writable | null = null;
+            let tryTimeout: ReturnType<typeof setTimeout> | undefined;
+            try {
+                tryTimeout = setTimeout(() => {
+                    console.log(`S3 get request timed out for ${uploadID}`);
+                    reject("S3 get request timed out");
+                }, 10000);
 
-        let s3GetRequest = await s3GetRequestPromise.catch(reject);
+                const s3GetRequest = await s3GetRequestPromise.catch(reject);
 
-        clearTimeout(tryTimeout);
+                clearTimeout(tryTimeout);
 
-        if(!s3GetRequest) {
-            console.log(`Not found in ${uploadID}`);
-            return reject("S3 get request failed");
-        }
+                if(!s3GetRequest) {
+                    console.log(`Not found in ${uploadID}`);
+                    return reject("S3 get request failed");
+                }
 
-        let s3Size = s3GetRequest.ContentLength;
+                const s3Size = s3GetRequest.ContentLength;
 
-        // Now, write it to file as local cache
-        let writeStream = getWriteStream();
-        if(!writeStream) {
-            console.log(`Write stream already claimed for ${uploadID}`);
-            return resolve(null);
-        }
+                // Now, write it to file as local cache
+                writeStream = getWriteStream();
+                if(!writeStream) {
+                    console.log(`Write stream already claimed for ${uploadID}`);
+                    return resolve(null);
+                }
 
-        console.log(`Writing to local cache : ${uploadID} ${humanFileSize(s3Size)}`);
-        // Use pipeline with Readable.fromWeb to properly handle lifecycle
-        // of the S3 response body. Raw .pipe() can cause undici to
-        // double-close the underlying ReadableStream on cleanup.
-        const body = s3GetRequest.Body as any;
-        const nodeBody = body?.getReader
-            ? Readable.fromWeb(body)
-            : (body as import("node:stream").Readable);
-        await new Promise<void>((resolve, reject) => {
-            pipeline(nodeBody, writeStream, (err) => {
-                if (err) reject(err);
-                else resolve();
-            });
-        });
-        // sleep for 10ms to allow the write to complete
-        await new Promise(resolve => setTimeout(resolve, 10));
+                console.log(`Writing to local cache : ${uploadID} ${humanFileSize(s3Size)}`);
+                // Use pipeline with Readable.fromWeb to properly handle lifecycle
+                // of the S3 response body. Raw .pipe() can cause undici to
+                // double-close the underlying ReadableStream on cleanup.
+                const body = s3GetRequest.Body as any;
+                const nodeBody = body?.getReader
+                    ? Readable.fromWeb(body)
+                    : (body as import("node:stream").Readable);
+                await new Promise<void>((resolve, reject) => {
+                    pipeline(nodeBody, writeStream, (err) => {
+                        if (err) reject(err);
+                        else resolve();
+                    });
+                });
+                // sleep for 10ms to allow the write to complete
+                await new Promise(resolve => setTimeout(resolve, 10));
 
-        console.log("Local cache write complete", uploadID);
-        resolve(null);
+                console.log("Local cache write complete", uploadID);
+                resolve(null);
+            } catch(e) {
+                clearTimeout(tryTimeout);
+                try { writeStream?.destroy(); } catch(_) {}
+                reject(e);
+            }
+        })();
     });
 }
 

@@ -26,7 +26,7 @@
     "docker": "docker build -t imagehost:latest .",
     "kind": "TAG=$(date +%s); npm run docker -- -t imagehost:$TAG; kind load docker-image imagehost:$TAG --name john2143; kubectl set image deployment/john2143-com john2143-com=imagehost:$TAG",
     "deploy": "npm run docker && npm run kind",
-    "test": "tsc --ignoreConfig --strict false --module nodenext --moduleResolution nodenext --target esnext --types node --skipLibCheck --rootDir src --outDir c src/tests/multipart.test.ts src/tests/media.test.ts src/tests/temporal-tls.test.ts && node --test c/tests/multipart.test.js c/tests/media.test.js c/tests/temporal-tls.test.js",
+    "test": "tsc --ignoreConfig --strict false --module nodenext --moduleResolution nodenext --target esnext --types node --skipLibCheck --rootDir src --outDir c src/tests/multipart.test.ts src/tests/media.test.ts src/tests/temporal-tls.test.ts src/tests/seaweed-repair.test.ts && node --test c/tests/multipart.test.js c/tests/media.test.js c/tests/temporal-tls.test.js c/tests/seaweed-repair.test.js",
     "start": "node c --enable-source-maps --color=always",
     "startLog": "npm run start | tee \"logs/`date '+%Y-%m-%d_%H-%M-%S'`.txt\" | tee logs/cur",
     "build": "tsc",

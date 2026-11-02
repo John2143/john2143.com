@@ -1,0 +1,61 @@
+# One-shot Seaweed repair job on DigitalOcean, with the web pod's disk mounted.
+#
+# `files-pvc` is a single-node RWO volume; the web Deployment uses Recreate, so a
+# Job on the same node can mount it. If it stays in ContainerCreating with a
+# multi-attach error, run the same command in the web pod instead (CONCURRENCY=1).
+#
+# The env block is the web container's, verbatim (secret refs only), so the job
+# resolves Mongo and the home Seaweed tunnel exactly like the web pod. DO has no
+# Spaces credentials: use this job only for MODE=from-disk.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seaweed-repair-do
+  labels: {app: john2143-com-maintenance}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 172800
+  template:
+    metadata:
+      labels: {app: john2143-com-maintenance}
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      serviceAccountName: john2143-com
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: data-volume
+          persistentVolumeClaim: {claimName: files-pvc}
+      containers:
+        - name: seaweed-repair
+          image: ghcr.io/john2143/john2143.com:__TAG__
+          imagePullPolicy: Always
+          command: ["node", "--max-old-space-size=512", "/app/c/maintenance/seaweed-repair.js"]
+          volumeMounts:
+            - mountPath: /app/juushFiles
+              name: data-volume
+          envFrom:
+            - configMapRef: {name: seaweed-repair-params}
+          env:
+            - name: MINIO_ENDPOINT_URL
+              value: "http://home-tunnel-proxy.default.svc.cluster.local:8333"
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: {name: minio-credentials, key: MINIO_ACCESS_KEY}
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef: {name: minio-credentials, key: MINIO_SECRET_KEY}
+            - name: BUCKET
+              value: imagehost-files
+            - name: FOLDER
+              value: public-prod
+            - name: DB
+              valueFrom:
+                secretKeyRef: {name: mongo-creds, key: server-uri}
+            - name: NODE_ENV
+              value: production
+          resources:
+            requests: {memory: "256Mi", cpu: "200m"}
+            limits: {memory: "1Gi", cpu: "1000m"}

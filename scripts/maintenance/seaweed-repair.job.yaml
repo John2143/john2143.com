@@ -1,0 +1,62 @@
+# One-shot Seaweed repair/scan/audit job on the home cluster.
+# Runs on the worker image (type: module, c/maintenance/seaweed-repair.js) because it
+# needs both Seaweed (MINIO_*) and Spaces (S3_*) credentials, which only the worker
+# has. Parameters come from the `seaweed-repair-params` ConfigMap so the manifest
+# itself never carries per-run values:
+#
+#   kubectl -n default create configmap seaweed-repair-params --from-literal=MODE=scan ...
+#   sed "s|__TAG__|N|" scripts/maintenance/seaweed-repair.job.yaml | kubectl apply -f -
+#
+# Never applied through Argo: each run is its own Job, deleted afterwards.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seaweed-repair
+  labels: {app: john2143-com-maintenance}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 172800
+  template:
+    metadata:
+      labels: {app: john2143-com-maintenance}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      serviceAccountName: john2143-worker
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: seaweed-repair
+          image: ghcr.io/john2143/john2143.com-worker:__TAG__
+          imagePullPolicy: IfNotPresent
+          command: ["node", "--max-old-space-size=1024", "/app/c/maintenance/seaweed-repair.js"]
+          envFrom:
+            - configMapRef: {name: seaweed-repair-params}
+          env:
+            - name: DB
+              valueFrom:
+                secretKeyRef: {name: mongo-creds, key: worker-uri}
+            - name: MINIO_ENDPOINT_URL
+              value: "http://seaweedfs-s3.default.svc.cluster.local:8333"
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: {name: minio-creds, key: S3_ACCESS_KEY}
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef: {name: minio-creds, key: S3_SECRET_KEY}
+            - name: S3_ENDPOINT_URL
+              value: "https://nyc3.digitaloceanspaces.com"
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: {name: minio-credentials, key: S3_ACCESS_KEY}
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef: {name: minio-credentials, key: S3_SECRET_KEY}
+            - name: BUCKET
+              value: "imagehost-files"
+            - name: FOLDER
+              value: "public-prod"
+            - name: NODE_ENV
+              value: "production"
+          resources:
+            requests: {memory: "512Mi", cpu: "500m"}
+            limits: {memory: "2Gi", cpu: "2000m"}

@@ -1,0 +1,60 @@
+# One-shot WebP thumbnail / blur preview backfill for existing images.
+# Images only: no video thumbnails, no web MP4, no CDN re-upload of originals.
+# Runs on the worker image, which holds the Seaweed and Spaces credentials.
+#
+#   sed -e "s|__TAG__|N|" -e "s|__DRY_RUN__|1|" -e "s|__RETRY_CRASHED__|0|" \
+#     scripts/maintenance/thumb-backfill.job.yaml | kubectl apply -f -
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: thumb-backfill
+  labels: {app: john2143-com-maintenance}
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 172800
+  template:
+    metadata:
+      labels: {app: john2143-com-maintenance}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      serviceAccountName: john2143-worker
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: thumb-backfill
+          image: ghcr.io/john2143/john2143.com-worker:__TAG__
+          imagePullPolicy: IfNotPresent
+          command: ["node", "--max-old-space-size=512", "/app/c/maintenance/thumb-backfill.js"]
+          env:
+            - name: DRY_RUN
+              value: "__DRY_RUN__"
+            - name: RETRY_CRASHED
+              value: "__RETRY_CRASHED__"
+            - name: DB
+              valueFrom:
+                secretKeyRef: {name: mongo-creds, key: worker-uri}
+            - name: MINIO_ENDPOINT_URL
+              value: "http://seaweedfs-s3.default.svc.cluster.local:8333"
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: {name: minio-creds, key: S3_ACCESS_KEY}
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef: {name: minio-creds, key: S3_SECRET_KEY}
+            - name: S3_ENDPOINT_URL
+              value: "https://nyc3.digitaloceanspaces.com"
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: {name: minio-credentials, key: S3_ACCESS_KEY}
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef: {name: minio-credentials, key: S3_SECRET_KEY}
+            - name: BUCKET
+              value: "imagehost-files"
+            - name: FOLDER
+              value: "public-prod"
+            - name: NODE_ENV
+              value: "production"
+          resources:
+            requests: {memory: "512Mi", cpu: "500m"}
+            limits: {memory: "2Gi", cpu: "2000m"}
