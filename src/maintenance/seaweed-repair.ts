@@ -229,6 +229,7 @@ async function reconcile(summary: Record<string, number>): Promise<void> {
         const base = { k: id, runId: rec.runId };
         if (cur && cur.sha256 === rec.newSha && cur.size === rec.newSize) {
             await journal.updateOne({ _id: rec._id }, { $set: { state: "committed", doneAt: new Date() } });
+            if (rec.action === "repair-from-disk") await U.query.index.updateOne({ _id: id }, { $set: { rustfsBackedUp: true } });
             report.item({ ...base, action: "reconciled-commit" });
         } else if ((rec.prevSize === null && !cur) || (cur && cur.sha256 === rec.prevSha)) {
             await journal.updateOne({ _id: rec._id }, { $set: { state: "aborted", doneAt: new Date() } });
@@ -356,20 +357,32 @@ async function performWrite(id: string, plan: WritePlan): Promise<string> {
             await settled;
         } catch (e) {
             settled.catch(() => {});
-            await journal.updateOne({ _id: key }, { $set: { state: "aborted", doneAt: new Date(), error: String((e as Error)?.message ?? e) } });
-            report.item({ ...base, error: String((e as Error)?.message ?? e) });
-            return "failed";
+            // lib-storage sends a single PUT only after the body ends and completes a multipart
+            // upload only after every part succeeded, and the Guard ends its body only once the
+            // size and sha256 matched. A body that never ended therefore never reached the store.
+            // A fully consumed body followed by an error (e.g. a lost response) is ambiguous.
+            if (!guard.readableEnded) {
+                await journal.updateOne({ _id: key }, { $set: { state: "aborted", doneAt: new Date(), error: String((e as Error)?.message ?? e) } });
+                report.item({ ...base, error: String((e as Error)?.message ?? e) });
+                return "failed";
+            }
+            throw new UnresolvedWrite(e);
         }
+        // Before verifying, so a write that reconcile() later finds committed can still be undone.
+        if (headersHex) await journal.updateOne({ _id: key }, { $set: { headers: headersHex } });
 
-        const check = await hashObject(id);
+        let check;
+        try {
+            check = await hashObject(id);
+        } catch (e) {
+            throw new UnresolvedWrite(e);
+        }
         if (!check || check.sha256 !== plan.newSha || check.size !== plan.newSize) {
             await journal.updateOne({ _id: key }, { $set: { state: "anomaly", doneAt: new Date(), error: "verify mismatch" } });
             report.item({ ...base, error: "verify mismatch" });
             return "anomaly";
         }
-        await journal.updateOne({ _id: key }, {
-            $set: { state: "committed", doneAt: new Date(), ...(headersHex ? { headers: headersHex } : {}) },
-        });
+        await journal.updateOne({ _id: key }, { $set: { state: "committed", doneAt: new Date() } });
         if (plan.action === "repair-from-disk") {
             await U.query.index.updateOne({ _id: id }, { $set: { rustfsBackedUp: true } });
         }
@@ -377,9 +390,24 @@ async function performWrite(id: string, plan: WritePlan): Promise<string> {
         report.item({ ...base, prevSize: plan.prevSize, prevSha: plan.prevSha, confidence: plan.confidence });
         return plan.action;
     } catch (e) {
+        if (e instanceof UnresolvedWrite) {
+            // The store may hold either version: keep the intent (it blocks further writes to this
+            // id) and let reconcile() at the start of the next writing run settle it by reading.
+            const error = String((e.cause as Error)?.message ?? e.cause);
+            await journal.updateOne({ _id: key }, { $set: { error } }).catch(() => {});
+            report.item({ ...base, action: "unresolved", error });
+            return "unresolved";
+        }
         await journal.updateOne({ _id: key }, { $set: { state: "aborted", doneAt: new Date(), error: String((e as Error)?.message ?? e) } }).catch(() => {});
         report.item({ ...base, error: String((e as Error)?.message ?? e) });
         return "failed";
+    }
+}
+
+/** A write whose outcome is unknown: the store may hold either the previous or the new bytes. */
+class UnresolvedWrite extends Error {
+    constructor(cause: unknown) {
+        super("unresolved write", { cause });
     }
 }
 
