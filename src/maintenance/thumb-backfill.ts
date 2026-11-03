@@ -43,6 +43,17 @@ type Doc = { _id: string; mimetype?: string; thumb?: string; preview?: string };
 
 const report = new Report({ mode: "thumb-backfill", dryRun: DRY_RUN });
 
+/**
+ * Errors a retry cannot fix: the object is absent, or its bytes are not an image worth
+ * decoding. Retrying those only buys the 5 s backoff. For the unrecoverable part of the
+ * archive that was most of the run's wall time.
+ */
+function permanent(e: unknown): boolean {
+    const err = e as { name?: string; message?: string; $metadata?: { httpStatusCode?: number } };
+    if (err?.name === "NoSuchKey" || err?.name === "NotFound" || err?.$metadata?.httpStatusCode === 404) return true;
+    return /does not exist|unsupported image format|no thumbnail produced|invalid data found|libpng read error/i.test(String(err?.message ?? ""));
+}
+
 async function retrying<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
     let last: unknown;
     for (let attempt = 1; attempt <= tries; attempt++) {
@@ -50,7 +61,8 @@ async function retrying<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
             return await fn();
         } catch (e) {
             last = e;
-            if (attempt < tries) await new Promise(r => setTimeout(r, 5000 * attempt));
+            if (permanent(e) || attempt === tries) break;
+            await new Promise(r => setTimeout(r, 5000 * attempt));
         }
     }
     throw last;
