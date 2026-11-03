@@ -89,7 +89,9 @@ const serveStreamRequest = async function(reqx, uploadID, filepath, data){
 const setMimeType = async function(id, newmime){
     return await Promise.all([
         U.query.index.updateOne({_id: id}, {$set: {mimetype: newmime}}),
-        newmime === "deleted" && fs.unlink(U.getFilename(id)),
+        // The file here is only a cache: it may never have been fetched on this pod, or may have
+        // been evicted. A missing file must not turn an otherwise successful delete into a 500.
+        newmime === "deleted" && fs.unlink(U.getFilename(id)).catch(() => {}),
     ]);
 };
 

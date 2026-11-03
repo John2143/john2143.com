@@ -2,7 +2,7 @@
 # Images only: no video thumbnails, no web MP4, no CDN re-upload of originals.
 # Runs on the worker image, which holds the Seaweed and Spaces credentials.
 #
-#   sed -e "s|__TAG__|N|" -e "s|__DRY_RUN__|1|" -e "s|__RETRY_CRASHED__|0|" \
+#   sed -e "s|__TAG__|N|" -e "s|__DRY_RUN__|1|" -e "s|__RETRY_CRASHED__|0|" -e "s|__CONCURRENCY__|16|" \
 #     scripts/maintenance/thumb-backfill.job.yaml | kubectl apply -f -
 apiVersion: batch/v1
 kind: Job
@@ -30,6 +30,10 @@ spec:
               value: "__DRY_RUN__"
             - name: RETRY_CRASHED
               value: "__RETRY_CRASHED__"
+            # Latency-bound (196m CPU at 2 workers), so throughput scales with workers;
+            # ~270 Mi per worker with its ffmpeg child.
+            - name: THUMB_CONCURRENCY
+              value: "__CONCURRENCY__"
             - name: DB
               valueFrom:
                 secretKeyRef: {name: mongo-creds, key: worker-uri}
@@ -56,5 +60,5 @@ spec:
             - name: NODE_ENV
               value: "production"
           resources:
-            requests: {memory: "512Mi", cpu: "500m"}
-            limits: {memory: "2Gi", cpu: "2000m"}
+            requests: {memory: "1Gi", cpu: "1000m"}
+            limits: {memory: "6Gi", cpu: "8000m"}
