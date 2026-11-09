@@ -119,10 +119,18 @@ export async function handleUploads(c: Context) {
     }
 
     const results = await query.index.find(queryObj, {
-        projection: { filename: 1, mimetype: 1, downloads: 1, uploaddate: 1, modifiers: 1, preview: 1 },
+        projection: { filename: 1, mimetype: 1, downloads: 1, uploaddate: 1, modifiers: 1, preview: 1, cdn: 1, thumb: 1, artifacts: 1 },
     }).sort({ uploaddate: -1 }).skip(page * perPage).limit(perPage).toArray();
 
-    return c.json(results);
+    // Only the flags the gallery needs leave the server; the CDN URLs and the
+    // artifacts storage keys (bucket/key) stay internal. For a video the CDN copy
+    // is the web MP4 whenever a remux succeeded; if ffmpeg could not remux it is
+    // the original, which the same link still serves.
+    return c.json(results.map(({ cdn, thumb, artifacts, ...rest }) => ({
+        ...rest,
+        hasWeb: Boolean(artifacts?.faststart || (cdn && String(rest.mimetype || "").startsWith("video/"))),
+        hasThumb: Boolean(thumb || artifacts?.thumbnail),
+    })));
 }
 
 // /juush/userinfo/:id

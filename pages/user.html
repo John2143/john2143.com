@@ -343,6 +343,7 @@
 }
 .video-card { background: rgba(255,0,0,0.07); }
 .other-card { background: rgba(255,165,0,0.07); }
+.variant-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .auth-section { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
 .btn-pocketid {
     background:#4f46e5; color:white; display:block; width:100%; padding:8px 16px;
@@ -523,6 +524,15 @@
                             <a :href="'/f/' + pic._id + '/dl'">
                                 <i class="fa fa-fw fa-arrow-down"></i> <span x-text="pic.downloads"></span><br>
                             </a>
+                            <!-- Variants: only where the site actually has a distinct copy -->
+                            <template x-if="pic.type === 'video' || pic.type === 'image'">
+                                <span class="variant-row">
+                                    <a x-show="pic.type === 'video' && pic.hasWeb" class="btn btn-xs btn-info" :href="'/f/' + pic._id + '/cdn'" target="_blank" rel="noopener" title="web-playable copy (MP4, or the original when no remux exists)"><i class="fa fa-film"></i> Web</a>
+                                    <a class="btn btn-xs btn-default" :href="'/f/' + pic._id + '/orig'" target="_blank" rel="noopener" title="byte-exact upload"><i class="fa fa-file-o"></i> Original</a>
+                                    <a class="btn btn-xs btn-success" :href="'/f/' + pic._id + '/dl'" title="download the original"><i class="fa fa-download"></i> Download</a>
+                                    <a x-show="pic.hasThumb" class="btn btn-xs btn-default" :href="'/f/' + pic._id + '/thumb'" target="_blank" rel="noopener" title="480px WebP thumbnail"><i class="fa fa-picture-o"></i> Thumb</a>
+                                </span>
+                            </template>
                             <i class="fa fa-fw fa-clock-o"></i> <span x-text="pic.dispDate"></span><br>
                             <i class="fa fa-fw fa-clock-o"></i> <span x-text="pic.timeAgo"></span><br>
                             <i class="fa fa-fw fa-file-code-o"></i> <span x-text="pic.mimetype"></span><br>

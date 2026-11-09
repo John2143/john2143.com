@@ -18,7 +18,7 @@ juush. Access /nuser/<name> to create users and obtain their upload key.
 
 - Web pods write each upload to their own disk, PUT it to the Seaweed filer via `MINIO_ENDPOINT_URL` (in-cluster at home, the WireGuard `home-tunnel-proxy` on DO, never files.john2143.com), and start `ProcessUploadWorkflow`.
 - Worker pods build the web MP4, the WebP thumbnail and the ≤160-byte preview, store them on the filer, and push the CDN copies to Spaces.
-- `/f/<id>` serves the CDN copy (the web MP4 for video); `/f/<id>/orig` the original inline; `/f/<id>/dl` the original as an attachment; `/f/<id>/thumb` the thumbnail.
+- `/f/<id>` serves the CDN copy (the web MP4 for video); `/f/<id>/orig` (or `/original`) the original inline; `/f/<id>/dl` the original as an attachment; `/f/<id>/thumb` the thumbnail.
 - The disk cache is pruned in-process (`prune.ts`).
 
 ## Sharex Settings
