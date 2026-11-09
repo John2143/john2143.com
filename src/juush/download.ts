@@ -8,6 +8,7 @@ import type { Writable } from "node:stream";
 import { GetObjectCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createHash } from "node:crypto";
 import { humanFileSize } from "./upload.js";
+import { isOriginalDisposition } from "./dispositions.js";
 
 let curDownloading = {};
 
@@ -332,8 +333,8 @@ const processDownload = async function(reqx, data, disposition){
     let incDL = true;
 
     // CDN redirect: if we have a CDN copy, redirect browsers to it.
-    // Skip for explicit original/download requests (orig, dl) and thumbnails.
-    if(data.cdn && disposition !== "dl" && disposition !== "orig" && disposition !== "thumb" && disposition !== "cdn"){
+    // Skip for explicit original requests (orig, original, dl) and thumbnails.
+    if(data.cdn && !isOriginalDisposition(disposition) && disposition !== "thumb" && disposition !== "cdn"){
         reqx.extraLog = "CDN serve".yellow;
         U.query.index.updateOne({_id: uploadID}, {
             $inc: {downloads: 1},
@@ -474,7 +475,7 @@ const download = async function(server, reqx){
 
     //What the user wants to do with the file
     const disposition = reqx.urldata.path[2];
-    const wantsOriginal = disposition === "orig" || disposition === "dl";
+    const wantsOriginal = isOriginalDisposition(disposition);
     if(disposition === "thumb") return serveThumb(reqx, result);
 
     if(result.cdn && disposition == "cdn") {
