@@ -298,31 +298,6 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
             //console.error(e["$response"]);
         }
     }
-    // res2 => {
-    //   '$metadata': {
-    //     httpStatusCode: 200,
-    //     requestId: 'tx000007c48809e86c8110a-0066fb427c-148abbdc-nyc3d',
-    //     extendedRequestId: undefined,
-    //     cfId: undefined,
-    //     attempts: 1,
-    //     totalRetryDelay: 0
-    //   },
-    //   Bucket: 'imagehost-files',
-    //   ETag: '0bb64710e6054c644f1ee581734ca2f4-1',
-    //   Key: 'public-prod/YTUS',
-    //   Location: 'nyc3.digitaloceanspaces.com/imagehost-files/public-prod/YTUS'
-    // }
-
-    // https://nyc3.digitaloceanspaces.com/imagehost-files/dev/ABCD
-    let baseLocation = `https://${res2.Location}`;
-    // https://imagehost-files.nyc3.cdn.digitaloceanspaces.com/dev/ABCD
-    let locationStart = /[^.+]+/.exec(res2.Location)[0];
-    let cdn = `https://${res2.Bucket}.${locationStart}.cdn.digitaloceanspaces.com/${key}`;
-    U.query.index.updateOne({_id: url}, {$set: {
-        cdn,
-    }}).then(() => {
-        console.log(`Updated CDN link for ${url} to ${cdn}`);
-    });
 }
 
 //TODO
