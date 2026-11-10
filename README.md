@@ -23,6 +23,7 @@ juush. Access /nuser/<name> to create users and obtain their upload key.
 - Changes are `POST /f/<id>/{delete,rename,hide,unhide,reprocess}` by the owner (session `juush_user_id` equal to the upload's `keyid`) or an admin, authenticated by the `session_token` cookie (same-origin `Origin` required) or `Authorization: Bearer <session token>`. `rename` takes `{"name": "..."}`. A GET on these suffixes returns 405; any other GET of a deleted upload returns 410.
 - The disk cache is pruned in-process (`prune.ts`).
 - A delete keeps the Mongo row as a tombstone (every path returns 410) and starts `DeleteUploadWorkflow`, which removes the Spaces copy and thumbnail, then every filer object (original, web MP4, thumbnail), and stamps `purgedAt`. Each web pod's pruner removes its cached copy within 5 minutes, and a reconciler on the web pods restarts purges that did not finish. The CDN edge may keep serving a copy until its cache TTL expires. Tombstones from before `deletedAt` existed are purged in batches with `scripts/maintenance/stamp-legacy-deletes.job.yaml`.
+- Web pods and worker pods are separate deployments of the same image. A purge needs a worker build that knows `DeleteUploadWorkflow`; if a web pod starts one before that, the workflow fails and the delete reconciler starts it again on its next retry (within an hour). After a deploy that changes workflows, check `temporal worker deployment describe --namespace john2143-com --name john2143-com-worker`.
 
 ## Sharex Settings
  1. Go to destination settings
