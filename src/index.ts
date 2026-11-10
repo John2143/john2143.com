@@ -204,6 +204,10 @@ if (serverConst.dbstring) {
 
     // Reprocess existing upload (auth-gated)
     app.post("/f/:id/reprocess", async (c) => requireDb(c) || juush.handleReprocess(c));
+    // Explicit paths, so routing never depends on Hono's param-pattern syntax.
+    for (const action of ["delete", "rename", "hide", "unhide"] as const) {
+        app.post(`/f/:id/${action}`, async (c) => requireDb(c) || juush.handleUploadAction(c, action));
+    }
 
 
     // Upload — accepts GET, POST, PUT (juush client uses PUT)

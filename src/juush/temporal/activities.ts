@@ -12,6 +12,7 @@ import * as U from "../util.js";
 import { downloadFromMinio, getCdnUrl, putFilerFile } from "../pipeline.js";
 import { makePreview, makeThumbnail, makeWebVideo, probeMedia } from "../media.js";
 import { uploadToS3 } from "../upload.js";
+import { guessFileExtension } from "../filetype.js";
 
 const CDN_MAX_SIZE = 150 * 1024 * 1024;
 const VIDEO_EXTS = new Set(["mp4", "m4v", "mov", "mkv", "webm", "avi", "wmv", "flv", "mpg", "mpeg", "3gp"]);
@@ -58,7 +59,7 @@ export async function processUpload(url: string): Promise<"done" | "skipped"> {
     await U.query.index.updateOne({ _id: url }, { $unset: { ingestStatus: "" } });
 
     const mime = doc.mimetype || "application/octet-stream";
-    const ext = (U.guessFileExtension(doc.filename) ?? "").toLowerCase();
+    const ext = (guessFileExtension(doc.filename) ?? "").toLowerCase();
     const isVideo = mime.startsWith("video/") || VIDEO_EXTS.has(ext);
     const isImage = !isVideo && (mime.startsWith("image/") || IMAGE_EXTS.has(ext));
     const isGif = isImage && (mime === "image/gif" || ext === "gif");
