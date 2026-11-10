@@ -10,6 +10,8 @@ test("original dispositions", () => {
 test("inline-safe types", () => {
     for (const m of ["image/png", "IMAGE/PNG; charset=x", "video/x-matroska", "audio/mpeg", "text/plain;charset=utf-8", "application/pdf"]) assert.equal(isInlineSafe(m), true, m);
     for (const m of ["text/html", "image/svg+xml", "application/xhtml+xml", "text/xml", "application/octet-stream", "", undefined, "constructor"]) assert.equal(isInlineSafe(m), false, String(m));
+    // Browsers take the last entry of a comma list; malformed types must not pass either.
+    for (const m of ["image/png;,text/html", "video/mp4,text/html", "video/mp4, text/html", "text/plain;a=\"x,\",text/html", "video/mp4\ttext/html", "video/ mp4", "video/", "/mp4"]) assert.equal(isInlineSafe(m), false, JSON.stringify(m));
 });
 
 test("content-disposition", () => {

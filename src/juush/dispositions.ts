@@ -16,9 +16,15 @@ export const INLINE_SAFE_TYPES: Record<string, true> = {
     "text/plain": true, "application/pdf": true,
 };
 
+const MIME_ESSENCE_RE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/;
+
 // Video and audio cannot run script; SVG, HTML and XML can, so they never render inline.
+// The client-supplied value is sent as Content-Type, so it must parse to exactly the
+// checked type: browsers read a comma-separated value as a list and use its last type.
 export function isInlineSafe(mimetype: string | undefined): boolean {
-    const essence = (mimetype ?? "").split(";")[0].trim().toLowerCase();
+    if (!mimetype || mimetype.includes(",")) return false;
+    const essence = mimetype.split(";")[0].trim().toLowerCase();
+    if (!MIME_ESSENCE_RE.test(essence)) return false;
     return essence.startsWith("video/") || essence.startsWith("audio/") || Object.hasOwn(INLINE_SAFE_TYPES, essence);
 }
 

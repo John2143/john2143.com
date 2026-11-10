@@ -421,6 +421,10 @@ const serveEmbed = async function(reqx, data): Promise<boolean> {
             { abortSignal: AbortSignal.timeout(3000) },
         ).then(h => h.ContentLength, () => undefined);
     }
+    // Discord plays a direct link to a small MP4/WebM/MOV on its own: uploads still being
+    // processed, or without a thumbnail, get the bytes (or the CDN redirect) as before.
+    const essence = String(data.mimetype ?? "").split(";")[0].trim().toLowerCase();
+    if(kind === "video" && Object.hasOwn(EMBED_VIDEO_TYPES, essence) && size !== undefined && size <= EMBED_VIDEO_MAX_BYTES) return false;
     // A missing keyid would match every user without a juush_user_id.
     const owner = data.keyid != null
         ? await U.query.users.findOne({ juush_user_id: data.keyid }, { projection: { display_name: 1 } })
