@@ -123,10 +123,9 @@ export function startIngestReconciler(volumeId: string): void {
                     { partialFilterExpression: { volumeId: { $exists: true } } },
                 );
                 // Keeps the stuck-ingest branch from scanning every processed upload.
-                await U.query.index.createIndex(
-                    { volumeId: 1, workflowStartedAt: 1 },
-                    { partialFilterExpression: { rustfsBackedUp: "uploading" } },
-                );
+                // Equality on the first two fields, range on the third. A distinct key
+                // pattern, not just a partial filter, so no index name can collide.
+                await U.query.index.createIndex({ volumeId: 1, rustfsBackedUp: 1, workflowStartedAt: 1 });
             } catch (e) {
                 serverLog(`Reconciler: createIndex failed (continuing without it): ${(e as Error).message}`);
             }
@@ -148,11 +147,11 @@ export function startIngestReconciler(volumeId: string): void {
                         serverLog(`Reconciler: cannot stat ${doc._id}: ${(e as Error).message}`);
                         continue;
                     }
-                    await U.query.index.updateOne(
+                    const r = await U.query.index.updateOne(
                         { _id: doc._id, rustfsBackedUp: "uploading", mimetype: { $ne: "deleted" } },
                         { $set: { ingestFailed: "local-copy-missing" } },
                     );
-                    serverLog(`Reconciler: no local copy of ${doc._id} (volume ${volumeId}); marked ingestFailed`);
+                    if (r.matchedCount === 1) serverLog(`Reconciler: no local copy of ${doc._id} (volume ${volumeId}); marked ingestFailed`);
                     continue;
                 }
             }
