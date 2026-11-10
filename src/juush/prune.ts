@@ -57,7 +57,32 @@ function estimateDiskAfter(totalBytes: number, bytesToFree: number, currentPct: 
     return (newUsed / total) * 100;
 }
 
+// Since the last sweep. null → full sweep at pod start, which also covers deletes
+// made while this pod was down.
+let sweptSince: Date | null = null;
+
+// A delete removes only the serving pod's cached copy; this removes the others.
+async function sweepDeletedCaches(): Promise<void> {
+    const startedAt = Date.now();
+    const filter = sweptSince ? { mimetype: "deleted", deletedAt: { $gte: sweptSince } } : { mimetype: "deleted" };
+    const ids = await query.index.find(filter, { projection: { _id: 1 } }).toArray();
+    let removed = 0;
+    for (const { _id } of ids) {
+        for (const p of [getFilename(_id), `${getFilename(_id)}.dl`]) {
+            try {
+                await fs.unlink(p);
+                removed++;
+            } catch (e) {
+                if ((e as NodeJS.ErrnoException).code !== "ENOENT") serverLog(`Pruner: could not remove ${p}: ${e}`);
+            }
+        }
+    }
+    sweptSince = new Date(startedAt - 60_000); // overlap absorbs clock skew between pods
+    if (removed > 0) serverLog(`Pruner: removed ${removed} cached files of deleted uploads`);
+}
+
 export async function handlePrune(): Promise<void> {
+    await sweepDeletedCaches().catch((e) => serverLog("Pruner: deleted-cache sweep failed", e));
     const diskPct = await getDiskUsagePct();
     if (diskPct <= TARGET_DISK_PCT) return;
 

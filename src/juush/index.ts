@@ -4,7 +4,7 @@ import { Readable } from "node:stream";
 import fs from "node:fs/promises";
 import { startdb, query, whoami, juushErrorCatch, randomStr, getFilename, setModifier } from "./util.js";
 import { guessFileExtension } from "./filetype.js";
-import { startUploadWorkflow } from "./temporal/client.js";
+import { startDeleteWorkflow, startUploadWorkflow } from "./temporal/client.js";
 
 import { createCompatRes, flushCompatRes, createCompatReqx } from "./compat.js";
 import type { Context } from "hono";
@@ -293,9 +293,11 @@ export async function handleUploadAction(c: Context, action: "delete" | "rename"
                 { $set: { mimetype: "deleted", deletedAt: new Date(), deletedBy: user._id } },
             );
         }
-        // This pod's cached copy. Deleted uploads are never served, whichever pod holds a copy.
+        // This pod's cached copy; the pruner sweeps the other pods.
         await fs.unlink(getFilename(doc._id)).catch(() => {});
-        return c.json({ status: "deleted" });
+        // A repeated delete just re-requests the purge; "unavailable" is left to the reconciler.
+        const purge = await startDeleteWorkflow(doc._id);
+        return c.json({ status: "deleted", purge });
     }
     if (doc.mimetype === "deleted") return c.text("This file has been deleted.", 410);
 

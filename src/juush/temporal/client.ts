@@ -26,14 +26,18 @@ export async function connectTemporal(): Promise<void> {
     }
 }
 
-export async function startUploadWorkflow(
-    input: UploadInput,
-    workflowId = `upload-${input.url}`,
+// Starts a workflow once per id, then stamps `startedField` so the reconcilers skip it.
+async function startWorkflow(
+    type: string,
+    args: unknown[],
+    workflowId: string,
+    url: string,
+    startedField: "workflowStartedAt" | "deleteWorkflowStartedAt",
 ): Promise<"started" | "exists" | "unavailable"> {
     if (!client) return "unavailable";
     let result: "started" | "exists";
     try {
-        await client.workflow.start("ProcessUploadWorkflow", { args: [input], taskQueue: "john2143-com", workflowId });
+        await client.workflow.start(type, { args, taskQueue: "john2143-com", workflowId });
         result = "started";
     } catch (e) {
         if (!(e instanceof WorkflowExecutionAlreadyStartedError)) {
@@ -44,8 +48,20 @@ export async function startUploadWorkflow(
     }
     // Lets the reconciler skip this upload. If the write fails, the reconciler's
     // later start just returns "exists".
-    await U.query.index.updateOne({ _id: input.url }, { $set: { workflowStartedAt: new Date() } })
-        .catch((e: Error) => console.warn(`Temporal: workflowStartedAt write failed for ${input.url}: ${e.message}`));
+    await U.query.index.updateOne({ _id: url }, { $set: { [startedField]: new Date() } })
+        .catch((e: Error) => console.warn(`Temporal: ${startedField} write failed for ${url}: ${e.message}`));
     console.log(`Temporal: ${result} ${workflowId}`);
     return result;
+}
+
+export function startUploadWorkflow(
+    input: UploadInput,
+    workflowId = `upload-${input.url}`,
+): Promise<"started" | "exists" | "unavailable"> {
+    return startWorkflow("ProcessUploadWorkflow", [input], workflowId, input.url, "workflowStartedAt");
+}
+
+// Purges a deleted upload's CDN and filer copies (DeleteUploadWorkflow).
+export function startDeleteWorkflow(url: string): Promise<"started" | "exists" | "unavailable"> {
+    return startWorkflow("DeleteUploadWorkflow", [{ url }], `delete-${url}`, url, "deleteWorkflowStartedAt");
 }

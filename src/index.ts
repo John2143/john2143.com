@@ -14,7 +14,7 @@ import { startPruner } from "./juush/prune.js";
 import { isWorkerRunning, startMainWorker, startIngestWorker, stopWorkers } from "./juush/temporal/worker.js";
 import { connectTemporal } from "./juush/temporal/client.js";
 import { getVolumeId, ingestTaskQueue } from "./juush/volume.js";
-import { flushVolume, startIngestReconciler } from "./juush/pipeline.js";
+import { flushVolume, startDeleteReconciler, startIngestReconciler } from "./juush/pipeline.js";
 const RUN_MODE = (process.env.RUN_MODE || "server") as "server" | "worker";
 
 let shuttingDown = false;
@@ -234,6 +234,7 @@ if (serverConst.dbstring) {
         connectTemporal().catch(e => serverLog("temporal connect loop crashed", e));
         startIngestWorker(volumeId).catch(e => serverLog("ingest worker loop crashed", e));
         startIngestReconciler(volumeId);
+        startDeleteReconciler();
     }).catch((e: unknown) => {
         serverLog("Failed to start juush DB", e);
     });
