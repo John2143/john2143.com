@@ -10,8 +10,6 @@ export const RECONCILE_MS = 60_000;
 export const RECONCILE_MIN_AGE_MS = 10 * 60_000;
 // A purge (or an ingest) whose start is older than this without finishing is retried.
 export const WORKFLOW_RETRY_AFTER_MS = 60 * 60_000;
-// Tombstones from before deletes recorded deletedAt.
-export const LEGACY_DELETE_QUERY = { mimetype: "deleted", deletedAt: { $exists: false } };
 
 /**
  * Uploads on this volume that still need an ingest workflow:

@@ -122,25 +122,39 @@ export function startIngestReconciler(volumeId: string): void {
                     { volumeId: 1, workflowStartedAt: 1 },
                     { partialFilterExpression: { volumeId: { $exists: true } } },
                 );
+                // Keeps the stuck-ingest branch from scanning every processed upload.
+                await U.query.index.createIndex(
+                    { volumeId: 1, workflowStartedAt: 1 },
+                    { partialFilterExpression: { rustfsBackedUp: "uploading" } },
+                );
             } catch (e) {
                 serverLog(`Reconciler: createIndex failed (continuing without it): ${(e as Error).message}`);
             }
         }
-        const docs: { _id: string; rustfsBackedUp?: unknown }[] = await U.query.index.find(
+        const docs: { _id: string; workflowStartedAt?: Date }[] = await U.query.index.find(
             ingestRetryQuery(volumeId, Date.now()),
-            { projection: { _id: 1, rustfsBackedUp: 1 } },
+            { projection: { _id: 1, workflowStartedAt: 1 } },
         ).limit(50).toArray();
         for (const doc of docs) {
-            // The activity ingests from this volume's disk, so a missing file cannot be
-            // recovered by retrying. Record that instead of looping forever.
-            try {
-                await fs.access(U.getFilename(doc._id));
-            } catch {
-                if (doc.rustfsBackedUp === "uploading") {
-                    await U.query.index.updateOne({ _id: doc._id }, { $set: { ingestFailed: "local-copy-missing" } });
+            // A stuck ingest can only be retried from this volume's disk; if the file is
+            // gone, record that instead of looping. Never-started rows always start: the
+            // workflow copes with a filer-only copy ("already") and records lost uploads.
+            if (doc.workflowStartedAt) {
+                try {
+                    await fs.access(U.getFilename(doc._id));
+                } catch (e) {
+                    // Only a missing file is permanent; anything else may be transient.
+                    if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
+                        serverLog(`Reconciler: cannot stat ${doc._id}: ${(e as Error).message}`);
+                        continue;
+                    }
+                    await U.query.index.updateOne(
+                        { _id: doc._id, rustfsBackedUp: "uploading", mimetype: { $ne: "deleted" } },
+                        { $set: { ingestFailed: "local-copy-missing" } },
+                    );
                     serverLog(`Reconciler: no local copy of ${doc._id} (volume ${volumeId}); marked ingestFailed`);
+                    continue;
                 }
-                continue;
             }
             const result = await startUploadWorkflow({ url: doc._id, volumeId });
             if (result === "unavailable") return;
