@@ -9,6 +9,7 @@
 import { serverLog } from "../logger.js";
 import * as U from "./util.js";
 import { startDeleteWorkflow, startUploadWorkflow } from "./temporal/client.js";
+import { RECONCILE_MS, deleteRetryQuery, ingestRetryQuery } from "./reconcile.js";
 import fs from "node:fs/promises";
 import { createReadStream, createWriteStream } from "node:fs";
 import { Readable } from "node:stream";
@@ -16,11 +17,6 @@ import { ReadableStream } from "node:stream/web";
 import { pipeline } from "node:stream/promises";
 import { DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
-
-const RECONCILE_MS = 60_000;
-// An upload's workflow normally starts right after the response; only docs this old
-// without a workflow are picked up, so an in-flight start is never duplicated.
-const RECONCILE_MIN_AGE_MS = 10 * 60_000;
 
 export function getCdnUrl(url: string): string {
     const folder = process.env.FOLDER || "public-prod";
@@ -112,8 +108,9 @@ export async function flushVolume(volumeId: string, budgetMs: number): Promise<v
     serverLog(`Flush: stored ${stored} of ${docs.length} pending uploads on volume ${volumeId}`);
 }
 
-// Starts workflows for uploads on this volume whose start was missed (Temporal was
-// unreachable at upload time, or the pod died between response and start).
+// Starts workflows for uploads this volume still holds: ones whose start was missed
+// (Temporal unreachable at upload time, or the pod died between response and start)
+// and ones stuck mid-ingest after a failed workflow (e.g. the filer was down).
 export function startIngestReconciler(volumeId: string): void {
     let indexEnsured = false;
     let running = false;
@@ -125,20 +122,39 @@ export function startIngestReconciler(volumeId: string): void {
                     { volumeId: 1, workflowStartedAt: 1 },
                     { partialFilterExpression: { volumeId: { $exists: true } } },
                 );
+                // Keeps the stuck-ingest branch from scanning every processed upload.
+                // Equality on the first two fields, range on the third. A distinct key
+                // pattern, not just a partial filter, so no index name can collide.
+                await U.query.index.createIndex({ volumeId: 1, rustfsBackedUp: 1, workflowStartedAt: 1 });
             } catch (e) {
                 serverLog(`Reconciler: createIndex failed (continuing without it): ${(e as Error).message}`);
             }
         }
-        const docs: { _id: string }[] = await U.query.index.find(
-            {
-                volumeId,
-                workflowStartedAt: { $exists: false },
-                mimetype: { $ne: "deleted" },
-                storedAt: { $lt: new Date(Date.now() - RECONCILE_MIN_AGE_MS) },
-            },
-            { projection: { _id: 1 } },
+        const docs: { _id: string; workflowStartedAt?: Date }[] = await U.query.index.find(
+            ingestRetryQuery(volumeId, Date.now()),
+            { projection: { _id: 1, workflowStartedAt: 1 } },
         ).limit(50).toArray();
         for (const doc of docs) {
+            // A stuck ingest can only be retried from this volume's disk; if the file is
+            // gone, record that instead of looping. Never-started rows always start: the
+            // workflow copes with a filer-only copy ("already") and records lost uploads.
+            if (doc.workflowStartedAt) {
+                try {
+                    await fs.access(U.getFilename(doc._id));
+                } catch (e) {
+                    // Only a missing file is permanent; anything else may be transient.
+                    if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
+                        serverLog(`Reconciler: cannot stat ${doc._id}: ${(e as Error).message}`);
+                        continue;
+                    }
+                    const r = await U.query.index.updateOne(
+                        { _id: doc._id, rustfsBackedUp: "uploading", mimetype: { $ne: "deleted" } },
+                        { $set: { ingestFailed: "local-copy-missing" } },
+                    );
+                    if (r.matchedCount === 1) serverLog(`Reconciler: no local copy of ${doc._id} (volume ${volumeId}); marked ingestFailed`);
+                    continue;
+                }
+            }
             const result = await startUploadWorkflow({ url: doc._id, volumeId });
             if (result === "unavailable") return;
             serverLog(`Reconciler: workflow for ${doc._id} ${result}`);
@@ -173,17 +189,8 @@ export function startDeleteReconciler(): void {
                 serverLog(`Delete reconciler: createIndex failed (continuing without it): ${(e as Error).message}`);
             }
         }
-        const now = Date.now();
         const docs: { _id: string }[] = await U.query.index.find(
-            {
-                mimetype: "deleted",
-                deletedAt: { $lt: new Date(now - RECONCILE_MIN_AGE_MS) },
-                purgedAt: { $exists: false },
-                $or: [
-                    { deleteWorkflowStartedAt: { $exists: false } },
-                    { deleteWorkflowStartedAt: { $lt: new Date(now - 3600_000) } },
-                ],
-            },
+            deleteRetryQuery(Date.now()),
             { projection: { _id: 1 } },
         ).limit(50).toArray();
         for (const doc of docs) {
