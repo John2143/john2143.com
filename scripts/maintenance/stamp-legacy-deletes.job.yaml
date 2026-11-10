@@ -1,0 +1,48 @@
+# Stamps legacy soft-deleted uploads (no deletedAt) so the web pods' delete reconciler
+# purges their CDN and filer copies. Irreversible once a row is purged; run in batches:
+# DRY_RUN=1, then LIMIT=5, then LIMIT=0 (all). UNDO=1 unstamps rows not yet purged.
+# Only needs Mongo; runs on the worker image like the other maintenance Jobs.
+#
+#   kubectl delete job stamp-legacy-deletes --ignore-not-found
+#   sed -e "s|__TAG__|N|" -e "s|__DRY_RUN__|1|" -e "s|__LIMIT__|0|" -e "s|__UNDO__|0|" \
+#     scripts/maintenance/stamp-legacy-deletes.job.yaml | kubectl apply -f -
+#   kubectl logs -f job/stamp-legacy-deletes
+#
+# N is the worker image tag currently deployed:
+#   grep image: /home/john/repos/argo/workloads/john2143-worker/workerdeployment.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: stamp-legacy-deletes
+  labels: {app: john2143-com-maintenance}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels: {app: john2143-com-maintenance}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      serviceAccountName: john2143-worker
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: stamp-legacy-deletes
+          image: ghcr.io/john2143/john2143.com-worker:__TAG__
+          imagePullPolicy: IfNotPresent
+          command: ["node", "/app/c/maintenance/stamp-legacy-deletes.js"]
+          env:
+            - name: DRY_RUN
+              value: "__DRY_RUN__"
+            - name: LIMIT
+              value: "__LIMIT__"
+            - name: UNDO
+              value: "__UNDO__"
+            - name: DB
+              valueFrom:
+                secretKeyRef: {name: mongo-creds, key: worker-uri}
+            - name: NODE_ENV
+              value: "production"
+          resources:
+            requests: {memory: "128Mi", cpu: "100m"}
+            limits: {memory: "512Mi", cpu: "500m"}

@@ -14,7 +14,7 @@ import { startPruner } from "./juush/prune.js";
 import { isWorkerRunning, startMainWorker, startIngestWorker, stopWorkers } from "./juush/temporal/worker.js";
 import { connectTemporal } from "./juush/temporal/client.js";
 import { getVolumeId, ingestTaskQueue } from "./juush/volume.js";
-import { flushVolume, startIngestReconciler } from "./juush/pipeline.js";
+import { flushVolume, startDeleteReconciler, startIngestReconciler } from "./juush/pipeline.js";
 const RUN_MODE = (process.env.RUN_MODE || "server") as "server" | "worker";
 
 let shuttingDown = false;
@@ -204,6 +204,10 @@ if (serverConst.dbstring) {
 
     // Reprocess existing upload (auth-gated)
     app.post("/f/:id/reprocess", async (c) => requireDb(c) || juush.handleReprocess(c));
+    // Explicit paths, so routing never depends on Hono's param-pattern syntax.
+    for (const action of ["delete", "rename", "hide", "unhide"] as const) {
+        app.post(`/f/:id/${action}`, async (c) => requireDb(c) || juush.handleUploadAction(c, action));
+    }
 
 
     // Upload — accepts GET, POST, PUT (juush client uses PUT)
@@ -230,6 +234,7 @@ if (serverConst.dbstring) {
         connectTemporal().catch(e => serverLog("temporal connect loop crashed", e));
         startIngestWorker(volumeId).catch(e => serverLog("ingest worker loop crashed", e));
         startIngestReconciler(volumeId);
+        startDeleteReconciler();
     }).catch((e: unknown) => {
         serverLog("Failed to start juush DB", e);
     });

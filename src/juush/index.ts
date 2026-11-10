@@ -1,8 +1,10 @@
 import { serverLog } from "../logger.js";
 
 import { Readable } from "node:stream";
-import { startdb, query, whoami, juushErrorCatch, randomStr } from "./util.js";
-import { startUploadWorkflow } from "./temporal/client.js";
+import fs from "node:fs/promises";
+import { startdb, query, whoami, juushErrorCatch, randomStr, getFilename, setModifier } from "./util.js";
+import { guessFileExtension } from "./filetype.js";
+import { startDeleteWorkflow, startUploadWorkflow } from "./temporal/client.js";
 
 import { createCompatRes, flushCompatRes, createCompatReqx } from "./compat.js";
 import type { Context } from "hono";
@@ -128,8 +130,8 @@ export async function handleUploads(c: Context) {
     // the original, which the same link still serves.
     return c.json(results.map(({ cdn, thumb, artifacts, ...rest }) => ({
         ...rest,
-        hasWeb: Boolean(artifacts?.faststart || (cdn && String(rest.mimetype || "").startsWith("video/"))),
-        hasThumb: Boolean(thumb || artifacts?.thumbnail),
+        hasWeb: rest.mimetype !== "deleted" && Boolean(artifacts?.faststart || (cdn && String(rest.mimetype || "").startsWith("video/"))),
+        hasThumb: rest.mimetype !== "deleted" && Boolean(thumb || artifacts?.thumbnail),
     })));
 }
 
@@ -248,21 +250,79 @@ async function isAdminCompat(c: Context): Promise<boolean> {
     }
 }
 
+// --- Upload mutations (POST /f/:id/{delete,rename,hide,unhide,reprocess}) ---
+
+interface MutableUpload { _id: string; keyid?: number; mimetype?: string; filename?: string; volumeId?: string }
+
+// Owner (session user whose juush_user_id is the upload's keyid) or admin. Cookie-authenticated
+// requests must come from this origin; Bearer session tokens cannot be sent cross-site.
+async function authorizeUploadMutation(c: Context): Promise<{ doc: MutableUpload; user: any } | Response> {
+    const doc = await query.index.findOne(
+        { _id: c.req.param("id") },
+        { projection: { keyid: 1, mimetype: 1, filename: 1, volumeId: 1 } },
+    ) as MutableUpload | null;
+    if (!doc) return c.text("Not found", 404);
+
+    const { requireUser } = await import("../auth/middleware.js");
+    const user = await requireUser(createCompatReqx(c));
+    if (!user) return c.text("Not authenticated", 401);
+    // A user without a juush id must not match an upload without a keyid.
+    const isOwner = user.juush_user_id != null && user.juush_user_id === doc.keyid;
+    if (!isOwner && user.is_admin !== true) return c.text("Forbidden", 403);
+
+    if (!(c.req.header("authorization") || "").startsWith("Bearer ")) {
+        let sameOrigin = false;
+        try {
+            const origin = c.req.header("origin");
+            sameOrigin = !!origin && new URL(origin).host === c.req.header("host");
+        } catch { /* unparseable Origin */ }
+        if (!sameOrigin) return c.text("Cross-origin request rejected", 403);
+    }
+    return { doc, user };
+}
+
+export async function handleUploadAction(c: Context, action: "delete" | "rename" | "hide" | "unhide") {
+    const auth = await authorizeUploadMutation(c);
+    if (auth instanceof Response) return auth;
+    const { doc, user } = auth;
+
+    if (action === "delete") {
+        if (doc.mimetype !== "deleted") {
+            await query.index.updateOne(
+                { _id: doc._id, mimetype: { $ne: "deleted" } },
+                { $set: { mimetype: "deleted", deletedAt: new Date(), deletedBy: user._id } },
+            );
+        }
+        // This pod's cached copy; the pruner sweeps the other pods.
+        await fs.unlink(getFilename(doc._id)).catch(() => {});
+        // A repeated delete just re-requests the purge; "unavailable" is left to the reconciler.
+        const purge = await startDeleteWorkflow(doc._id);
+        return c.json({ status: "deleted", purge });
+    }
+    if (doc.mimetype === "deleted") return c.text("This file has been deleted.", 410);
+
+    if (action === "hide" || action === "unhide") {
+        await setModifier(doc._id, "hidden", action === "hide" ? true : undefined);
+        return c.text(action === "hide" ? "hidden" : "unhidden");
+    }
+
+    const body = await c.req.json().catch(() => null);
+    const name = typeof body?.name === "string" ? body.name.trim() : "";
+    if (!name || name.length > 255 || /[\u0000-\u001f\u007f\/\\]/.test(name)) return c.text("Invalid name", 400);
+    // A new name without an extension keeps the old one.
+    const oldExt = guessFileExtension(doc.filename);
+    const filename = !guessFileExtension(name) && oldExt ? `${name}.${oldExt}` : name;
+    await query.index.updateOne({ _id: doc._id }, { $set: { filename } });
+    return c.text(filename);
+}
+
 // --- Reprocess handler ---
 export async function handleReprocess(c: Context) {
-    const id = c.req.param("id");
-    if (!id) return c.text("Missing id", 400);
-
-    // Look up the upload
-    const data = await query.index.findOne({ _id: id });
-    if (!data) return c.text("Not found", 404);
-
-    // Auth: must be owner or admin
-    const userlist = await whoami(c);
-    const isAdmin = await isAdminCompat(c);
-    if (!userlist.includes(data.keyid) && !isAdmin) {
-        return c.text("Forbidden", 403);
-    }
+    const auth = await authorizeUploadMutation(c);
+    if (auth instanceof Response) return auth;
+    const data = auth.doc;
+    const id = data._id;
+    if (data.mimetype === "deleted") return c.text("This file has been deleted.", 410);
 
     await query.index.updateOne(
         { _id: id },

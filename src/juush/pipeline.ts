@@ -8,13 +8,13 @@
  */
 import { serverLog } from "../logger.js";
 import * as U from "./util.js";
-import { startUploadWorkflow } from "./temporal/client.js";
+import { startDeleteWorkflow, startUploadWorkflow } from "./temporal/client.js";
 import fs from "node:fs/promises";
 import { createReadStream, createWriteStream } from "node:fs";
 import { Readable } from "node:stream";
 import { ReadableStream } from "node:stream/web";
 import { pipeline } from "node:stream/promises";
-import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 
 const RECONCILE_MS = 60_000;
@@ -49,20 +49,25 @@ export async function putFilerFile(key: string, body: string | Readable, content
     }).done();
 }
 
-// Puts the upload on the filer and records `rustfsBackedUp` for the pruner.
+// Puts the upload on the filer and records `rustfsBackedUp` for the pruner. An
+// upload deleted meanwhile loses its filer copy again, so a late PUT cannot
+// resurrect a purged original.
 export async function uploadToFiler(url: string): Promise<void> {
     if (!U.minio_client) throw new Error("minio_client not configured");
     const filepath = U.getFilename(url);
     // Mark in-flight; the pruner only evicts files flagged exactly `true`.
     await U.query.index.updateOne(
-        { _id: url },
+        { _id: url, mimetype: { $ne: "deleted" } },
         { $set: { rustfsBackedUp: "uploading" } },
     ).catch(() => {});
     await putFilerFile(url, filepath);
-    await U.query.index.updateOne(
-        { _id: url },
+    const r = await U.query.index.updateOne(
+        { _id: url, mimetype: { $ne: "deleted" } },
         { $set: { rustfsBackedUp: true } },
     );
+    if (r.matchedCount === 0) {
+        await U.minio_client.send(new DeleteObjectCommand({ Bucket: process.env.BUCKET || "imagehost-files", Key: url }));
+    }
 }
 
 export async function downloadFromMinio(key: string, destPath: string): Promise<void> {
@@ -144,6 +149,54 @@ export function startIngestReconciler(volumeId: string): void {
         running = true;
         tick()
             .catch((e) => serverLog(`Reconciler: tick failed: ${(e as Error).message}`))
+            .finally(() => { running = false; });
+    };
+    run();
+    setInterval(run, RECONCILE_MS);
+}
+
+// Starts DeleteUploadWorkflow for deleted uploads whose purge has not run. A start
+// older than an hour without purgedAt is retried (e.g. a transient S3 error failed
+// the workflow). Every web pod runs this; the workflow id dedupes them.
+export function startDeleteReconciler(): void {
+    let indexEnsured = false;
+    let running = false;
+    const tick = async () => {
+        if (!indexEnsured) {
+            indexEnsured = true;
+            try {
+                await U.query.index.createIndex(
+                    { deletedAt: 1 },
+                    { partialFilterExpression: { deletedAt: { $exists: true } } },
+                );
+            } catch (e) {
+                serverLog(`Delete reconciler: createIndex failed (continuing without it): ${(e as Error).message}`);
+            }
+        }
+        const now = Date.now();
+        const docs: { _id: string }[] = await U.query.index.find(
+            {
+                mimetype: "deleted",
+                deletedAt: { $lt: new Date(now - RECONCILE_MIN_AGE_MS) },
+                purgedAt: { $exists: false },
+                $or: [
+                    { deleteWorkflowStartedAt: { $exists: false } },
+                    { deleteWorkflowStartedAt: { $lt: new Date(now - 3600_000) } },
+                ],
+            },
+            { projection: { _id: 1 } },
+        ).limit(50).toArray();
+        for (const doc of docs) {
+            const result = await startDeleteWorkflow(doc._id);
+            if (result === "unavailable") return;
+            serverLog(`Delete reconciler: workflow for ${doc._id} ${result}`);
+        }
+    };
+    const run = () => {
+        if (running) return;
+        running = true;
+        tick()
+            .catch((e) => serverLog(`Delete reconciler: tick failed: ${(e as Error).message}`))
             .finally(() => { running = false; });
     };
     run();

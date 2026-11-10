@@ -9,6 +9,7 @@ import { uploadToFiler } from "./pipeline.js";
 import { getVolumeId } from "./volume.js";
 import { startUploadWorkflow } from "./temporal/client.js";
 import { bodySizeMismatch, createBodyTrimmer, parseHeadersFromUpload, type BodyTrimmer } from "./multipart.js";
+import { guessFileExtension } from "./filetype.js";
 
 //Retreives a database client and randomized url that has not been used before
 const getURL = async function(){
@@ -297,31 +298,6 @@ export async function uploadToS3Inner(url: string, key: string, mimeType: string
             //console.error(e["$response"]);
         }
     }
-    // res2 => {
-    //   '$metadata': {
-    //     httpStatusCode: 200,
-    //     requestId: 'tx000007c48809e86c8110a-0066fb427c-148abbdc-nyc3d',
-    //     extendedRequestId: undefined,
-    //     cfId: undefined,
-    //     attempts: 1,
-    //     totalRetryDelay: 0
-    //   },
-    //   Bucket: 'imagehost-files',
-    //   ETag: '0bb64710e6054c644f1ee581734ca2f4-1',
-    //   Key: 'public-prod/YTUS',
-    //   Location: 'nyc3.digitaloceanspaces.com/imagehost-files/public-prod/YTUS'
-    // }
-
-    // https://nyc3.digitaloceanspaces.com/imagehost-files/dev/ABCD
-    let baseLocation = `https://${res2.Location}`;
-    // https://imagehost-files.nyc3.cdn.digitaloceanspaces.com/dev/ABCD
-    let locationStart = /[^.+]+/.exec(res2.Location)[0];
-    let cdn = `https://${res2.Bucket}.${locationStart}.cdn.digitaloceanspaces.com/${key}`;
-    U.query.index.updateOne({_id: url}, {$set: {
-        cdn,
-    }}).then(() => {
-        console.log(`Updated CDN link for ${url} to ${cdn}`);
-    });
 }
 
 //TODO
@@ -427,7 +403,7 @@ export default async function(server, reqx){
             .catch(e => serverLog(`volumeId write failed for ${url}: ${(e as Error).message}`));
 
         //Try to guess a file extension (for posting to reddit and stuff)
-        let fileExtension = U.guessFileExtension(headers.filename);
+        let fileExtension = guessFileExtension(headers.filename);
 
         // Best-effort first hop to the central filer before responding. On failure
         // the workflow's ingest step (on this volume's queue) retries it.
@@ -522,9 +498,9 @@ export default async function(server, reqx){
             //Check the uploaders key (Sharex passes this as 'name="xxxx"')
             //console.log(headers);
             const ip = reqx.req.socket.remoteAddress;
-            U.query.users.findOne({key: headers.key}).then(item => {
+            U.query.users.findOne({key: headers.key, disabled: {$ne: true}}).then(item => {
                 if(!item) {
-                    error("You must supply a valid key in order to upload.");
+                    error("You must supply a valid key in order to upload.", 403);
                     return;
                 }
 

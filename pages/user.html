@@ -1133,30 +1133,31 @@ function app() {
 
         async juushDelete(ul) {
             try {
-                const res = await fetch('/f/' + ul._id + '/delete');
+                const res = await fetch('/f/' + ul._id + '/delete', { method: 'POST' });
                 if (res.ok) { ul.type = 'deleted'; ul.mimetype = 'deleted'; }
-                else { ul.err = res.statusText; }
+                else { ul.err = (await res.text()) || res.statusText; }
             } catch(e) { ul.err = e.message; }
         },
 
         async juushRename(ul) {
             try {
-                const res = await fetch('/f/' + ul._id + '/rename/' + encodeURIComponent(ul.newName));
+                const res = await fetch('/f/' + ul._id + '/rename', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: ul.newName }),
+                });
                 if (res.ok) {
                     ul.filename = await res.text();
                     ul.filenameShort = ul.filename.length > 15 ? ul.filename.substring(0, 12) + '...' : ul.filename;
-                } else { ul.err = res.statusText; }
+                } else { ul.err = (await res.text()) || res.statusText; }
             } catch(e) { ul.err = e.message; }
         },
 
         async juushHides(ul, nowHidden) {
-            const url = nowHidden ? '/hide' : '/unhide';
             try {
-                const res = await fetch('/f/' + ul._id + url);
+                const res = await fetch('/f/' + ul._id + (nowHidden ? '/hide' : '/unhide'), { method: 'POST' });
                 if (res.ok) {
                     if (!ul.modifiers) ul.modifiers = {};
                     ul.modifiers.hidden = nowHidden;
-                } else { ul.err = res.statusText; }
+                } else { ul.err = (await res.text()) || res.statusText; }
             } catch(e) { ul.err = e.message; }
         },
 
@@ -1168,7 +1169,7 @@ function app() {
                 if (res.ok) {
                     ul.reprocessMsg = 'Queued';
                 } else {
-                    ul.reprocessMsg = res.status + ' ' + res.statusText;
+                    ul.reprocessMsg = res.status + ' ' + ((await res.text()) || res.statusText);
                 }
             } catch(e) {
                 ul.reprocessMsg = e.message;

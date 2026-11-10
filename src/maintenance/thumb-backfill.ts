@@ -2,8 +2,8 @@
  * Backfills WebP thumbnails and blur previews for existing image uploads.
  *
  * Images only: no video thumbnails, no web MP4, no CDN re-upload of originals.
- * `processUpload` cannot be reused because it interleaves those steps, so this
- * walks the index itself and writes exactly the same artifacts and fields:
+ * It walks the index itself rather than starting upload workflows, and writes
+ * exactly the same artifacts and fields:
  *   <id>.thumb.webp   -> Seaweed (image/webp) and Spaces (public-read)
  *   artifacts.thumbnail = "<bucket>/<id>.thumb.webp"
  *   thumb             = CDN URL, only when the Spaces copy exists

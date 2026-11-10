@@ -8,16 +8,27 @@ import type { Writable } from "node:stream";
 import { GetObjectCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createHash } from "node:crypto";
 import { humanFileSize } from "./upload.js";
-import { isOriginalDisposition } from "./dispositions.js";
+import { contentDisposition, isInlineSafe, isMutationVerb, isOriginalDisposition } from "./dispositions.js";
+import { classifyUpload } from "./filetype.js";
+import { EMBED_VIDEO_MAX_BYTES, EMBED_VIDEO_TYPES, isUnfurlBot, renderEmbedHtml } from "./embed.js";
 
 let curDownloading = {};
 
 //A Range header indicates a streaming request — serves 206 Partial Content
 const isStreamRequest = req => !!req.headers.range;
 
+// Link unfurlers fetch every pasted link; those fetches are not downloads.
+const countDownload = (reqx, id: string) => {
+    if(isUnfurlBot(reqx.req.headers["user-agent"])) return;
+    U.query.index.updateOne({_id: id}, {
+        $inc: {downloads: 1},
+        $set: {lastdownload: new Date()},
+    }).catch(err => serverLog("Error when incrementing download. " + id, err));
+};
+
 //This will serve a stream request. It does no kind of validation to see
 //if the user can actually access that content.
-const serveStreamRequest = async function(reqx, uploadID, filepath, data){
+const serveStreamRequest = async function(reqx, uploadID, filepath, data, disposition: string | undefined){
     const rangeRequestRegex = /bytes=(\d*)-(\d*)/;
 
     let stat;
@@ -68,7 +79,8 @@ const serveStreamRequest = async function(reqx, uploadID, filepath, data){
 
     reqx.res.writeHead(206, { //Partial content
         "Content-Type": data?.mimetype || "application/octet-stream",
-        "Content-Disposition": "inline" + (data?.filename ? `; filename="${data.filename}"` : ""),
+        "Content-Disposition": contentDisposition(disposition === "dl" || !isInlineSafe(data?.mimetype) ? "attachment" : "inline", data?.filename),
+        "X-Content-Type-Options": "nosniff",
         "Content-Length": contentLength,
         "Content-Range": `bytes ${bytesString}`,
         "Accept-Ranges": "bytes",
@@ -87,34 +99,6 @@ const serveStreamRequest = async function(reqx, uploadID, filepath, data){
     pipeline(filePipe, reqx.res, () => {});
 };
 
-const setMimeType = async function(id, newmime){
-    return await Promise.all([
-        U.query.index.updateOne({_id: id}, {$set: {mimetype: newmime}}),
-        // The file here is only a cache: it may never have been fetched on this pod, or may have
-        // been evicted. A missing file must not turn an otherwise successful delete into a 500.
-        newmime === "deleted" && fs.unlink(U.getFilename(id)).catch(() => {}),
-    ]);
-};
-
-const shouldInline = function(__filedata, __mime){
-    //const inlineTypes = [
-        //"txt", "text", "png", "jpg", "jpeg", "html",
-        //"webm", "mp4", "mp3", "wav", "vorbis"
-    //];
-    //Mimetype is supplied by the user, meaning the subset may not exist
-
-    //const regex = /(.+)\/?(.+)?/g;
-    //var regexResult = regex.exec(mime);
-    //var category = regexResult[1];
-    //var subset = regexResult[2];
-
-    //return category === "video" || category === "audio" ||
-        //category === "image" || category === "text";
-
-    //just let the browser decide
-    return true;
-};
-
 // Streams an object from the filer (web MP4, thumbnail). The filer is reached only
 // through MINIO_ENDPOINT_URL (in-cluster at home, the WireGuard proxy on DO);
 // clients are never redirected to it. Returns false when nothing was written, so
@@ -124,6 +108,7 @@ const serveFilerObject = async function(reqx, key: string, contentType: string, 
     const headers: Record<string, string> = {
         "Content-Type": contentType,
         "Content-Disposition": disposition,
+        "X-Content-Type-Options": "nosniff",
         "Accept-Ranges": "bytes",
         "Cache-Control": "max-age=300",
     };
@@ -297,11 +282,6 @@ const processDownload = async function(reqx, data, disposition){
     const uploadID = data._id;
     const filepath = U.getFilename(uploadID);
 
-    if(data.mimetype === "deleted"){
-        reqx.doHTML("This file has been deleted.", 410);
-        return;
-    }
-
     //Try to get file details
     let stat: Stats;
     try{
@@ -336,54 +316,21 @@ const processDownload = async function(reqx, data, disposition){
     // Skip for explicit original requests (orig, original, dl) and thumbnails.
     if(data.cdn && !isOriginalDisposition(disposition) && disposition !== "thumb" && disposition !== "cdn"){
         reqx.extraLog = "CDN serve".yellow;
-        U.query.index.updateOne({_id: uploadID}, {
-            $inc: {downloads: 1},
-            $set: {lastdownload: new Date()},
-        }).catch(() => {});
+        countDownload(reqx, uploadID);
         reqx.res.writeHead(302, { "Location": data.cdn });
         reqx.res.end();
         return;
     }
-    //What to do with the content:
-    //  inline, attachment (download)
-    let codisp = "inline";
+    //What to do with the content: inline only for types that cannot run script on our origin
+    const codisp = contentDisposition(disposition === "dl" || !isInlineSafe(data.mimetype) ? "attachment" : "inline", data.filename);
+    if(disposition === "thumb") incDL = false;
 
-    let skipresponse = false;
-
-    //dl for download
-    if(disposition === "dl"){
-        codisp = "attachment";
-    //thumbnail
-    }else if(disposition === "thumb"){
-        incDL = false;
-    }else{
-        //Guess what should be done
-        /* istanbul ignore else */
-        if(shouldInline(stat, data.mimetype)){
-            //NOOP
-        }else{
-            codisp = "attachment";
-        }
-    }
-    //Send filename with content-disposition
-    codisp += '; filename="' + data.filename + '"';
-
-    if(incDL){
-        U.query.index.updateOne({_id: uploadID}, {
-            $inc: {downloads: 1},
-            $set: {lastdownload: new Date()},
-        }).catch(err => {
-            serverLog("Error when incrementing download. " + uploadID, err);
-        });
-    }
-
-    if(skipresponse) {
-        return;
-    }
+    if(incDL) countDownload(reqx, uploadID);
 
     reqx.res.writeHead(200, {
         "Content-Type": data.mimetype,
         "Content-Disposition": codisp,
+        "X-Content-Type-Options": "nosniff",
         "Content-Length": stat.size,
         "Cache-Control": "max-age=300",
         "Accept-Ranges": "bytes",
@@ -405,10 +352,6 @@ const processDownload = async function(reqx, data, disposition){
 // Thumbnail: the CDN WebP, else the filer copy, else (images only) the image itself.
 // Other types without a thumbnail get a 1x1 GIF instead of the full file.
 const serveThumb = async function(reqx, data){
-    if(data.mimetype === "deleted"){
-        reqx.doHTML("This file has been deleted.", 410);
-        return;
-    }
     if(data.thumb){
         reqx.extraLog = "CDN thumb".yellow;
         reqx.res.writeHead(302, { "Location": data.thumb });
@@ -437,21 +380,63 @@ const serveThumb = async function(reqx, data){
     reqx.res.end(Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"));
 };
 
-//Returns true if there is an auth error. also handles reqx
-const accessCheck = async function(uploadID, reqx){
-    const ip = reqx.req.socket.remoteAddress;
-    const canDo = await U.ipHasAccess(ip, uploadID);
+const writeEmbed = (reqx, html: string) => {
+    reqx.res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Vary": "User-Agent" });
+    reqx.res.end(html);
+};
 
-    if(canDo === "NOFILE"){
-        reqx.doHTML("That file does not exist", 404);
-        return true;
-    }else if(canDo === "NOACCESS"){
-        reqx.doHTML("You do not have access to rename this file.", 401);
-        return true;
-    }else if(canDo){
-        reqx.doHTML("AccessError: E" + canDo, 407);
-        return true;
+// Link unfurlers (Discord, Slack, ...): returns false to fall through to the raw bytes.
+const serveEmbed = async function(reqx, data): Promise<boolean> {
+    const kind = classifyUpload(data.mimetype, data.filename);
+    // Discord expands a direct image link on its own.
+    if(((kind === "image" || kind === "gif") && isInlineSafe(data.mimetype)) || String(data.mimetype).startsWith("audio/")) return false;
+
+    const host = reqx.req.headers.host;
+    const poster = data.thumb || (data.artifacts?.thumbnail ? `https://${host}/f/${data._id}/thumb` : undefined);
+    const uploaded = data.uploaddate ? new Date(data.uploaddate) : null;
+    const base = {
+        siteName: host,
+        title: data.filename || data._id,
+        pubdate: uploaded && !isNaN(uploaded.getTime()) ? uploaded.toISOString() : undefined,
+    };
+
+    // The player only when the CDN copy is a browser format small enough for Discord's player.
+    if(kind === "video" && data.cdn && poster){
+        const head = await fetch(data.cdn, { method: "HEAD", signal: AbortSignal.timeout(3000) }).catch(() => null);
+        const type = (head?.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+        const size = Number(head?.headers.get("content-length"));
+        if(head?.ok && Object.hasOwn(EMBED_VIDEO_TYPES, type) && size > 0 && size <= EMBED_VIDEO_MAX_BYTES){
+            reqx.extraLog = "embed video".yellow;
+            writeEmbed(reqx, renderEmbedHtml({ ...base, image: poster, video: { url: data.cdn, type } }));
+            return true;
+        }
     }
+
+    let size: number | undefined;
+    try {
+        size = (await fs.stat(U.getFilename(data._id))).size;
+    } catch(_) {
+        size = await U.minio_client.send(
+            new HeadObjectCommand({ Bucket: process.env.BUCKET || "imagehost-files", Key: data._id }),
+            { abortSignal: AbortSignal.timeout(3000) },
+        ).then(h => h.ContentLength, () => undefined);
+    }
+    // Discord plays a direct link to a small MP4/WebM/MOV on its own: uploads still being
+    // processed, or without a thumbnail, get the bytes (or the CDN redirect) as before.
+    const essence = String(data.mimetype ?? "").split(";")[0].trim().toLowerCase();
+    if(kind === "video" && Object.hasOwn(EMBED_VIDEO_TYPES, essence) && size !== undefined && size <= EMBED_VIDEO_MAX_BYTES) return false;
+    // A missing keyid would match every user without a juush_user_id.
+    const owner = data.keyid != null
+        ? await U.query.users.findOne({ juush_user_id: data.keyid }, { projection: { display_name: 1 } })
+        : null;
+    const description = [
+        data.mimetype,
+        size !== undefined ? humanFileSize(size) : null,
+        owner?.display_name ? `uploaded by ${owner.display_name}` : null,
+    ].filter(Boolean).join(" · ");
+    reqx.extraLog = "embed card".yellow;
+    writeEmbed(reqx, renderEmbedHtml({ ...base, description, image: poster }));
+    return true;
 };
 
 const download = async function(server, reqx){
@@ -466,7 +451,7 @@ const download = async function(server, reqx){
     uploadID = uploadID.split(".")[0];
 
     const result = await U.query.index.findOne({_id: uploadID},
-        { projection: { mimetype: 1, filename: 1, cdn: 1, thumb: 1, artifacts: 1 } }
+        { projection: { mimetype: 1, filename: 1, cdn: 1, thumb: 1, artifacts: 1, keyid: 1, uploaddate: 1 } }
     );
     if(!result){
         reqx.doHTML("This upload does not exist", 404);
@@ -475,6 +460,18 @@ const download = async function(server, reqx){
 
     //What the user wants to do with the file
     const disposition = reqx.urldata.path[2];
+    // Both gates sit before the Range branch, so a Range header cannot bypass them.
+    if(isMutationVerb(disposition)){
+        reqx.res.writeHead(405, { "Allow": "POST", "Content-Type": "text/plain" });
+        reqx.res.end("Use POST");
+        return;
+    }
+    if(result.mimetype === "deleted"){
+        reqx.doHTML("This file has been deleted.", 410);
+        return;
+    }
+    if(disposition === undefined && isUnfurlBot(reqx.req.headers["user-agent"]) && await serveEmbed(reqx, result)) return;
+
     const wantsOriginal = isOriginalDisposition(disposition);
     if(disposition === "thumb") return serveThumb(reqx, result);
 
@@ -482,10 +479,7 @@ const download = async function(server, reqx){
         // Modify extraLog
         reqx.extraLog = "CDN redirect".yellow;
 
-        await U.query.index.updateOne({_id: uploadID}, {
-            $inc: {downloads: 1},
-            $set: {lastdownload: new Date()},
-        })
+        countDownload(reqx, uploadID);
 
         // Permanent redirect = 301
         // Temp redirect = 302
@@ -497,33 +491,21 @@ const download = async function(server, reqx){
     }
 
     // No CDN copy (over 150 MB): serve the web MP4 from the filer; the original stays on /orig and /dl.
-    if(!result.cdn && result.artifacts?.faststart && result.mimetype !== "deleted" && (disposition === undefined || disposition === "cdn")){
-        if(await serveFilerObject(reqx, U.artifactKey(result.artifacts.faststart), "video/mp4", `inline; filename="${result.filename}"`)){
+    if(!result.cdn && result.artifacts?.faststart && (disposition === undefined || disposition === "cdn")){
+        if(await serveFilerObject(reqx, U.artifactKey(result.artifacts.faststart), "video/mp4", contentDisposition("inline", result.filename))){
             reqx.extraLog = "filer web".yellow;
             const range = reqx.req.headers.range;
-            if(!range || range.startsWith("bytes=0-")){
-                U.query.index.updateOne({_id: uploadID}, {
-                    $inc: {downloads: 1},
-                    $set: {lastdownload: new Date()},
-                }).catch(() => {});
-            }
+            if(!range || range.startsWith("bytes=0-")) countDownload(reqx, uploadID);
             return;
         }
     }
 
 
     if(isStreamRequest(reqx.req)){
-        if(result.mimetype === "deleted"){
-            reqx.doHTML("This file has been deleted.", 410);
-            return;
-        }
         // Same CDN preference as processDownload: browsers range-request the CDN copy.
         if(result.cdn && !wantsOriginal){
             reqx.extraLog = "CDN serve".yellow;
-            U.query.index.updateOne({_id: uploadID}, {
-                $inc: {downloads: 1},
-                $set: {lastdownload: new Date()},
-            }).catch(() => {});
+            countDownload(reqx, uploadID);
             reqx.res.writeHead(302, { "Location": result.cdn });
             reqx.res.end();
             return;
@@ -540,15 +522,10 @@ const download = async function(server, reqx){
                 return;
             }
         }
-        return serveStreamRequest(reqx, uploadID, filepath, result);
+        return serveStreamRequest(reqx, uploadID, filepath, result, disposition);
     }
 
-    if(disposition === "delete"){
-        if(await accessCheck(uploadID, reqx)) return;
-
-        const __result = await setMimeType(uploadID, "deleted");
-        reqx.doHTML("File successfully deleted. It will still appear in your user page.");
-    }else if(disposition === "info"){
+    if(disposition === "info"){
         const res = reqx.res;
         const data = await U.query.index.findOne({_id: uploadID});
         if(!data){
@@ -559,7 +536,8 @@ const download = async function(server, reqx){
             return;
         }
 
-        const user = await U.query.users.findOne({juush_user_id: data.keyid});
+        // A missing keyid would match every user without a juush_user_id.
+        const user = data.keyid != null ? await U.query.users.findOne({juush_user_id: data.keyid}) : null;
         const esc = (s: string) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
         res.writeHead(200, {
@@ -567,37 +545,10 @@ const download = async function(server, reqx){
         });
         res.write("Filename: " + esc(data.filename));
         res.write("<br>Upload date: " + data.uploaddate);
-        res.write("<br>Uploaded by: " + esc(user.display_name));
+        res.write("<br>Uploaded by: " + esc(user?.display_name ?? "unknown"));
         res.write("<br>Downloads: " + data.downloads);
         res.write("<br>File Type: " + esc(data.mimetype));
         res.end();
-    }else if(disposition === "rename"){
-        if(await accessCheck(uploadID, reqx)) return;
-
-        const oldName = (await U.query.index.findOne({_id: uploadID}, {filename: 1})).filename;
-        const newName = decodeURI(reqx.urldata.path[3]);
-        const oldFileExt = U.guessFileExtension(oldName);
-        const newFileExt = U.guessFileExtension(newName);
-
-        let name = newName;
-
-        if(!newFileExt && oldFileExt){
-            name += "." + oldFileExt;
-        }
-
-        await U.query.index.updateOne({_id: uploadID}, {$set: {filename: name}});
-
-        reqx.res.end(name);
-    }else if(disposition === "hide"){
-        if(await accessCheck(uploadID, reqx)) return;
-
-        await U.setModifier(uploadID, "hidden", true);
-        reqx.res.end("hidden");
-    }else if(disposition === "unhide"){
-        if(await accessCheck(uploadID, reqx)) return;
-
-        await U.setModifier(uploadID, "hidden", undefined);
-        reqx.res.end("unhidden");
     }else{
         await processDownload(reqx, result, disposition);
     }

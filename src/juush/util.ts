@@ -245,45 +245,9 @@ export const randomStr = function(length = 32){
     return str;
 };
 
-export const guessFileExtension = filename => {
-    if(!filename) return null;
-
-    let fileExtension = filename.split(".");
-    //No extension
-    if(fileExtension.length === 1) return null;
-    fileExtension = fileExtension[fileExtension.length - 1];
-    //extension too long
-    if(fileExtension.length > 8) return null;
-    return fileExtension;
-};
-
-export const IPEqual = (a, b) => a && b && a.split("/")[0] === b.split("/")[0];
 export const getFilename = id => "./juushFiles/" + id;
 // Mongo `artifacts.*` values are "<bucket>/<key>".
 export const artifactKey = (p: string): string => p.slice(p.indexOf("/") + 1);
-
-export const ipHasAccess = async (ip, uploadID) => {
-    //"SELECT ip FROM index WHERE keyid=(SELECT keyid FROM index WHERE id=$1) GROUP BY ip ORDER BY max(uploaddate)",
-    const keyid = (await query.index.findOne({_id: uploadID}, {keyid: 1})).keyid;
-    if(!keyid) return "NOFILE";
-
-    const result = await query.index
-        .find({keyid}, {uploaddate: 1, ip: 1})
-        //.sort({uploaddate: 1})
-        .toArray();
-
-    if(result.length === 0){
-        return "NOUPLOADS";
-    }
-
-    for(let x of result){
-        if(IPEqual(x.ip, ip)){
-            return false;
-        }
-    }
-
-    return "NOACCESS";
-};
 
 export const setModifier = async (uploadID, modifier, value) => {
     const isUnset = value === undefined;
