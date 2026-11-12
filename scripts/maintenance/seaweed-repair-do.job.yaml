@@ -43,10 +43,10 @@ spec:
               value: "http://home-tunnel-proxy.default.svc.cluster.local:8333"
             - name: MINIO_ACCESS_KEY
               valueFrom:
-                secretKeyRef: {name: minio-credentials, key: MINIO_ACCESS_KEY}
+                secretKeyRef: {name: seaweedfs-credentials, key: SEAWEEDFS_ACCESS_KEY}
             - name: MINIO_SECRET_KEY
               valueFrom:
-                secretKeyRef: {name: minio-credentials, key: MINIO_SECRET_KEY}
+                secretKeyRef: {name: seaweedfs-credentials, key: SEAWEEDFS_SECRET_KEY}
             - name: BUCKET
               value: imagehost-files
             - name: FOLDER
