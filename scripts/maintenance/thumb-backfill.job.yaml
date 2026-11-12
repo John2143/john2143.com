@@ -41,18 +41,18 @@ spec:
               value: "http://seaweedfs-s3.default.svc.cluster.local:8333"
             - name: MINIO_ACCESS_KEY
               valueFrom:
-                secretKeyRef: {name: minio-creds, key: S3_ACCESS_KEY}
+                secretKeyRef: {name: seaweedfs-credentials, key: SEAWEEDFS_ACCESS_KEY}
             - name: MINIO_SECRET_KEY
               valueFrom:
-                secretKeyRef: {name: minio-creds, key: S3_SECRET_KEY}
+                secretKeyRef: {name: seaweedfs-credentials, key: SEAWEEDFS_SECRET_KEY}
             - name: S3_ENDPOINT_URL
               value: "https://nyc3.digitaloceanspaces.com"
             - name: S3_ACCESS_KEY
               valueFrom:
-                secretKeyRef: {name: minio-credentials, key: S3_ACCESS_KEY}
+                secretKeyRef: {name: spaces-credentials, key: S3_ACCESS_KEY}
             - name: S3_SECRET_KEY
               valueFrom:
-                secretKeyRef: {name: minio-credentials, key: S3_SECRET_KEY}
+                secretKeyRef: {name: spaces-credentials, key: S3_SECRET_KEY}
             - name: BUCKET
               value: "imagehost-files"
             - name: FOLDER
