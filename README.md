@@ -36,6 +36,26 @@ juush. Access /nuser/<name> to create users and obtain their upload key.
 
 **Purges.** A delete starts `delete-<id>` (3 activities: CDN, filer, mark). Verify one with `temporal workflow show` and by checking `purgedAt`. A purge that failed is retried hourly by the delete reconciler. The one-time purge of tombstones that predate `deletedAt` runs from `scripts/maintenance/stamp-legacy-deletes.job.yaml` (`DRY_RUN=1`, then `LIMIT=5`, then `LIMIT=0`; `UNDO=1` works until the first purge of that batch, about 10 minutes).
 
+## Deploying
+
+Every push to `master`, including a PR merge, builds both images on the self-hosted runner and
+then runs `update-prod` and `update-argo`. Those two jobs bump the image tags in
+`2143-Labs/2143-k8s` (`overlays/prod`) and `2143-Labs/argo` (`workloads/imageserver`,
+`workloads/john2143-worker`, including `unsafeCustomBuildID`). Both sit in the GitHub
+`production` environment, so they wait for a manual approval before anything reaches a cluster.
+
+For a change that should not deploy, such as docs or a maintenance manifest: merge it, then
+cancel the `master` run instead of approving:
+
+```bash
+gh run list -R John2143/john2143.com --branch master --event push --limit 1 --json databaseId
+gh run cancel <id> -R John2143/john2143.com
+```
+
+Squash merges are disabled on this repository, so `gh pr merge --merge` (or the button's
+default) is required. A commit message containing `[direct-prod]` skips the `production`
+approval and deploys immediately - never use it for a change you have not rolled out yet.
+
 ## Sharex Settings
  1. Go to destination settings
  2. Scroll to custom uploader
